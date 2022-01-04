@@ -1,0 +1,8 @@
+AT_INIT
+AT_BANNER([Regression tests.])
+
+#AT_SETUP([foobar])
+#AT_KEYWORDS([foobar])
+#cat $abs_srcdir/foobar/foobar_test.ok > expout
+#AT_CHECK([$abs_top_builddir/tests/foobar/foobar_test], [], [expout], [ignore])
+#AT_CLEANUP

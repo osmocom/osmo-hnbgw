@@ -1,0 +1,51 @@
+Source: osmo-hnbgw
+Section: net
+Priority: extra
+Maintainer: Osmocom team <openbsc@lists.osmocom.org>
+Build-Depends: debhelper (>=9),
+               dh-autoreconf,
+               autotools-dev,
+               autoconf,
+               autoconf-archive,
+               automake,
+               libtool,
+               pkg-config,
+               python3-minimal,
+               libtalloc-dev,
+               libasn1c-dev (>= 0.9.30),
+               libsctp-dev,
+               libosmocore-dev (>= 1.6.0),
+               libosmo-sigtran-dev (>= 1.5.0),
+               libosmo-abis-dev (>= 1.2.0),
+               libosmo-netif-dev (>= 1.1.0),
+               libosmo-hnbap-dev (>= 1.1.0),
+               libosmo-ranap-dev (>= 1.1.0),
+               libosmo-rua-dev (>= 1.1.0),
+               osmo-gsm-manuals-dev (>= 1.2.0)
+Standards-Version: 3.9.8
+Vcs-Git: git://git.osmocom.org/osmo-hnbgw.git
+Vcs-Browser: https://git.osmocom.org/osmo-hnbgw/
+Homepage: https://projects.osmocom.org/projects/osmo-hnbgw
+
+Package: osmo-hnbgw
+Architecture: any
+Multi-Arch: foreign
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Recommends: osmo-mgw
+Description: OsmoHNBGW: Osmocom Home Node B Gateway
+
+Package: osmo-hnbgw-dbg
+Section: debug
+Architecture: any
+Multi-Arch: same
+Depends: osmo-hnbgw (= ${binary:Version}), ${misc:Depends}
+Description: OsmoHNBGW: Osmocom Home Node B Gateway
+
+Package: osmo-hnbgw-doc
+Architecture: all
+Section: doc
+Priority: optional
+Depends: ${misc:Depends}
+Description: ${misc:Package} PDF documentation
+ Various manuals: user manual, VTY reference manual and/or
+ protocol/interface manuals.
