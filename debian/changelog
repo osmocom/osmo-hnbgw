@@ -1,3 +1,10 @@
+osmo-hnbgw (1.2.0) unstable; urgency=medium
+
+  * Initial structure + import code from osmo-iuh.git
+  * Populate debian/changelog to avoid build failures
+
+ -- Pau Espin Pedrol <pespin@sysmocom.de>  Wed, 05 Jan 2022 12:17:16 +0100
+
 osmo-hnbgw (0.0.0) unstable; urgency=medium
 
   * Initial debian package
