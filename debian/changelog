@@ -1,1 +1,5 @@
+osmo-hnbgw (0.0.0) unstable; urgency=medium
 
+  * Initial debian package
+
+ -- Pau Espin Pedrol <pespin@sysmocom.de>  Wed, 05 Jan 2022 11:58:28 +0200
