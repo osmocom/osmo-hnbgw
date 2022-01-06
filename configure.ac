@@ -60,7 +60,7 @@ PKG_CHECK_MODULES(LIBOSMOSIGTRAN, libosmo-sigtran >= 1.5.0)
 PKG_CHECK_MODULES(LIBOSMORUA, libosmo-rua >= 1.1.0)
 PKG_CHECK_MODULES(LIBOSMORANAP, libosmo-ranap >= 1.1.0)
 PKG_CHECK_MODULES(LIBOSMOHNBAP, libosmo-hnbap >= 1.1.0)
-
+PKG_CHECK_MODULES(LIBOSMOMGCPCLIENT, libosmo-mgcp-client >= 1.9.0)
 
 dnl checks for header files
 AC_HEADER_STDC

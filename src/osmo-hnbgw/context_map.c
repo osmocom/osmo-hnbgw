@@ -26,6 +26,7 @@
 
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/context_map.h>
+#include <osmocom/hnbgw/mgw_fsm.h>
 
 const struct value_string hnbgw_context_map_state_names[] = {
 	{MAP_S_NULL     , "not-initialized"},
@@ -137,6 +138,13 @@ void context_map_deactivate(struct hnbgw_context_map *map)
 
 	if (map->state != MAP_S_RESERVED2)
 		map->state = MAP_S_RESERVED1;
+
+	/* a possibly still existing MGW FSM must be termiated when the context
+	 * map is deactivated. (this is a cornercase) */
+	if (map->mgw_fi) {
+		mgw_fsm_release(map);
+		OSMO_ASSERT(map->mgw_fi == NULL);
+	}
 }
 
 static struct osmo_timer_list context_map_tmr;

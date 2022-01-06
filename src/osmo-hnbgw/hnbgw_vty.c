@@ -22,14 +22,18 @@
 
 #include <osmocom/core/socket.h>
 #include <osmocom/vty/command.h>
+#include <osmocom/vty/tdef_vty.h>
 
 #include <osmocom/hnbgw/vty.h>
 
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/context_map.h>
+#include <osmocom/hnbgw/tdefs.h>
 #include <osmocom/sigtran/protocol/sua.h>
 #include <osmocom/sigtran/sccp_helpers.h>
 #include <osmocom/netif/stream.h>
+
+#include <osmocom/mgcp_client/mgcp_client.h>
 
 static void *tall_hnb_ctx = NULL;
 static struct hnb_gw *g_hnb_gw = NULL;
@@ -86,12 +90,29 @@ DEFUN(cfg_hnbgw_iups, cfg_hnbgw_iups_cmd,
 	return CMD_SUCCESS;
 }
 
+static struct cmd_node mgcp_node = {
+	MGCP_NODE,
+	"%s(config-hnbgw-mgcp)# ",
+	1,
+};
+
+DEFUN(cfg_hnbgw_mgcp, cfg_hnbgw_mgcp_cmd,
+      "mgcp", "Configure MGCP client")
+{
+	vty->node = MGCP_NODE;
+	return CMD_SUCCESS;
+}
+
 int hnbgw_vty_go_parent(struct vty *vty)
 {
 	switch (vty->node) {
 	case IUH_NODE:
 	case IUCS_NODE:
 	case IUPS_NODE:
+		vty->node = HNBGW_NODE;
+		vty->index = NULL;
+		break;
+	case MGCP_NODE:
 		vty->node = HNBGW_NODE;
 		vty->index = NULL;
 		break;
@@ -382,6 +403,14 @@ static int config_write_hnbgw_iups(struct vty *vty)
 	return CMD_SUCCESS;
 }
 
+static int config_write_hnbgw_mgcp(struct vty *vty)
+{
+	vty_out(vty, " mgcp%s", VTY_NEWLINE);
+	mgcp_client_config_write(vty, "  ");
+
+	return CMD_SUCCESS;
+}
+
 void hnbgw_vty_init(struct hnb_gw *gw, void *tall_ctx)
 {
 	g_hnb_gw = gw;
@@ -415,4 +444,10 @@ void hnbgw_vty_init(struct hnb_gw *gw, void *tall_ctx)
 	install_element_ve(&show_one_hnb_cmd);
 	install_element_ve(&show_ue_cmd);
 	install_element_ve(&show_talloc_cmd);
+
+	install_element(HNBGW_NODE, &cfg_hnbgw_mgcp_cmd);
+	install_node(&mgcp_node, config_write_hnbgw_mgcp);
+
+	mgcp_client_vty_init(tall_hnb_ctx, MGCP_NODE, g_hnb_gw->config.mgcp_client);
+	osmo_tdef_vty_groups_init(HNBGW_NODE, hnbgw_tdef_group);
 }

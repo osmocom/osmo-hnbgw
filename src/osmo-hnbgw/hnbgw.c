@@ -52,6 +52,8 @@
 #include <osmocom/vty/command.h>
 #include <osmocom/vty/ports.h>
 
+#include <osmocom/mgcp_client/mgcp_client.h>
+
 #include <osmocom/netif/stream.h>
 
 #include <osmocom/ranap/ranap_common.h>
@@ -91,6 +93,9 @@ static struct hnb_gw *hnb_gw_create(void *ctx)
 	INIT_LLIST_HEAD(&gw->ue_list);
 
 	context_map_init(gw);
+
+	gw->config.mgcp_client = talloc_zero(tall_hnb_ctx, struct mgcp_client_conf);
+	mgcp_client_conf_init(gw->config.mgcp_client);
 
 	return gw;
 }
@@ -371,6 +376,11 @@ static const struct log_info_cat log_cat[] = {
 		.name = "DRANAP", .loglevel = LOGL_NOTICE, .enabled = 1,
 		.color = "",
 		.description = "RAN Application Part",
+	},
+	[DMGW] = {
+		.name = "DMGW", .loglevel = LOGL_NOTICE, .enabled = 1,
+		.color = "\033[1;33m",
+		.description = "Media Gateway",
 	},
 };
 
@@ -680,6 +690,19 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 	g_hnb_gw->iuh = srv;
+
+	/* Initialize and connect MGCP client. */
+	g_hnb_gw->mgcp_client = mgcp_client_init(tall_hnb_ctx, g_hnb_gw->config.mgcp_client);
+	if (!g_hnb_gw->mgcp_client) {
+		LOGP(DMGW, LOGL_ERROR, "MGW client initalization failed\n");
+		return -EINVAL;
+	}
+	if (mgcp_client_connect(g_hnb_gw->mgcp_client)) {
+		LOGP(DMGW, LOGL_ERROR, "MGW connect failed at (%s:%u)\n",
+		     g_hnb_gw->config.mgcp_client->remote_addr,
+		     g_hnb_gw->config.mgcp_client->remote_port);
+		return -EINVAL;
+	}
 
 	if (hnbgw_cmdline_config.daemonize) {
 		rc = osmo_daemonize();

@@ -19,6 +19,7 @@ AM_CFLAGS = \
 	$(LIBOSMORUA_CFLAGS) \
 	$(LIBOSMORANAP_CFLAGS) \
 	$(LIBOSMOHNBAP_CFLAGS) \
+	$(LIBOSMOMGCPCLIENT_CFLAGS) \
 	$(NULL)
 
 AM_LDFLAGS = \
@@ -38,6 +39,8 @@ osmo_hnbgw_SOURCES = \
 	context_map.c \
 	hnbgw_cn.c \
 	ranap_rab_ass.c \
+	mgw_fsm.c \
+	tdefs.c \
 	$(NULL)
 
 osmo_hnbgw_LDADD = \
@@ -52,5 +55,7 @@ osmo_hnbgw_LDADD = \
 	$(LIBOSMORUA_LIBS) \
 	$(LIBOSMORANAP_LIBS) \
 	$(LIBOSMOHNBAP_LIBS) \
+	$(LIBOSMOMGCPCLIENT_LIBS) \
 	$(LIBSCTP_LIBS) \
+	$(LIBOSMOMGCPCLIENT_LIBS) \
 	$(NULL)

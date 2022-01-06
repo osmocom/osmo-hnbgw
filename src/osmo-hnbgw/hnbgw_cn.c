@@ -34,6 +34,11 @@
 #include <osmocom/ranap/ranap_ies_defs.h>
 #include <osmocom/ranap/ranap_msg_factory.h>
 #include <osmocom/hnbgw/context_map.h>
+#include <osmocom/hnbgw/mgw_fsm.h>
+#include <osmocom/ranap/RANAP_ProcedureCode.h>
+#include <osmocom/ranap/ranap_common.h>
+#include <osmocom/ranap/ranap_common_ran.h>
+#include <osmocom/ranap/RANAP_RANAP-PDU.h>
 
 /***********************************************************************
  * Outbound RANAP RESET to CN
@@ -345,15 +350,40 @@ static int handle_cn_data_ind(struct hnbgw_cnlink *cnlink,
 			      struct osmo_prim_hdr *oph)
 {
 	struct hnbgw_context_map *map;
+	ranap_message *message;
+	int rc;
 
-	/* connection-oriented data is always passed transparently
-	 * towards the specific HNB, via a RUA connection identified by
-	 * conn_id */
+	/* Usually connection-oriented data is always passed transparently towards the specific HNB, via a RUA
+	 * connection identified by conn_id. An exception is made for RANAP RAB AssignmentRequest and
+	 * RANAP RAB AssignmentResponse, since those messages contain transport layer information (RTP stream IP/Port),
+	 * which is rewritten by the FSM that controls the co-located media gateway. */
 
 	map = context_map_by_cn(cnlink, param->conn_id);
 	if (!map) {
 		/* FIXME: Return an error / released primitive */
 		return 0;
+	}
+
+	/* Intercept RAB Assignment Request, Setup MGW FSM */
+	if (!map->is_ps) {
+		message = talloc_zero(map, ranap_message);
+		rc = ranap_ran_rx_co_decode(map, message, msgb_l2(oph->msg), msgb_l2len(oph->msg));
+
+		if (rc == 0) {
+			switch (message->procedureCode) {
+			case RANAP_ProcedureCode_id_RAB_Assignment:
+				/* mgw_fsm_alloc_and_handle_rab_ass_req() takes ownership of (ranap) message */
+				return mgw_fsm_alloc_and_handle_rab_ass_req(map, message);
+			case RANAP_ProcedureCode_id_Iu_Release:
+				/* Any IU Release will terminate the MGW FSM, the message itsself is not passed to the
+				 * FSM code. It is just forwarded normally by the rua_tx_dt() call below. */
+				mgw_fsm_release(map);
+				break;
+			}
+			ranap_ran_rx_co_free(message);
+		}
+
+		talloc_free(message);
 	}
 
 	return rua_tx_dt(map->hnb_ctx, map->is_ps, map->rua_ctx_id,

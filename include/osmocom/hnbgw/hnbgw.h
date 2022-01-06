@@ -16,6 +16,7 @@ enum {
 	DHNBAP,
 	DRUA,
 	DRANAP,
+	DMGW,
 };
 
 #define LOGHNB(x, ss, lvl, fmt, args ...) \
@@ -133,6 +134,7 @@ struct hnb_gw {
 		bool hnbap_allow_tmsi;
 		/*! print hnb-id (true) or MCC-MNC-LAC-RAC-SAC (false) in logs */
 		bool log_prefix_hnb_id;
+		struct mgcp_client_conf *mgcp_client;
 	} config;
 	/*! SCTP listen socket for incoming connections */
 	struct osmo_stream_srv_link *iuh;
@@ -151,6 +153,7 @@ struct hnb_gw {
 		struct osmo_sccp_addr iucs_remote_addr;
 		struct osmo_sccp_addr iups_remote_addr;
 	} sccp;
+	struct mgcp_client *mgcp_client;
 };
 
 extern void *talloc_asn1_ctx;
