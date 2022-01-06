@@ -7,5 +7,6 @@ enum osmo_iuh_vty_node {
 	IUH_NODE,
 	IUCS_NODE,
 	IUPS_NODE,
+	MGCP_NODE,
 };
 

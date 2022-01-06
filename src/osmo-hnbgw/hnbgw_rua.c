@@ -38,6 +38,10 @@
 #include <osmocom/rua/rua_ies_defs.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbap/HNBAP_CN-DomainIndicator.h>
+#include <osmocom/hnbgw/mgw_fsm.h>
+#include <osmocom/ranap/RANAP_ProcedureCode.h>
+#include <osmocom/ranap/ranap_common.h>
+#include <osmocom/ranap/ranap_common_cn.h>
 
 static const char *cn_domain_indicator_to_str(RUA_CN_DomainIndicator_t cN_DomainIndicator)
 {
@@ -186,6 +190,7 @@ static int rua_to_scu(struct hnb_context *hnb,
 	struct osmo_sccp_addr *remote_addr;
 	bool is_ps;
 	bool release_context_map = false;
+	ranap_message *message;
 	int rc;
 
 	switch (cN_DomainIndicator) {
@@ -263,6 +268,23 @@ static int rua_to_scu(struct hnb_context *hnb,
 	if (data && len) {
 		msg->l2h = msgb_put(msg, len);
 		memcpy(msg->l2h, data, len);
+	}
+
+	/* Intercept RAB Assignment Response, inform MGW FSM. */
+	if (map && !map->is_ps && !release_context_map) {
+		message = talloc_zero(map, ranap_message);
+		rc = ranap_cn_rx_co_decode(map, message, msgb_l2(prim->oph.msg), msgb_l2len(prim->oph.msg));
+
+		if (rc == 0) {
+			switch (message->procedureCode) {
+			case RANAP_ProcedureCode_id_RAB_Assignment:
+				/* mgw_fsm_handle_rab_ass_resp() takes ownership of prim->oph and (ranap) message */
+				return mgw_fsm_handle_rab_ass_resp(map, &prim->oph, message);
+			}
+			ranap_cn_rx_co_free(message);
+		}
+
+		talloc_free(message);
 	}
 
 	rc = osmo_sccp_user_sap_down(cn->sccp_user, &prim->oph);
