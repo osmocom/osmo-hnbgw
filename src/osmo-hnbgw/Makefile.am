@@ -37,6 +37,7 @@ osmo_hnbgw_SOURCES = \
 	hnbgw_vty.c \
 	context_map.c \
 	hnbgw_cn.c \
+	ranap_rab_ass.c \
 	$(NULL)
 
 osmo_hnbgw_LDADD = \

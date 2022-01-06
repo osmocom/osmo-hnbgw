@@ -1,4 +1,5 @@
 SUBDIRS = \
+	ranap_rab_ass \
 	$(NULL)
 
 # The `:;' works around a Bash 3.2 bug when the output is not writeable.
