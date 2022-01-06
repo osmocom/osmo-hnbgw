@@ -117,3 +117,25 @@ hnbgw
   local-ip 10.9.8.7
   local-port 29169
 ----
+
+==== Configure co-located media gateway
+
+OsmoHNBGW requires a co-located OsmoMGW instance. The purpose of the co-located
+media gateway is to relay the RTP traffic between hNodeB and the core network.
+
+For security reasons the RAN network is kept separate and isolated from the
+core network. Both networks will usually have no transparent routing in between
+them. The co-located media gateway provides an interface between hNodeB and core
+network across this boundary.
+
+The configuration is done under the hnbgw node along with `iucs` and `iups`.
+
+An example configuration for OsmoHNBGW's MGCP client:
+
+----
+hnbgw
+ mgcp
+  mgw remote-ip 127.0.0.1
+  mgw remote-port 2427
+  mgw reset-endpoint rtpbridge/*
+----
