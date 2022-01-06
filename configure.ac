@@ -221,6 +221,7 @@ AC_OUTPUT(
     src/osmo-hnbgw/Makefile
     tests/Makefile
     tests/atlocal
+    tests/ranap_rab_ass/Makefile
     doc/Makefile
     doc/examples/Makefile
     doc/manuals/Makefile
