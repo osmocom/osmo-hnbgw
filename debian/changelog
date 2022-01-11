@@ -1,3 +1,9 @@
+osmo-hnbgw (1.2.1) unstable; urgency=medium
+
+  * Do not turn some compiler warnings into errors by default
+
+ -- Pau Espin Pedrol <pespin@sysmocom.de>  Tue, 11 Jan 2022 18:55:50 +0100
+
 osmo-hnbgw (1.2.0) unstable; urgency=medium
 
   * Initial structure + import code from osmo-iuh.git
