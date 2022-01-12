@@ -266,7 +266,7 @@ static int handle_cn_ranap(struct hnbgw_cnlink *cnlink, const struct osmo_scu_un
 	int rc;
 
 	memset(pdu, 0, sizeof(*pdu));
-	dec_ret = aper_decode(NULL,&asn_DEF_RANAP_RANAP_PDU, (void **) &pdu,
+	dec_ret = aper_decode(NULL, &asn_DEF_RANAP_RANAP_PDU, (void **) &pdu,
 			      data, len, 0, 0);
 	if (dec_ret.code != RC_OK) {
 		LOGP(DRANAP, LOGL_ERROR, "Error in RANAP ASN.1 decode\n");
