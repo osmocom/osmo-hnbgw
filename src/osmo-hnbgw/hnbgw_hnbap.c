@@ -398,6 +398,7 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	struct hnb_context *hnb;
 	HNBAP_HNBRegisterRequestIEs_t ies;
 	int rc;
+	struct osmo_plmn_id plmn;
 
 	rc = hnbap_decode_hnbregisterrequesties(&ies, in);
 	if (rc < 0) {
@@ -413,7 +414,9 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	ctx->id.sac = asn1str_to_u16(&ies.sac);
 	ctx->id.rac = asn1str_to_u8(&ies.rac);
 	ctx->id.cid = asn1bitstr_to_u28(&ies.cellIdentity);
-	gsm48_mcc_mnc_from_bcd(ies.plmNidentity.buf, &ctx->id.mcc, &ctx->id.mnc);
+	osmo_plmn_from_bcd(ies.plmNidentity.buf, &plmn);
+	ctx->id.mcc = plmn.mcc;
+	ctx->id.mnc = plmn.mnc;
 
 	llist_for_each_entry(hnb, &ctx->gw->hnb_list, list) {
 		if (hnb->hnb_registered && ctx != hnb && memcmp(&ctx->id, &hnb->id, sizeof(ctx->id)) == 0) {
