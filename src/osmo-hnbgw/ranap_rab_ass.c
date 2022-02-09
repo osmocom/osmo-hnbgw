@@ -111,10 +111,9 @@ int ranap_rab_ass_resp_encode(uint8_t *data, unsigned int len,
 	return rc;
 }
 
-/* Pick the first item from the RAB setup-or-modify list and return the first protocol-ie-field-pair. This is based on
- * the assumption that a PS call will only assign a signle RAB. This could be different for video calls and IMS but
- * those are in practice a corner case, so we go for this simplified assumption for now. */
-static RANAP_ProtocolIE_FieldPair_t *prot_ie_field_pair_from_ass_req_ies(const RANAP_RAB_AssignmentRequestIEs_t *ies)
+/* Pick the indexed item from the RAB setup-or-modify list and return the first protocol-ie-field-pair. */
+static RANAP_ProtocolIE_FieldPair_t *prot_ie_field_pair_from_ass_req_ies(const RANAP_RAB_AssignmentRequestIEs_t *ies,
+									 unsigned int index)
 {
 	RANAP_ProtocolIE_ContainerPair_t *protocol_ie_container_pair;
 	RANAP_ProtocolIE_FieldPair_t *protocol_ie_field_pair;
@@ -126,14 +125,19 @@ static RANAP_ProtocolIE_FieldPair_t *prot_ie_field_pair_from_ass_req_ies(const R
 		return NULL;
 	}
 
-	protocol_ie_container_pair = ies->raB_SetupOrModifyList.list.array[0];
+	/* Detect the end of the list */
+	if (index >= ies->raB_SetupOrModifyList.list.count)
+		return NULL;
+
+	protocol_ie_container_pair = ies->raB_SetupOrModifyList.list.array[index];
 	protocol_ie_field_pair = protocol_ie_container_pair->list.array[0];
 
 	return protocol_ie_field_pair;
 }
 
-/* See also comment above prot_ie_field_pair_from_ass_req_ies */
-static RANAP_IE_t *setup_or_modif_item_from_rab_ass_resp(const RANAP_RAB_AssignmentResponseIEs_t *ies)
+/* Pick the indexed item from the RAB setup-or-modified list and return a pointer to it */
+static RANAP_IE_t *setup_or_modif_item_from_rab_ass_resp(const RANAP_RAB_AssignmentResponseIEs_t *ies,
+							 unsigned int index)
 {
 	/* Make sure we indeed deal with a setup-or-modified list */
 	if (!(ies->presenceMask & RAB_ASSIGNMENTRESPONSEIES_RANAP_RAB_SETUPORMODIFIEDLIST_PRESENT)) {
@@ -142,16 +146,82 @@ static RANAP_IE_t *setup_or_modif_item_from_rab_ass_resp(const RANAP_RAB_Assignm
 		return NULL;
 	}
 
-	return ies->raB_SetupOrModifiedList.raB_SetupOrModifiedList_ies.list.array[0];
+	/* Detect the end of the list */
+	if (index >= ies->raB_SetupOrModifiedList.raB_SetupOrModifiedList_ies.list.count)
+		return NULL;
+
+	return ies->raB_SetupOrModifiedList.raB_SetupOrModifiedList_ies.list.array[index];
+}
+
+/* find the RAB specified by rab_id in ies and when found, decode the result into items_ies */
+static int decode_rab_smditms_from_resp_ies(RANAP_RAB_SetupOrModifiedItemIEs_t *items_ies,
+					    RANAP_RAB_AssignmentResponseIEs_t *ies, uint8_t rab_id)
+{
+	RANAP_IE_t *setup_or_modified_list_ie;
+	RANAP_RAB_SetupOrModifiedItem_t *rab_setup_or_modified_item;
+	int rc;
+	uint8_t rab_id_decoded;
+	unsigned int index = 0;
+
+	while (1) {
+		setup_or_modified_list_ie = setup_or_modif_item_from_rab_ass_resp(ies, index);
+		if (!setup_or_modified_list_ie)
+			return -EINVAL;
+
+		rc = ranap_decode_rab_setupormodifieditemies_fromlist(items_ies, &setup_or_modified_list_ie->value);
+		if (rc < 0)
+			return -EINVAL;
+
+		rab_setup_or_modified_item = &items_ies->raB_SetupOrModifiedItem;
+		/* The RAB-ID is defined as a bitstring with a size of 8 (1 byte),
+		 * See also RANAP-IEs.asn, RAB-ID ::= BIT STRING (SIZE (8)) */
+		rab_id_decoded = rab_setup_or_modified_item->rAB_ID.buf[0];
+		if (rab_id_decoded == rab_id)
+			return index;
+
+		ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_SetupOrModifiedItem, items_ies);
+		index++;
+	}
+}
+
+/* find the RAB specified by rab_id in ies and when found, decode the result into item */
+static int decode_rab_smditms_from_req_ies(RANAP_RAB_SetupOrModifyItemFirst_t *item,
+					   RANAP_RAB_AssignmentRequestIEs_t *ies, uint8_t rab_id)
+{
+	RANAP_ProtocolIE_FieldPair_t *protocol_ie_field_pair;
+	int rc;
+	uint8_t rab_id_decoded;
+	unsigned int index = 0;
+
+	while (1) {
+		protocol_ie_field_pair = prot_ie_field_pair_from_ass_req_ies(ies, index);
+		if (!protocol_ie_field_pair)
+			return -EINVAL;
+
+		if (protocol_ie_field_pair->id != RANAP_ProtocolIE_ID_id_RAB_SetupOrModifyItem) {
+			RANAP_DEBUG
+			    ("Decoding failed, the protocol IE field-pair is not of type RANAP RAB setup-or-modify-item!\n");
+			return -EINVAL;
+		}
+
+		rc = ranap_decode_rab_setupormodifyitemfirst(item, &protocol_ie_field_pair->firstValue);
+		if (rc < 0)
+			return -EINVAL;
+
+		rab_id_decoded = item->rAB_ID.buf[0];
+		if (rab_id_decoded == rab_id)
+			return index;
+	}
 }
 
 /*! Extract IP address and port from RANAP_RAB_AssignmentRequestIEs.
  *  \ptmap[out] addr user provided memory to store extracted RTP stream IP-Address and port number.
  *  \ptmap[out] rab_id pointer to store RAB-ID (optional, can be NULL).
  *  \ptmap[in] ies user provided memory with RANAP_RAB_AssignmentRequestIEs.
+ *  \ptmap[in] index index of the SetupOrModifyItem (e.g. 0 for the first list item).
  *  \returns 0 on success; negative on error. */
 int ranap_rab_ass_req_ies_extract_inet_addr(struct osmo_sockaddr *addr, uint8_t *rab_id,
-					    RANAP_RAB_AssignmentRequestIEs_t *ies)
+					    RANAP_RAB_AssignmentRequestIEs_t *ies, unsigned int index)
 {
 	RANAP_ProtocolIE_FieldPair_t *protocol_ie_field_pair;
 	RANAP_RAB_SetupOrModifyItemFirst_t _rab_setup_or_modify_item_first;
@@ -161,7 +231,7 @@ int ranap_rab_ass_req_ies_extract_inet_addr(struct osmo_sockaddr *addr, uint8_t 
 	uint16_t port;
 	int rc;
 
-	protocol_ie_field_pair = prot_ie_field_pair_from_ass_req_ies(ies);
+	protocol_ie_field_pair = prot_ie_field_pair_from_ass_req_ies(ies, index);
 	if (!protocol_ie_field_pair)
 		return -EINVAL;
 
@@ -219,25 +289,19 @@ error:
 /*! Extract IP address and port from RANAP_RAB_AssignmentResponseIEs.
  *  \ptmap[out] addr user provided memory to store extracted RTP stream IP-Address and port number.
  *  \ptmap[in] ies user provided memory with RANAP_RAB_AssignmentResponseIEs.
+ *  \ptmap[in] rab_id expected rab id to look for.
  *  \returns 0 on success; negative on error. */
-int ranap_rab_ass_resp_ies_extract_inet_addr(struct osmo_sockaddr *addr, RANAP_RAB_AssignmentResponseIEs_t *ies)
+int ranap_rab_ass_resp_ies_extract_inet_addr(struct osmo_sockaddr *addr, RANAP_RAB_AssignmentResponseIEs_t *ies, uint8_t rab_id)
 {
-	RANAP_IE_t *setup_or_modified_list_ie;
 	RANAP_RAB_SetupOrModifiedItemIEs_t _rab_setup_or_modified_items_ies;
 	RANAP_RAB_SetupOrModifiedItemIEs_t *rab_setup_or_modified_items_ies = &_rab_setup_or_modified_items_ies;
 	RANAP_RAB_SetupOrModifiedItem_t *rab_setup_or_modified_item;
 	uint16_t port;
 	int rc;
 
-	setup_or_modified_list_ie = setup_or_modif_item_from_rab_ass_resp(ies);
-	if (!setup_or_modified_list_ie)
+	rc = decode_rab_smditms_from_resp_ies(rab_setup_or_modified_items_ies, ies, rab_id);
+	if (rc < 0)
 		return -EINVAL;
-
-	rc = ranap_decode_rab_setupormodifieditemies_fromlist(rab_setup_or_modified_items_ies,
-							      &setup_or_modified_list_ie->value);
-	if (rc < 0) {
-		return -EINVAL;
-	}
 
 	rab_setup_or_modified_item = &rab_setup_or_modified_items_ies->raB_SetupOrModifiedItem;
 
@@ -276,8 +340,9 @@ error:
 /*! Replace IP address and port in RANAP_RAB_AssignmentRequestIEs.
  *  \ptmap[inout] ies user provided memory with RANAP_RAB_AssignmentRequestIEs.
  *  \ptmap[in] addr user provided memory that contains the new RTP stream IP-Address and port number.
+ *  \ptmap[in] rab_id expected rab id to look for.
  *  \returns 0 on success; negative on error. */
-int ranap_rab_ass_req_ies_replace_inet_addr(RANAP_RAB_AssignmentRequestIEs_t *ies, struct osmo_sockaddr *addr)
+int ranap_rab_ass_req_ies_replace_inet_addr(RANAP_RAB_AssignmentRequestIEs_t *ies, struct osmo_sockaddr *addr, uint8_t rab_id)
 {
 	RANAP_ProtocolIE_FieldPair_t *protocol_ie_field_pair;
 	RANAP_RAB_SetupOrModifyItemFirst_t _rab_setup_or_modify_item_first;
@@ -287,20 +352,10 @@ int ranap_rab_ass_req_ies_replace_inet_addr(RANAP_RAB_AssignmentRequestIEs_t *ie
 	struct osmo_sockaddr addr_old;
 	bool uses_x213_nsap;
 	int rc;
+	int index;
 
-	protocol_ie_field_pair = prot_ie_field_pair_from_ass_req_ies(ies);
-	if (!protocol_ie_field_pair)
-		return -EINVAL;
-
-	if (protocol_ie_field_pair->id != RANAP_ProtocolIE_ID_id_RAB_SetupOrModifyItem) {
-		RANAP_DEBUG("Rewriting transport layer information failed, unexpected IE field-pair type!\n");
-		return -EINVAL;
-	}
-
-	/* Decode setup-or-modifiy item (first) */
-	rc = ranap_decode_rab_setupormodifyitemfirst(rab_setup_or_modify_item_first,
-						     &protocol_ie_field_pair->firstValue);
-	if (rc < 0)
+	index = decode_rab_smditms_from_req_ies(rab_setup_or_modify_item_first, ies, rab_id);
+	if (index < 0)
 		return -EINVAL;
 
 	/* Replace transport-layer-information */
@@ -332,6 +387,7 @@ int ranap_rab_ass_req_ies_replace_inet_addr(RANAP_RAB_AssignmentRequestIEs_t *ie
 	}
 
 	/* Reencode transport-layer-information */
+	protocol_ie_field_pair = prot_ie_field_pair_from_ass_req_ies(ies, index);
 	rc = ANY_fromType_aper(&protocol_ie_field_pair->firstValue, &asn_DEF_RANAP_RAB_SetupOrModifyItemFirst,
 			       rab_setup_or_modify_item_first);
 	if (rc < 0) {
@@ -354,8 +410,9 @@ error:
 /*! Replace IP address and port in RANAP_RAB_AssignmentResponseIEs.
  *  \ptmap[inout] ies user provided memory with RANAP_RAB_AssignmentResponseIEs.
  *  \ptmap[in] addr user provided memory that contains the new RTP stream IP-Address and port number.
+ *  \ptmap[in] rab_id expected rab id to look for.
  *  \returns 0 on success; negative on error. */
-int ranap_rab_ass_resp_ies_replace_inet_addr(RANAP_RAB_AssignmentResponseIEs_t *ies, struct osmo_sockaddr *addr)
+int ranap_rab_ass_resp_ies_replace_inet_addr(RANAP_RAB_AssignmentResponseIEs_t *ies, struct osmo_sockaddr *addr, uint8_t rab_id)
 {
 	RANAP_IE_t *setup_or_modified_list_ie;
 	RANAP_RAB_SetupOrModifiedItemIEs_t _rab_setup_or_modified_items_ies;
@@ -367,14 +424,10 @@ int ranap_rab_ass_resp_ies_replace_inet_addr(RANAP_RAB_AssignmentResponseIEs_t *
 	struct osmo_sockaddr addr_old;
 	bool uses_x213_nsap;
 	int rc;
+	int index;
 
-	setup_or_modified_list_ie = setup_or_modif_item_from_rab_ass_resp(ies);
-	if (!setup_or_modified_list_ie)
-		return -EINVAL;
-
-	rc = ranap_decode_rab_setupormodifieditemies_fromlist(rab_setup_or_modified_items_ies,
-							      &setup_or_modified_list_ie->value);
-	if (rc < 0)
+	index = decode_rab_smditms_from_resp_ies(rab_setup_or_modified_items_ies, ies, rab_id);
+	if (index < 0)
 		return -EINVAL;
 
 	rab_setup_or_modified_item = &rab_setup_or_modified_items_ies->raB_SetupOrModifiedItem;
@@ -402,6 +455,7 @@ int ranap_rab_ass_resp_ies_replace_inet_addr(RANAP_RAB_AssignmentResponseIEs_t *
 	rab_setup_or_modified_item->iuTransportAssociation = &temp_transport_layer_information->iuTransportAssociation;
 
 	/* Reencode modified setup or modified list */
+	setup_or_modified_list_ie = setup_or_modif_item_from_rab_ass_resp(ies, index);
 	rc = ANY_fromType_aper(&setup_or_modified_list_ie->value, &asn_DEF_RANAP_RAB_SetupOrModifiedItem,
 			       rab_setup_or_modified_items_ies);
 	if (rc < 0) {

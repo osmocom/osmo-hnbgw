@@ -121,7 +121,7 @@ void test_ranap_rab_ass_req_extract_inet_addr(void)
 
 	rc = ranap_ran_rx_co_decode(talloc_asn1_ctx, &message, testvec, sizeof(testvec));
 	OSMO_ASSERT(rc == 0);
-	rc = ranap_rab_ass_req_ies_extract_inet_addr(&addr, &rab_id, &message.msg.raB_AssignmentRequestIEs);
+	rc = ranap_rab_ass_req_ies_extract_inet_addr(&addr, &rab_id, &message.msg.raB_AssignmentRequestIEs, 0);
 	osmo_sockaddr_str_from_sockaddr(&addr_str, &addr.u.sas);
 	printf("ranap_rab_ass_req_extract_inet_addr rc=%d\n", rc);
 	printf("RESULT: addr=%s, port=%u, rab-id=%02x\n", addr_str.ip, addr_str.port, rab_id);
@@ -145,7 +145,7 @@ void test_ranap_rab_ass_resp_extract_inet_addr(void)
 
 	rc = ranap_cn_rx_co_decode(talloc_asn1_ctx, &message, testvec, sizeof(testvec));
 	OSMO_ASSERT(rc == 0);
-	rc = ranap_rab_ass_resp_ies_extract_inet_addr(&addr, &message.msg.raB_AssignmentResponseIEs);
+	rc = ranap_rab_ass_resp_ies_extract_inet_addr(&addr, &message.msg.raB_AssignmentResponseIEs, 7);
 	osmo_sockaddr_str_from_sockaddr(&addr_str, &addr.u.sas);
 	printf("ranap_rab_ass_resp_extract_inet_addr rc=%d\n", rc);
 	printf("RESULT: addr=%s, port=%u\n", addr_str.ip, addr_str.port);
@@ -158,6 +158,7 @@ void test_ranap_rab_ass_req_replace_inet_addr(void)
 	struct osmo_sockaddr addr;
 	struct osmo_sockaddr_str addr_str;
 	ranap_message message;
+	uint8_t rab_id;
 	uint8_t testvec_in[] = {
 		0x00, 0x00, 0x00, 0x59, 0x00, 0x00, 0x01, 0x00,
 		0x36, 0x40, 0x52, 0x00, 0x00, 0x01, 0x00, 0x35,
@@ -190,10 +191,10 @@ void test_ranap_rab_ass_req_replace_inet_addr(void)
 	rc = ranap_ran_rx_co_decode(talloc_asn1_ctx, &message, testvec_in, sizeof(testvec_in));
 	OSMO_ASSERT(rc == 0);
 
-	rc = ranap_rab_ass_req_ies_extract_inet_addr(&addr, NULL, &message.msg.raB_AssignmentRequestIEs);
+	rc = ranap_rab_ass_req_ies_extract_inet_addr(&addr, &rab_id, &message.msg.raB_AssignmentRequestIEs, 0);
 	OSMO_ASSERT(rc == 0);
 	osmo_sockaddr_str_from_sockaddr(&addr_str, &addr.u.sas);
-	printf("before: addr=%s, port=%u\n", addr_str.ip, addr_str.port);
+	printf("before: addr=%s, port=%u, rab_id=%u\n", addr_str.ip, addr_str.port, rab_id);
 
 	memset(&addr_str, 0, sizeof(addr_str));
 	addr_str.af = AF_INET;
@@ -201,13 +202,13 @@ void test_ranap_rab_ass_req_replace_inet_addr(void)
 	osmo_strlcpy(addr_str.ip, "1.2.3.4", sizeof(addr_str.ip));
 	osmo_sockaddr_str_to_sockaddr(&addr_str, &addr.u.sas);
 
-	rc = ranap_rab_ass_req_ies_replace_inet_addr(&message.msg.raB_AssignmentRequestIEs, &addr);
+	rc = ranap_rab_ass_req_ies_replace_inet_addr(&message.msg.raB_AssignmentRequestIEs, &addr, rab_id);
 	printf("ranap_rab_ass_req_replace_inet_addr rc=%d\n", rc);
 
-	rc = ranap_rab_ass_req_ies_extract_inet_addr(&addr, NULL, &message.msg.raB_AssignmentRequestIEs);
+	rc = ranap_rab_ass_req_ies_extract_inet_addr(&addr, &rab_id, &message.msg.raB_AssignmentRequestIEs, 0);
 	OSMO_ASSERT(rc == 0);
 	osmo_sockaddr_str_from_sockaddr(&addr_str, &addr.u.sas);
-	printf("after: addr=%s, port=%u\n", addr_str.ip, addr_str.port);
+	printf("after: addr=%s, port=%u, rab_id=%u\n", addr_str.ip, addr_str.port, rab_id);
 
 	rc = ranap_rab_ass_req_encode(testvec_in, sizeof(testvec_in), &message.msg.raB_AssignmentRequestIEs);
 	OSMO_ASSERT(rc == sizeof(testvec_in));
@@ -242,7 +243,7 @@ void test_ranap_rab_ass_resp_replace_inet_addr(void)
 	rc = ranap_cn_rx_co_decode(talloc_asn1_ctx, &message, testvec_in, sizeof(testvec_in));
 	OSMO_ASSERT(rc == 0);
 
-	rc = ranap_rab_ass_resp_ies_extract_inet_addr(&addr, &message.msg.raB_AssignmentResponseIEs);
+	rc = ranap_rab_ass_resp_ies_extract_inet_addr(&addr, &message.msg.raB_AssignmentResponseIEs, 6);
 	OSMO_ASSERT(rc == 0);
 	osmo_sockaddr_str_from_sockaddr(&addr_str, &addr.u.sas);
 	printf("before: addr=%s, port=%u\n", addr_str.ip, addr_str.port);
@@ -253,10 +254,10 @@ void test_ranap_rab_ass_resp_replace_inet_addr(void)
 	osmo_strlcpy(addr_str.ip, "1.2.3.4", sizeof(addr_str.ip));
 	osmo_sockaddr_str_to_sockaddr(&addr_str, &addr.u.sas);
 
-	rc = ranap_rab_ass_resp_ies_replace_inet_addr(&message.msg.raB_AssignmentResponseIEs, &addr);
+	rc = ranap_rab_ass_resp_ies_replace_inet_addr(&message.msg.raB_AssignmentResponseIEs, &addr, 6);
 	printf("ranap_rab_ass_resp_replace_inet_addr rc=%d\n", rc);
 
-	rc = ranap_rab_ass_resp_ies_extract_inet_addr(&addr, &message.msg.raB_AssignmentResponseIEs);
+	rc = ranap_rab_ass_resp_ies_extract_inet_addr(&addr, &message.msg.raB_AssignmentResponseIEs, 6);
 	OSMO_ASSERT(rc == 0);
 	osmo_sockaddr_str_from_sockaddr(&addr_str, &addr.u.sas);
 	printf("after: addr=%s, port=%u\n", addr_str.ip, addr_str.port);
