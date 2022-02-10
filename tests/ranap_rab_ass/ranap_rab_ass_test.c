@@ -269,6 +269,32 @@ void test_ranap_rab_ass_resp_replace_inet_addr(void)
 	ranap_cn_rx_co_free(&message);
 }
 
+void test_ranap_rab_ass_resp_ies_check_failure(void)
+{
+	int rc;
+	ranap_message message;
+	bool rab_failed_at_hnb;
+	uint8_t testvec[] = {
+		0x60, 0x00, 0x00, 0x11, 0x00, 0x00, 0x01, 0x00,
+		0x23, 0x40, 0x0a, 0x00, 0x00, 0x01, 0x00, 0x22,
+		0x40, 0x03, 0x05, 0xd0, 0x00
+	};
+
+	rc = ranap_cn_rx_co_decode(talloc_asn1_ctx, &message, testvec, sizeof(testvec));
+	OSMO_ASSERT(rc == 0);
+
+	rab_failed_at_hnb =
+		ranap_rab_ass_resp_ies_check_failure(&message.msg.raB_AssignmentResponseIEs, 23);
+	printf("ranap_rab_ass_resp_ies_check_failure rab_failed_at_hnb=%u (RAB ID 23)\n", rab_failed_at_hnb);
+
+	rab_failed_at_hnb =
+		ranap_rab_ass_resp_ies_check_failure(&message.msg.raB_AssignmentResponseIEs, 44);
+	printf("ranap_rab_ass_resp_ies_check_failure rab_failed_at_hnb=%u (RAB ID 44, which is not in the message)\n",
+	       rab_failed_at_hnb);
+
+	ranap_cn_rx_co_free(&message);
+}
+
 static const struct log_info_cat log_cat[] = {
 	[DRANAP] = {
 		    .name = "RANAP", .loglevel = LOGL_DEBUG, .enabled = 1,
@@ -329,6 +355,7 @@ int main(int argc, char **argv)
 	test_ranap_rab_ass_resp_extract_inet_addr();
 	test_ranap_rab_ass_req_replace_inet_addr();
 	test_ranap_rab_ass_resp_replace_inet_addr();
+	test_ranap_rab_ass_resp_ies_check_failure();
 
 	test_cleanup();
 	return 0;

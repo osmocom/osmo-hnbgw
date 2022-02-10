@@ -14,3 +14,5 @@ after: addr=1.2.3.4, port=1234, rab_id=39
 before: addr=10.9.1.164, port=1034
 ranap_rab_ass_resp_replace_inet_addr rc=0
 after: addr=1.2.3.4, port=1234
+ranap_rab_ass_resp_ies_check_failure rab_failed_at_hnb=1 (RAB ID 23)
+ranap_rab_ass_resp_ies_check_failure rab_failed_at_hnb=0 (RAB ID 44, which is not in the message)

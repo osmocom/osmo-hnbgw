@@ -141,8 +141,7 @@ static RANAP_IE_t *setup_or_modif_item_from_rab_ass_resp(const RANAP_RAB_Assignm
 {
 	/* Make sure we indeed deal with a setup-or-modified list */
 	if (!(ies->presenceMask & RAB_ASSIGNMENTRESPONSEIES_RANAP_RAB_SETUPORMODIFIEDLIST_PRESENT)) {
-		RANAP_DEBUG
-		    ("Decoding failed, the RANAP RAB AssignmentResponse did not contain a setup-or-modified list!\n");
+		RANAP_DEBUG("RANAP RAB AssignmentResponse did not contain a setup-or-modified list!\n");
 		return NULL;
 	}
 
@@ -151,6 +150,23 @@ static RANAP_IE_t *setup_or_modif_item_from_rab_ass_resp(const RANAP_RAB_Assignm
 		return NULL;
 
 	return ies->raB_SetupOrModifiedList.raB_SetupOrModifiedList_ies.list.array[index];
+}
+
+/* Pick the indexed item from the RAB failed list and return a pointer to it */
+static RANAP_IE_t *failed_list_item_from_rab_ass_resp(const RANAP_RAB_AssignmentResponseIEs_t *ies,
+						      unsigned int index)
+{
+	/* Make sure we indeed deal with a failed list */
+	if (!(ies->presenceMask & RAB_ASSIGNMENTRESPONSEIES_RANAP_RAB_FAILEDLIST_PRESENT)) {
+		RANAP_DEBUG("RANAP RAB AssignmentResponse did not contain a failed list!\n");
+		return NULL;
+	}
+
+	/* Detect the end of the list */
+	if (index >= ies->raB_FailedList.raB_FailedList_ies.list.count)
+		return NULL;
+
+	return ies->raB_FailedList.raB_FailedList_ies.list.array[index];
 }
 
 /* find the RAB specified by rab_id in ies and when found, decode the result into items_ies */
@@ -180,6 +196,37 @@ static int decode_rab_smditms_from_resp_ies(RANAP_RAB_SetupOrModifiedItemIEs_t *
 			return index;
 
 		ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_SetupOrModifiedItem, items_ies);
+		index++;
+	}
+}
+
+/* See comment above decode_rab_smditms_from_resp_ies() */
+static int decode_rab_flitms_from_resp_ies(RANAP_RAB_FailedItemIEs_t *items_ies,
+					   RANAP_RAB_AssignmentResponseIEs_t *ies, uint8_t rab_id)
+{
+	RANAP_IE_t *failed_list_ie;
+	RANAP_RAB_FailedItem_t *rab_failed_item;
+	int rc;
+	uint8_t rab_id_decoded;
+	unsigned int index = 0;
+
+	while (1) {
+		failed_list_ie = failed_list_item_from_rab_ass_resp(ies, index);
+		if (!failed_list_ie)
+			return -EINVAL;
+
+		rc = ranap_decode_rab_faileditemies_fromlist(items_ies, &failed_list_ie->value);
+		if (rc < 0)
+			return -EINVAL;
+
+		rab_failed_item = &items_ies->raB_FailedItem;
+		/* The RAB-ID is defined as a bitstring with a size of 8 (1 byte),
+		 * See also RANAP-IEs.asn, RAB-ID ::= BIT STRING (SIZE (8)) */
+		rab_id_decoded = rab_failed_item->rAB_ID.buf[0];
+		if (rab_id_decoded == rab_id)
+			return index;
+
+		ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_FailedItem, items_ies);
 		index++;
 	}
 }
@@ -476,4 +523,26 @@ error:
 	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_SetupOrModifiedItem, rab_setup_or_modified_items_ies);
 
 	return rc;
+}
+
+/*! Check if a specific RAB is present in an RAB-Failed-Item-List inside RANAP_RAB_AssignmentResponseIEs.
+ *  \ptmap[in] ies user provided memory with RANAP_RAB_AssignmentResponseIEs.
+ *  \ptmap[in] rab_id expected rab id to look for.
+ *  \returns true when RAB could be identified as failed; false otherwise */
+bool ranap_rab_ass_resp_ies_check_failure(RANAP_RAB_AssignmentResponseIEs_t *ies, uint8_t rab_id)
+{
+	RANAP_RAB_FailedItemIEs_t _rab_failed_items_ies;
+	RANAP_RAB_FailedItemIEs_t *rab_failed_items_ies = &_rab_failed_items_ies;
+	int rc;
+	bool result = true;
+
+	/* If we can get a failed item for the specified RAB ID, then we know that the
+	 * HNB reported the RAB Assignment as failed */
+	rc = decode_rab_flitms_from_resp_ies(rab_failed_items_ies, ies, rab_id);
+	if (rc < 0)
+		result = false;
+
+	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_FailedItem, rab_failed_items_ies);
+
+	return result;
 }
