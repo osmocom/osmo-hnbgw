@@ -97,7 +97,7 @@ void test_ranap_rab_ass_resp_decode_encode(void)
 	ranap_cn_rx_co_free(&message);
 }
 
-void test_ranap_rab_ass_req_extract_inet_addr(void)
+void test_ranap_rab_ass_req_ies_extract_inet_addr(void)
 {
 	int rc;
 	struct osmo_sockaddr addr;
@@ -128,7 +128,7 @@ void test_ranap_rab_ass_req_extract_inet_addr(void)
 	ranap_ran_rx_co_free(&message);
 }
 
-void test_ranap_rab_ass_resp_extract_inet_addr(void)
+void test_ranap_rab_ass_resp_ies_extract_inet_addr(void)
 {
 	int rc;
 	struct osmo_sockaddr addr;
@@ -152,7 +152,7 @@ void test_ranap_rab_ass_resp_extract_inet_addr(void)
 	ranap_cn_rx_co_free(&message);
 }
 
-void test_ranap_rab_ass_req_replace_inet_addr(void)
+void test_ranap_rab_ass_req_ies_replace_inet_addr(void)
 {
 	int rc;
 	struct osmo_sockaddr addr;
@@ -217,7 +217,7 @@ void test_ranap_rab_ass_req_replace_inet_addr(void)
 	ranap_ran_rx_co_free(&message);
 }
 
-void test_ranap_rab_ass_resp_replace_inet_addr(void)
+void test_ranap_rab_ass_resp_ies_replace_inet_addr(void)
 {
 	int rc;
 	struct osmo_sockaddr addr;
@@ -376,10 +376,10 @@ int main(int argc, char **argv)
 	test_ranap_rab_ass_req_decode_encode();
 	test_ranap_rab_ass_resp_decode_encode();
 
-	test_ranap_rab_ass_req_extract_inet_addr();
-	test_ranap_rab_ass_resp_extract_inet_addr();
-	test_ranap_rab_ass_req_replace_inet_addr();
-	test_ranap_rab_ass_resp_replace_inet_addr();
+	test_ranap_rab_ass_req_ies_extract_inet_addr();
+	test_ranap_rab_ass_resp_ies_extract_inet_addr();
+	test_ranap_rab_ass_req_ies_replace_inet_addr();
+	test_ranap_rab_ass_resp_ies_replace_inet_addr();
 	test_ranap_rab_ass_resp_ies_check_failure();
 	test_ranap_rab_ass_req_ies_check_release();
 
