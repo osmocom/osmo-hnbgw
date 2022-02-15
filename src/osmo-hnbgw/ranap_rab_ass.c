@@ -135,6 +135,23 @@ static RANAP_ProtocolIE_FieldPair_t *prot_ie_field_pair_from_ass_req_ies(const R
 	return protocol_ie_field_pair;
 }
 
+/* Pick the indexed item from the RAB release-list list and return a pointer to it */
+static RANAP_IE_t *release_item_from_ass_req_ies(const RANAP_RAB_AssignmentRequestIEs_t *ies, unsigned int index)
+{
+	/* Make sure we indeed deal with a setup-or-modify list */
+	if (!(ies->presenceMask & RAB_ASSIGNMENTREQUESTIES_RANAP_RAB_RELEASELIST_PRESENT)) {
+		RANAP_DEBUG
+		    ("Decoding failed, the RANAP RAB AssignmentRequest did not contain a release list!\n");
+		return NULL;
+	}
+
+	/* Detect the end of the list */
+	if (index >= ies->raB_ReleaseList.raB_ReleaseList_ies.list.count)
+		return NULL;
+
+	return ies->raB_ReleaseList.raB_ReleaseList_ies.list.array[index];
+}
+
 /* Pick the indexed item from the RAB setup-or-modified list and return a pointer to it */
 static RANAP_IE_t *setup_or_modif_item_from_rab_ass_resp(const RANAP_RAB_AssignmentResponseIEs_t *ies,
 							 unsigned int index)
@@ -258,6 +275,41 @@ static int decode_rab_smditms_from_req_ies(RANAP_RAB_SetupOrModifyItemFirst_t *i
 		rab_id_decoded = item->rAB_ID.buf[0];
 		if (rab_id_decoded == rab_id)
 			return index;
+	}
+}
+
+static int decode_rab_relitms_from_req_ies(RANAP_RAB_ReleaseItemIEs_t *items_ies,
+					   RANAP_RAB_AssignmentRequestIEs_t *ies, uint8_t rab_id)
+{
+	RANAP_IE_t *release_list_ie;
+	RANAP_RAB_ReleaseItem_t *rab_release_item;
+	int rc;
+	uint8_t rab_id_decoded;
+	unsigned int index = 0;
+
+	while (1) {
+		release_list_ie = release_item_from_ass_req_ies(ies, index);
+		if (!release_list_ie)
+			return -EINVAL;
+
+		if (release_list_ie->id != RANAP_ProtocolIE_ID_id_RAB_ReleaseItem) {
+			RANAP_DEBUG("Decoding failed, the protocol IE is not of type RANAP RAB ReleaseItem!\n");
+			return -EINVAL;
+		}
+
+		rc = ranap_decode_rab_releaseitemies_fromlist(items_ies, &release_list_ie->value);
+		if (rc < 0)
+			return -EINVAL;
+
+		rab_release_item = &items_ies->raB_ReleaseItem;
+		/* The RAB-ID is defined as a bitstring with a size of 8 (1 byte),
+		 * See also RANAP-IEs.asn, RAB-ID ::= BIT STRING (SIZE (8)) */
+		rab_id_decoded = rab_release_item->rAB_ID.buf[0];
+		if (rab_id_decoded == rab_id)
+			return index;
+
+		ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_ReleaseItem, items_ies);
+		index++;
 	}
 }
 
@@ -543,6 +595,28 @@ bool ranap_rab_ass_resp_ies_check_failure(RANAP_RAB_AssignmentResponseIEs_t *ies
 		result = false;
 
 	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_FailedItem, rab_failed_items_ies);
+
+	return result;
+}
+
+/*! Check if a specific RAB is present in an RAB-ReleaseList inside RANAP_RAB_AssignmentRequestIEs.
+ *  \ptmap[in] ies user provided memory with RANAP_RAB_AssignmentRequestIEs.
+ *  \ptmap[in] rab_id expected rab id to look for.
+ *  \returns true when RAB is intended for release; false otherwise */
+bool ranap_rab_ass_req_ies_check_release(RANAP_RAB_AssignmentRequestIEs_t *ies, uint8_t rab_id)
+{
+	RANAP_RAB_ReleaseItemIEs_t _rab_release_items_ies;
+	RANAP_RAB_ReleaseItemIEs_t *rab_release_items_ies = &_rab_release_items_ies;
+	int rc;
+	bool result = true;
+
+	/* If we can get a rlease list item for the specified RAB ID, then we know that the
+	 * MSC intends to release the specified RAB */
+	rc = decode_rab_relitms_from_req_ies(rab_release_items_ies, ies, rab_id);
+	if (rc < 0)
+		result = false;
+
+	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_ReleaseItem, rab_release_items_ies);
 
 	return result;
 }
