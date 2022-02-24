@@ -17,3 +17,5 @@ int ranap_rab_ass_resp_ies_replace_inet_addr(RANAP_RAB_AssignmentResponseIEs_t *
 
 bool ranap_rab_ass_req_ies_check_release(RANAP_RAB_AssignmentRequestIEs_t *ies, uint8_t rab_id);
 bool ranap_rab_ass_resp_ies_check_failure(RANAP_RAB_AssignmentResponseIEs_t *ies, uint8_t rab_id);
+
+int ranap_rab_ass_req_ies_get_count(RANAP_RAB_AssignmentRequestIEs_t *ies);

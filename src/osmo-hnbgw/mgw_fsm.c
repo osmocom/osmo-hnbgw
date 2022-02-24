@@ -689,6 +689,16 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph,
 	mgw_fsm_priv = talloc_zero(map, struct mgw_fsm_priv);
 	mgw_fsm_priv->ranap_rab_ass_req_message = message;
 
+	/* This FSM only supports RAB assignments with a single RAB assignment only. This limitation has been taken
+	 * into account under the assumption that voice calls typically require a single RAB only. Nevertheless, we
+	 * will block all incoming RAB assignments that try to assign more (or less) than one RAB. */
+	if (ranap_rab_ass_req_ies_get_count(&message->msg.raB_AssignmentRequestIEs) != 1) {
+		LOGP(DMGW, LOGL_ERROR,
+		     "mgw_fsm_alloc_and_handle_rab_ass_req() rua_ctx_id=%d, RAB-AssignmentRequest with more than one RAB assignment -- abort!\n",
+		     map->rua_ctx_id);
+		goto error;
+	}
+
 	/* Parse the RAB Assignment Request now, if it is bad for some reason we will exit early and not bother with
 	 * creating an FSM etc. */
 	ies = &mgw_fsm_priv->ranap_rab_ass_req_message->msg.raB_AssignmentRequestIEs;

@@ -620,3 +620,18 @@ bool ranap_rab_ass_req_ies_check_release(RANAP_RAB_AssignmentRequestIEs_t *ies, 
 
 	return result;
 }
+
+/*! Find out how many RAB items are present in a RAB-SetupOrModifyList inside RANAP_RAB_AssignmentRequestIEs.
+ *  \ptmap[in] ies user provided memory with RANAP_RAB_AssignmentRequestIEs.
+ *  \returns number of RAB items, -1 on failure. */
+int ranap_rab_ass_req_ies_get_count(RANAP_RAB_AssignmentRequestIEs_t *ies)
+{
+	/* Make sure we indeed deal with a setup-or-modify list */
+	if (!(ies->presenceMask & RAB_ASSIGNMENTREQUESTIES_RANAP_RAB_SETUPORMODIFYLIST_PRESENT)) {
+		RANAP_DEBUG
+		    ("Decoding failed, the RANAP RAB AssignmentRequest did not contain a setup-or-modify list!\n");
+		return -1;
+	}
+
+	return ies->raB_SetupOrModifyList.list.count;
+}
