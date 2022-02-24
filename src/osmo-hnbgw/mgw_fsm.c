@@ -719,9 +719,9 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph,
 
 	return 0;
 error:
-	/* TODO: If we fail in this early stage, we should generate an appropriate RAB AssignmentResponse to inform
-	 * the core network about the failure. */
+	/* Cleanup context and make sure that the call is cleared. */
 	mgw_fsm_priv_cleanup(mgw_fsm_priv);
+	tx_release_req(map);
 	return -EINVAL;
 }
 
