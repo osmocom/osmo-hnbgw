@@ -21,6 +21,7 @@ struct osmo_tdef mgw_fsm_T_defs[] = {
 	{.T = -1002, .default_val = 10, .desc = "Timeout for the HNB to respond to RAB Assignment Request" },
 	{.T = -1003, .default_val = 5, .desc = "Timeout for HNB side call-leg (to-HNB) completion" },
 	{.T = -1004, .default_val = 5, .desc = "Timeout for MSC side call-leg (to-MSC) completion" },
+	{.T = -2427, .default_val = 5, .desc = "timeout for MGCP response from MGW" },
 	{ }
 };
 
