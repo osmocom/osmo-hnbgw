@@ -122,12 +122,7 @@ struct mgw_fsm_priv {
 	uint16_t msc_rtp_port;
 };
 
-static const struct osmo_tdef mgw_tdefs[] = {
-	{.T = -2427, .default_val = 5, .desc = "timeout for MGCP response from MGW" },
-	{ }
-};
-
-static const struct osmo_tdef_state_timeout mgw_fsm_timeouts[32] = {
+struct osmo_tdef_state_timeout mgw_fsm_timeouts[32] = {
 	[MGW_ST_CRCX_HNB] = {.T = -1001 },
 	[MGW_ST_ASSIGN] = {.T = -1002 },
 	[MGW_ST_MDCX_HNB] = {.T = -1003 },
@@ -179,7 +174,7 @@ static void mgw_fsm_crcx_hnb_onenter(struct osmo_fsm_inst *fi, uint32_t prev_sta
 
 	epname = mgcp_client_rtpbridge_wildcard(map->hnb_ctx->gw->mgcp_client);
 	mgw_fsm_priv->mgcpc_ep =
-	    osmo_mgcpc_ep_alloc(fi, MGW_EV_MGCP_TERM, map->hnb_ctx->gw->mgcp_client, mgw_tdefs, fi->id, "%s", epname);
+	    osmo_mgcpc_ep_alloc(fi, MGW_EV_MGCP_TERM, map->hnb_ctx->gw->mgcp_client, mgw_fsm_T_defs, fi->id, "%s", epname);
 	mgw_fsm_priv->mgcpc_ep_ci_hnb = osmo_mgcpc_ep_ci_add(mgw_fsm_priv->mgcpc_ep, "to-HNB");
 
 	osmo_mgcpc_ep_ci_request(mgw_fsm_priv->mgcpc_ep_ci_hnb, MGCP_VERB_CRCX, &mgw_info, fi, MGW_EV_MGCP_OK,
