@@ -15,6 +15,7 @@
  */
 
 #include <osmocom/hnbgw/tdefs.h>
+#include <osmocom/pfcp/pfcp_endpoint.h>
 
 struct osmo_tdef mgw_fsm_T_defs[] = {
 	{.T = -1001, .default_val = 5, .desc = "Timeout for HNB side call-leg (to-HNB) creation" },
@@ -25,7 +26,14 @@ struct osmo_tdef mgw_fsm_T_defs[] = {
 	{ }
 };
 
+struct osmo_tdef ps_T_defs[] = {
+	{.T = -1002, .default_val = 10, .desc = "Timeout for the HNB to respond to PS RAB Assignment Request" },
+	{ }
+};
+
 struct osmo_tdef_group hnbgw_tdef_group[] = {
 	{.name = "mgw", .tdefs = mgw_fsm_T_defs, .desc = "MGW (Media Gateway) interface" },
+	{.name = "ps", .tdefs = ps_T_defs, .desc = "timers for Packet Switched domain" },
+	{.name = "pfcp", .tdefs = osmo_pfcp_tdefs, .desc = "PFCP timers" },
 	{ }
 };

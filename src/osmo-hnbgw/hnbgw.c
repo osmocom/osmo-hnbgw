@@ -61,10 +61,13 @@
 #include <osmocom/sigtran/protocol/m3ua.h>
 #include <osmocom/sigtran/sccp_sap.h>
 
+#include <osmocom/pfcp/pfcp_proto.h>
+
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/hnbgw_hnbap.h>
 #include <osmocom/hnbgw/hnbgw_rua.h>
 #include <osmocom/hnbgw/hnbgw_cn.h>
+#include <osmocom/hnbgw/hnbgw_pfcp.h>
 #include <osmocom/hnbgw/context_map.h>
 
 static const char * const osmo_hnbgw_copyright =
@@ -100,6 +103,8 @@ static struct hnb_gw *hnb_gw_create(void *ctx)
 
 	gw->config.mgcp_client = talloc_zero(tall_hnb_ctx, struct mgcp_client_conf);
 	mgcp_client_conf_init(gw->config.mgcp_client);
+
+	gw->config.pfcp.remote_port = OSMO_PFCP_PORT;
 
 	return gw;
 }
@@ -222,6 +227,8 @@ struct ue_context *ue_context_alloc(struct hnb_context *hnb, const char *imsi,
 
 void ue_context_free(struct ue_context *ue)
 {
+	LOGP(DHNBAP, LOGL_INFO, "deallocating UE context: id 0x%x, imsi %s, tmsi 0x%x\n",
+	     ue->context_id, ue->imsi ? : "-", ue->tmsi);
 	llist_del(&ue->list);
 	talloc_free(ue);
 }
@@ -344,6 +351,7 @@ void hnb_context_release(struct hnb_context *ctx)
 
 	osmo_stream_srv_destroy(ctx->conn);
 
+	LOGP(DMAIN, LOGL_INFO, "Deallocating hnb_context\n");
 	talloc_free(ctx);
 }
 
@@ -712,6 +720,9 @@ int main(int argc, char **argv)
 		     g_hnb_gw->config.mgcp_client->remote_port);
 		return -EINVAL;
 	}
+
+	/* If UPF is configured, set up PFCP socket and send Association Setup Request to UPF */
+	hnbgw_pfcp_init(g_hnb_gw);
 
 	if (hnbgw_cmdline_config.daemonize) {
 		rc = osmo_daemonize();

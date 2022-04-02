@@ -29,12 +29,15 @@
 #include <osmocom/sigtran/sccp_sap.h>
 #include <osmocom/sigtran/sccp_helpers.h>
 
+#include <osmocom/pfcp/pfcp_cp_peer.h>
+
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/hnbgw_rua.h>
 #include <osmocom/ranap/ranap_ies_defs.h>
 #include <osmocom/ranap/ranap_msg_factory.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/mgw_fsm.h>
+#include <osmocom/hnbgw/ps_rab_ass_fsm.h>
 #include <osmocom/ranap/RANAP_ProcedureCode.h>
 #include <osmocom/ranap/ranap_common.h>
 #include <osmocom/ranap/ranap_common_ran.h>
@@ -353,6 +356,7 @@ static int handle_cn_data_ind(struct hnbgw_cnlink *cnlink,
 	struct hnbgw_context_map *map;
 	ranap_message *message;
 	int rc;
+	struct hnb_gw *hnb_gw = cnlink->gw;
 
 	/* Usually connection-oriented data is always passed transparently towards the specific HNB, via a RUA
 	 * connection identified by conn_id. An exception is made for RANAP RAB AssignmentRequest and
@@ -365,8 +369,9 @@ static int handle_cn_data_ind(struct hnbgw_cnlink *cnlink,
 		return 0;
 	}
 
-	/* Intercept RAB Assignment Request, Setup MGW FSM */
+	/* Intercept RAB Assignment Request, to map RTP and GTP between access and core */
 	if (!map->is_ps) {
+		/* Circuit-Switched. Set up mapping of RTP ports via MGW */
 		message = talloc_zero(map, ranap_message);
 		rc = ranap_ran_rx_co_decode(map, message, msgb_l2(oph->msg), msgb_l2len(oph->msg));
 
@@ -379,6 +384,37 @@ static int handle_cn_data_ind(struct hnbgw_cnlink *cnlink,
 				/* Any IU Release will terminate the MGW FSM, the message itsself is not passed to the
 				 * FSM code. It is just forwarded normally by the rua_tx_dt() call below. */
 				mgw_fsm_release(map);
+				break;
+			}
+			ranap_ran_rx_co_free(message);
+		}
+
+		talloc_free(message);
+	} else {
+		/* Packet-Switched. Set up mapping of GTP ports via UPF */
+		message = talloc_zero(map, ranap_message);
+		rc = ranap_ran_rx_co_decode(map, message, msgb_l2(oph->msg), msgb_l2len(oph->msg));
+
+		if (rc == 0) {
+			switch (message->procedureCode) {
+
+			case RANAP_ProcedureCode_id_RAB_Assignment:
+				/* If a UPF is configured, handle the RAB Assignment via ps_rab_ass_fsm, and replace the
+				 * GTP F-TEIDs in the RAB Assignment message before passing it on to RUA. */
+				if (hnb_gw_is_gtp_mapping_enabled(hnb_gw)) {
+					LOGP(DMAIN, LOGL_DEBUG,
+					     "RAB Assignment: setting up GTP tunnel mapping via UPF %s\n",
+					     osmo_sockaddr_to_str_c(OTC_SELECT, &hnb_gw->pfcp.cp_peer->remote_addr));
+					return hnbgw_gtpmap_rx_rab_ass_req(map, oph, message);
+				}
+				/* If no UPF is configured, directly forward the message as-is (no GTP mapping). */
+				LOGP(DMAIN, LOGL_DEBUG, "RAB Assignment: no UPF configured, forwarding as-is\n");
+				break;
+
+			case RANAP_ProcedureCode_id_Iu_Release:
+				/* Any IU Release will terminate the MGW FSM, the message itsself is not passed to the
+				 * FSM code. It is just forwarded normally by the rua_tx_dt() call below. */
+				hnbgw_gtpmap_release(map);
 				break;
 			}
 			ranap_ran_rx_co_free(message);
