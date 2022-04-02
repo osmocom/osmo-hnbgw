@@ -28,6 +28,7 @@
 #include <osmocom/hnbgw/hnbgw_rua.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/mgw_fsm.h>
+#include <osmocom/hnbgw/ps_rab_ass_fsm.h>
 
 const struct value_string hnbgw_context_map_state_names[] = {
 	{MAP_S_NULL     , "not-initialized"},
@@ -102,6 +103,8 @@ context_map_alloc_by_hnb(struct hnb_context *hnb, uint32_t rua_ctx_id,
 	map->rua_ctx_id = rua_ctx_id;
 	map->is_ps = is_ps;
 	map->scu_conn_id = new_scu_conn_id;
+	INIT_LLIST_HEAD(&map->ps_rab_ass);
+	INIT_LLIST_HEAD(&map->ps_rabs);
 
 	/* put it into both lists */
 	llist_add_tail(&map->hnb_list, &hnb->map_list);
@@ -147,6 +150,8 @@ int context_map_send_cached_msg(struct hnbgw_context_map *map)
 
 void context_map_deactivate(struct hnbgw_context_map *map)
 {
+	LOG_MAP(map, DMAIN, LOGL_NOTICE, "Deactivating\n");
+
 	/* set the state to reserved. We still show up in the list and
 	 * avoid re-allocation of the context-id until we are cleaned up
 	 * by the context_map garbage collector timer */
@@ -160,6 +165,8 @@ void context_map_deactivate(struct hnbgw_context_map *map)
 		mgw_fsm_release(map);
 		OSMO_ASSERT(map->mgw_fi == NULL);
 	}
+
+	hnbgw_gtpmap_release(map);
 }
 
 static struct osmo_timer_list context_map_tmr;
@@ -181,6 +188,7 @@ static void context_map_tmr_cb(void *data)
 		case MAP_S_RESERVED2:
 			/* second time we see this reserved
 			 * entry: remove it */
+			LOG_MAP(map, DMAIN, LOGL_NOTICE, "Deallocating\n");
 			map->state = MAP_S_NULL;
 			llist_del(&map->cn_list);
 			llist_del(&map->hnb_list);

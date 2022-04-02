@@ -61,10 +61,13 @@
 #include <osmocom/sigtran/protocol/m3ua.h>
 #include <osmocom/sigtran/sccp_sap.h>
 
+#include <osmocom/pfcp/pfcp_proto.h>
+
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/hnbgw_hnbap.h>
 #include <osmocom/hnbgw/hnbgw_rua.h>
 #include <osmocom/hnbgw/hnbgw_cn.h>
+#include <osmocom/hnbgw/hnbgw_pfcp.h>
 #include <osmocom/hnbgw/context_map.h>
 
 static const char * const osmo_hnbgw_copyright =
@@ -100,6 +103,8 @@ static struct hnb_gw *hnb_gw_create(void *ctx)
 
 	gw->config.mgcp_client = talloc_zero(tall_hnb_ctx, struct mgcp_client_conf);
 	mgcp_client_conf_init(gw->config.mgcp_client);
+
+	gw->config.pfcp.remote_port = OSMO_PFCP_PORT;
 
 	return gw;
 }
@@ -712,6 +717,9 @@ int main(int argc, char **argv)
 		     g_hnb_gw->config.mgcp_client->remote_port);
 		return -EINVAL;
 	}
+
+	/* If UPF is configured, set up PFCP socket and send Association Setup Request to UPF */
+	hnbgw_pfcp_init(g_hnb_gw);
 
 	if (hnbgw_cmdline_config.daemonize) {
 		rc = osmo_daemonize();

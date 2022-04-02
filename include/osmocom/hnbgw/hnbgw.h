@@ -19,8 +19,8 @@ enum {
 	DMGW,
 };
 
-#define LOGHNB(x, ss, lvl, fmt, args ...) \
-	LOGP(ss, lvl, "%s " fmt, hnb_context_name(x), ## args)
+#define LOGHNB(HNB_CTX, ss, lvl, fmt, args ...) \
+	LOGP(ss, lvl, "%s " fmt, hnb_context_name(HNB_CTX), ## args)
 
 enum hnb_ctrl_node {
 	CTRL_NODE_HNB = _LAST_CTRL_NODE,
@@ -136,6 +136,12 @@ struct hnb_gw {
 		bool log_prefix_hnb_id;
 		unsigned int max_sccp_cr_payload_len;
 		struct mgcp_client_conf *mgcp_client;
+		struct {
+			char *local_addr;
+			uint16_t local_port;
+			char *remote_addr;
+			uint16_t remote_port;
+		} pfcp;
 	} config;
 	/*! SCTP listen socket for incoming connections */
 	struct osmo_stream_srv_link *iuh;
@@ -155,6 +161,11 @@ struct hnb_gw {
 		struct osmo_sccp_addr iups_remote_addr;
 	} sccp;
 	struct mgcp_client *mgcp_client;
+
+	struct {
+		struct osmo_pfcp_endpoint *ep;
+		struct osmo_pfcp_cp_peer *cp_peer;
+	} pfcp;
 };
 
 extern void *talloc_asn1_ctx;
@@ -178,3 +189,13 @@ void hnbgw_vty_init(struct hnb_gw *gw, void *tall_ctx);
 int hnbgw_vty_go_parent(struct vty *vty);
 
 bool hnbgw_requires_empty_sccp_cr(struct hnb_gw *gw, unsigned int ranap_msg_len);
+
+/* Return true when the user configured GTP mapping to be enabled, by configuring a PFCP link to a UPF.
+ * Return false when the user configured to skip GTP mapping and RANAP PS RAB Requests/Responses should be passed thru
+ * 1:1.
+ * GTP mapping means that there are two GTP tunnels, one towards HNB and one towards CN, and we forward payloads between
+ * the two tunnels, mapping the TEIDs and GTP addresses. */
+static inline bool hnb_gw_is_gtp_mapping_enabled(const struct hnb_gw *gw)
+{
+	return gw->config.pfcp.remote_addr != NULL;
+}

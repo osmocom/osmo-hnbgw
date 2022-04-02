@@ -33,6 +33,7 @@ osmo-build-dep.sh libosmocore "" --disable-doxygen
 osmo-build-dep.sh libosmo-abis
 osmo-build-dep.sh libosmo-netif
 osmo-build-dep.sh libosmo-sccp
+osmo-build-dep.sh libosmo-pfcp
 osmo-build-dep.sh libasn1c
 osmo-build-dep.sh osmo-iuh
 osmo-build-dep.sh osmo-mgw
