@@ -1,0 +1,45 @@
+{hscale=3}
+hnb =	hNodeB
+hnbgw =	HNBGW
+upf =	UPF
+sgsn =	SGSN
+ggsn =	GGSN
+
+hnb <-> hnbgw	RANAP/RUA
+hnbgw <-> sgsn	RANAP/SCCP
+hnbgw <-> upf	PFCP
+hnb <-> upf	GTPv1-U
+upf <-> ggsn	GTPv1-U
+
+...
+
+hnbgw <- sgsn	RAB Assignment Req
+hnbgw () .	extract Core GTP-U addr,TEID
+
+hnbgw -> upf	Session Establishment Req
+		2x create PDR: F-TEID=CHOOSE
+		1x FAR=BUFF/DROP (wait for Access TEID)
+		1x FAR=FORW (already have Core TEID)
+upf () .	create local F-TEID to Core
+		create local F-TEID to Access
+hnbgw <- upf	Session Establishment Resp
+		return 2x local F-TEID
+
+hnbgw () .	Replace GTP addr,TEID in RAB Assignment Req
+		with UPF F-TEID to Access
+hnb <- hnbgw	RAB Assignment Req
+		(modified)
+
+...
+
+hnb -> hnbgw	RAB Assignment Resp
+hnbgw () .	extract Access GTP-U addr,TEID
+
+hnbgw -> upf	Session Modification Req
+		2x update FAR=FORW
+hnbgw <- upf	Session Modification Resp
+
+hnbgw () .	Replace GTP addr,TEID in RAB Assignment Resp
+		with UPF F-TEID to Core
+hnbgw -> sgsn	RAB Assignment Resp
+		(modified)
