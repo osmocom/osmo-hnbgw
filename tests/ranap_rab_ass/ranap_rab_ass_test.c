@@ -55,19 +55,21 @@ void test_ranap_rab_ass_req_decode_encode(void)
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x1f, 0x76,
 		0x00, 0x00, 0x40, 0x01, 0x00
 	};
-	uint8_t encoded[sizeof(testvec)];
+	struct msgb *encoded;
 
 	rc = ranap_ran_rx_co_decode(talloc_asn1_ctx, &message, testvec, sizeof(testvec));
 	OSMO_ASSERT(rc == 0);
 
-	rc = ranap_rab_ass_req_encode(encoded, sizeof(encoded), &message.msg.raB_AssignmentRequestIEs);
-	printf("ranap_rab_ass_req_encode rc=%d\n", rc);
+	encoded = ranap_rab_ass_req_encode(&message.msg.raB_AssignmentRequestIEs);
+	printf("ranap_rab_ass_req_encode %s\n", encoded ? "ok" : "ERROR");
 
 	printf("INPUT:  %s\n", osmo_hexdump_nospc(testvec, sizeof(testvec)));
-	printf("RESULT: %s\n", osmo_hexdump_nospc(encoded, sizeof(encoded)));
-	OSMO_ASSERT(memcmp(testvec, encoded, sizeof(testvec)) == 0);
+	printf("RESULT: %s\n", osmo_hexdump_nospc(encoded->data, encoded->len));
+	OSMO_ASSERT(encoded->len == sizeof(testvec));
+	OSMO_ASSERT(memcmp(testvec, encoded->data, sizeof(testvec)) == 0);
 
 	ranap_ran_rx_co_free(&message);
+	msgb_free(encoded);
 }
 
 void test_ranap_rab_ass_resp_decode_encode(void)
@@ -158,6 +160,7 @@ void test_ranap_rab_ass_req_ies_replace_inet_addr(void)
 	struct osmo_sockaddr addr;
 	struct osmo_sockaddr_str addr_str;
 	ranap_message message;
+	struct msgb *encoded;
 	uint8_t rab_id;
 	uint8_t testvec_in[] = {
 		0x00, 0x00, 0x00, 0x59, 0x00, 0x00, 0x01, 0x00,
@@ -210,11 +213,12 @@ void test_ranap_rab_ass_req_ies_replace_inet_addr(void)
 	osmo_sockaddr_str_from_sockaddr(&addr_str, &addr.u.sas);
 	printf("after: addr=%s, port=%u, rab_id=%u\n", addr_str.ip, addr_str.port, rab_id);
 
-	rc = ranap_rab_ass_req_encode(testvec_in, sizeof(testvec_in), &message.msg.raB_AssignmentRequestIEs);
-	OSMO_ASSERT(rc == sizeof(testvec_in));
-	OSMO_ASSERT(memcmp(testvec_in, testvec_expected_out, sizeof(testvec_in)) == 0);
+	encoded = ranap_rab_ass_req_encode(&message.msg.raB_AssignmentRequestIEs);
+	OSMO_ASSERT(encoded->len == sizeof(testvec_expected_out));
+	OSMO_ASSERT(memcmp(encoded->data, testvec_expected_out, encoded->len) == 0);
 
 	ranap_ran_rx_co_free(&message);
+	msgb_free(encoded);
 }
 
 void test_ranap_rab_ass_resp_ies_replace_inet_addr(void)

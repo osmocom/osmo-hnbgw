@@ -235,20 +235,19 @@ static void mgw_fsm_assign_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state
 {
 	struct mgw_fsm_priv *mgw_fsm_priv = fi->priv;
 	struct hnbgw_context_map *map = mgw_fsm_priv->map;
-	uint8_t encoded[IUH_MSGB_SIZE];
 	RANAP_RAB_AssignmentRequestIEs_t *ies;
-	int rc;
+	struct msgb *msg;
 
 	ies = &mgw_fsm_priv->ranap_rab_ass_req_message->msg.raB_AssignmentRequestIEs;
-	rc = ranap_rab_ass_req_encode(encoded, sizeof(encoded), ies);
-	if (rc < 0) {
+	msg = ranap_rab_ass_req_encode(ies);
+	if (!msg) {
 		LOGPFSML(fi, LOGL_ERROR, "failed to re-encode RAB-AssignmentRequest message\n");
 		osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
 		return;
 	}
 
 	LOGPFSML(fi, LOGL_DEBUG, "forwarding modified RAB-AssignmentRequest to HNB\n");
-	rua_tx_dt(map->hnb_ctx, map->is_ps, map->rua_ctx_id, encoded, rc);
+	rua_tx_dt(map->hnb_ctx, map->is_ps, map->rua_ctx_id, msg->data, msg->len);
 }
 
 static void mgw_fsm_assign(struct osmo_fsm_inst *fi, uint32_t event, void *data)

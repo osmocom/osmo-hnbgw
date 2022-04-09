@@ -37,20 +37,18 @@
  *  \ptmap[in] len length of user provided memory to store resulting ASN.1 encoded message.
  *  \ptmap[in] ies user provided memory with RANAP_RAB_AssignmentRequestIEs.
  *  \returns resulting message length on success; negative on error. */
-int ranap_rab_ass_req_encode(uint8_t *data, unsigned int len,
-			     RANAP_RAB_AssignmentRequestIEs_t *rab_assignment_request_ies)
+struct msgb *ranap_rab_ass_req_encode(RANAP_RAB_AssignmentRequestIEs_t *rab_assignment_request_ies)
 {
 	int rc;
 	struct msgb *msg;
 	RANAP_RAB_AssignmentRequest_t _rab_assignment_request;
 	RANAP_RAB_AssignmentRequest_t *rab_assignment_request = &_rab_assignment_request;
 
-	memset(data, 0, len);
 	memset(rab_assignment_request, 0, sizeof(*rab_assignment_request));
 
 	rc = ranap_encode_rab_assignmentrequesties(rab_assignment_request, rab_assignment_request_ies);
 	if (rc < 0)
-		return -EINVAL;
+		return NULL;
 
 	/* generate an Initiating Mesasage */
 	msg = ranap_generate_initiating_message(RANAP_ProcedureCode_id_RAB_Assignment,
@@ -60,15 +58,7 @@ int ranap_rab_ass_req_encode(uint8_t *data, unsigned int len,
 	/* 'msg' has been generated, we cann now release the input 'out' */
 	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_AssignmentRequest, rab_assignment_request);
 
-	if (!msg)
-		return -EINVAL;
-	if (msg->len > len)
-		return -EINVAL;
-
-	memcpy(data, msg->data, msg->len);
-	rc = msg->len;
-	msgb_free(msg);
-	return rc;
+	return msg;
 }
 
 /*! Encode RABAP RAB AssignmentRequest from RANAP_RAB_AssignmentResponseIEs.

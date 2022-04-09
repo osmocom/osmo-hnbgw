@@ -35,3 +35,7 @@ ranap_rab_ass_test_LDADD = \
 	$(COVERAGE_LDFLAGS) \
 	$(top_builddir)/src/osmo-hnbgw/ranap_rab_ass.o \
 	$(NULL)
+
+.PHONY: update_exp
+update_exp:
+	$(builddir)/ranap_rab_ass_test >$(srcdir)/ranap_rab_ass_test.ok
