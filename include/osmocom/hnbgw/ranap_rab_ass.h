@@ -1,7 +1,6 @@
 #pragma once
 
-int ranap_rab_ass_req_encode(uint8_t *data, unsigned int len,
-			     RANAP_RAB_AssignmentRequestIEs_t *rab_assignment_request_ies);
+struct msgb *ranap_rab_ass_req_encode(RANAP_RAB_AssignmentRequestIEs_t *rab_assignment_request_ies);
 int ranap_rab_ass_resp_encode(uint8_t *data, unsigned int len,
 			      RANAP_RAB_AssignmentResponseIEs_t *rab_assignment_response_ies);
 
