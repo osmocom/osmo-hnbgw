@@ -271,7 +271,7 @@ static int rua_to_scu(struct hnb_context *hnb,
 	}
 
 	/* Intercept RAB Assignment Response, inform MGW FSM. */
-	if (map && !map->is_ps && !release_context_map) {
+	if (data && len && map && !map->is_ps && !release_context_map) {
 		message = talloc_zero(map, ranap_message);
 		rc = ranap_cn_rx_co_decode(map, message, msgb_l2(prim->oph.msg), msgb_l2len(prim->oph.msg));
 
