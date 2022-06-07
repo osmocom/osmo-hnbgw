@@ -329,18 +329,15 @@ static int handle_cn_conn_conf(struct hnbgw_cnlink *cnlink,
 			       const struct osmo_scu_connect_param *param,
 			       struct osmo_prim_hdr *oph)
 {
-	/* we don't actually need to do anything, as RUA towards the HNB
-	 * doesn't seem to know any confirmations to its CONNECT
-	 * operation */
+	struct osmo_ss7_instance *ss7 = osmo_sccp_get_ss7(cnlink->gw->sccp.client);
+	LOGP(DMAIN, LOGL_DEBUG, "handle_cn_conn_conf() conn_id=%d, addrs: called=%s calling=%s responding=%s\n",
+	     param->conn_id,
+	     osmo_sccp_addr_to_str_c(OTC_SELECT, ss7, &param->called_addr),
+	     osmo_sccp_addr_to_str_c(OTC_SELECT, ss7, &param->calling_addr),
+	     osmo_sccp_addr_to_str_c(OTC_SELECT, ss7, &param->responding_addr));
 
-	LOGP(DMAIN, LOGL_DEBUG, "handle_cn_conn_conf() conn_id=%d\n",
-	     param->conn_id);
-	LOGP(DMAIN, LOGL_DEBUG, "handle_cn_conn_conf() called_addr=%s\n",
-	     inet_ntoa(param->called_addr.ip.v4));
-	LOGP(DMAIN, LOGL_DEBUG, "handle_cn_conn_conf() calling_addr=%s\n",
-	     inet_ntoa(param->calling_addr.ip.v4));
-	LOGP(DMAIN, LOGL_DEBUG, "handle_cn_conn_conf() responding_addr=%s\n",
-	     inet_ntoa(param->responding_addr.ip.v4));
+	/* Nothing needs to happen for RUA, RUA towards the HNB doesn't seem to know any confirmations to its CONNECT
+	 * operation. */
 
 	return 0;
 }
