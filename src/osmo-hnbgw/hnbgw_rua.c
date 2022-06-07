@@ -264,13 +264,15 @@ static int rua_to_scu(struct hnb_context *hnb,
 		return -EINVAL;
 	}
 
-	/* add optional data section, if needed */
+	/* If there is RANAP data, include it in the msgb. Usually there is data, but this could also be an SCCP CR
+	 * a.k.a. OSMO_SCU_PRIM_N_CONNECT without RANAP payload. */
 	if (data && len) {
 		msg->l2h = msgb_put(msg, len);
 		memcpy(msg->l2h, data, len);
 	}
 
-	/* Intercept RAB Assignment Response, inform MGW FSM. */
+	/* If there is data, see if it is a RAB Assignment message where we need to change the user plane information,
+	 * for RTP mapping via MGW (soon also GTP mapping via UPF). */
 	if (data && len && map && !map->is_ps && !release_context_map) {
 		message = talloc_zero(map, ranap_message);
 		rc = ranap_cn_rx_co_decode(map, message, msgb_l2(prim->oph.msg), msgb_l2len(prim->oph.msg));
