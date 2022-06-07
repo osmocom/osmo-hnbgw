@@ -339,6 +339,10 @@ static int handle_cn_conn_conf(struct hnbgw_cnlink *cnlink,
 	/* Nothing needs to happen for RUA, RUA towards the HNB doesn't seem to know any confirmations to its CONNECT
 	 * operation. */
 
+	/* If our initial SCCP CR was sent without data payload, then the initial RANAP message is cached and waiting to
+	 * be sent as soon as the SCCP connection is confirmed. See if that is the case, send cached data. */
+	context_map_send_cached_msg(context_map_by_cn(cnlink, param->conn_id));
+
 	return 0;
 }
 

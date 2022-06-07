@@ -134,6 +134,7 @@ struct hnb_gw {
 		bool hnbap_allow_tmsi;
 		/*! print hnb-id (true) or MCC-MNC-LAC-RAC-SAC (false) in logs */
 		bool log_prefix_hnb_id;
+		unsigned int max_sccp_cr_payload_len;
 		struct mgcp_client_conf *mgcp_client;
 	} config;
 	/*! SCTP listen socket for incoming connections */
@@ -175,3 +176,5 @@ void hnb_context_release(struct hnb_context *ctx);
 
 void hnbgw_vty_init(struct hnb_gw *gw, void *tall_ctx);
 int hnbgw_vty_go_parent(struct vty *vty);
+
+bool hnbgw_requires_empty_sccp_cr(struct hnb_gw *gw, unsigned int ranap_msg_len);

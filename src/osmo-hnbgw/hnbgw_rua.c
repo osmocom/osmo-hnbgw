@@ -177,11 +177,11 @@ int rua_tx_disc(struct hnb_context *hnb, int is_ps, uint32_t context_id,
 
 
 /* forward a RUA message to the SCCP User API to SCCP */
-static int rua_to_scu(struct hnb_context *hnb,
-		      RUA_CN_DomainIndicator_t cN_DomainIndicator,
-		      enum osmo_scu_prim_type type,
-		      uint32_t context_id, uint32_t cause,
-		      const uint8_t *data, unsigned int len)
+int rua_to_scu(struct hnb_context *hnb,
+	       RUA_CN_DomainIndicator_t cN_DomainIndicator,
+	       enum osmo_scu_prim_type type,
+	       uint32_t context_id, uint32_t cause,
+	       const uint8_t *data, unsigned int len)
 {
 	struct msgb *msg;
 	struct osmo_scu_prim *prim;
@@ -225,9 +225,9 @@ static int rua_to_scu(struct hnb_context *hnb,
 	default:
 		map = context_map_alloc_by_hnb(hnb, context_id, is_ps, cn);
 		OSMO_ASSERT(map);
-		LOGHNB(hnb, DRUA, LOGL_DEBUG, "rua_to_scu() %s to %s, rua_ctx_id %u scu_conn_id %u\n",
+		LOGHNB(hnb, DRUA, LOGL_DEBUG, "rua_to_scu() %s to %s, rua_ctx_id %u scu_conn_id %u data-len %u\n",
 		       cn_domain_indicator_to_str(cN_DomainIndicator), osmo_sccp_addr_dump(remote_addr),
-		       map->rua_ctx_id, map->scu_conn_id);
+		       map->rua_ctx_id, map->scu_conn_id, len);
 	}
 
 	/* add primitive header */
@@ -365,21 +365,69 @@ static int rua_rx_init_connect(struct msgb *msg, ANY_t *in)
 	struct hnb_context *hnb = msg->dst;
 	uint32_t context_id;
 	int rc;
+	const uint8_t *data;
+	unsigned int data_len;
 
 	rc = rua_decode_connecties(&ies, in);
 	if (rc < 0)
 		return rc;
 
 	context_id = asn1bitstr_to_u24(&ies.context_ID);
+	data = ies.ranaP_Message.buf;
+	data_len = ies.ranaP_Message.size;
 
-	LOGHNB(hnb, DRUA, LOGL_DEBUG, "RUA %s Connect.req(ctx=0x%x, %s)\n",
-		cn_domain_indicator_to_str(ies.cN_DomainIndicator), context_id,
-		ies.establishment_Cause == RUA_Establishment_Cause_emergency_call ? "emergency" : "normal");
+	LOGHNB(hnb, DRUA, LOGL_DEBUG, "RUA %s Connect.req(ctx=0x%x, %s, RANAP.size=%u)\n",
+	       cn_domain_indicator_to_str(ies.cN_DomainIndicator), context_id,
+	       ies.establishment_Cause == RUA_Establishment_Cause_emergency_call ? "emergency" : "normal",
+	       data_len);
+
+	if (hnbgw_requires_empty_sccp_cr(hnb->gw, data_len)) {
+		/* Do not include data in the SCCP CR, to avoid hitting a message size limit at the remote end that may
+		 * lead to rejection. */
+		bool is_ps;
+		struct osmo_sccp_addr *remote_addr;
+		struct hnbgw_context_map *map;
+
+		switch (ies.cN_DomainIndicator) {
+		case RUA_CN_DomainIndicator_cs_domain:
+			remote_addr = &hnb->gw->sccp.iucs_remote_addr;
+			is_ps = false;
+			break;
+		case RUA_CN_DomainIndicator_ps_domain:
+			remote_addr = &hnb->gw->sccp.iups_remote_addr;
+			is_ps = true;
+			break;
+		default:
+			LOGHNB(hnb, DRUA, LOGL_ERROR, "Unsupported Domain %ld\n", ies.cN_DomainIndicator);
+			rua_free_connecties(&ies);
+			return -1;
+		}
+
+		if (!hnb->gw->sccp.cnlink) {
+			LOGHNB(hnb, DRUA, LOGL_NOTICE, "CN=NULL, discarding message\n");
+			rua_free_connecties(&ies);
+			return 0;
+		}
+
+		map = context_map_alloc_by_hnb(hnb, context_id, is_ps, hnb->gw->sccp.cnlink);
+		OSMO_ASSERT(map);
+		OSMO_ASSERT(map->is_ps == is_ps);
+		LOGHNB(hnb, DRUA, LOGL_DEBUG, "rua_rx_init_connect() %s to %s, rua_ctx_id %u scu_conn_id %u;"
+		       " Sending SCCP CR without payload, caching %u octets\n",
+		       cn_domain_indicator_to_str(ies.cN_DomainIndicator), osmo_sccp_addr_dump(remote_addr),
+		       map->rua_ctx_id, map->scu_conn_id, data_len);
+
+		map->cached_msg = msgb_alloc_c(map, data_len, "map.cached_msg");
+		OSMO_ASSERT(map->cached_msg);
+		memcpy(msgb_put(map->cached_msg, data_len), data, data_len);
+
+		/* Data is cached for after CR is confirmed, send SCCP CR but omit payload. */
+		data = NULL;
+		data_len = 0;
+	}
 
 	rc = rua_to_scu(hnb, ies.cN_DomainIndicator, OSMO_SCU_PRIM_N_CONNECT,
-			context_id, 0, ies.ranaP_Message.buf,
-			ies.ranaP_Message.size);
-
+			context_id, 0, data, data_len);
 	rua_free_connecties(&ies);
 
 	return rc;

@@ -330,6 +330,18 @@ DEFUN(cfg_hnbgw_log_prefix, cfg_hnbgw_log_prefix_cmd,
 	return CMD_SUCCESS;
 }
 
+DEFUN(cfg_hnbgw_max_sccp_cr_payload_len, cfg_hnbgw_max_sccp_cr_payload_len_cmd,
+      "sccp cr max-payload-len <0-999999>",
+      "Configure SCCP behavior\n"
+      "Configure SCCP Connection Request\n"
+      "Set an upper bound for payload data length included directly in the CR. If an initial RUA message has a"
+      " RANAP payload larger than this value (octets), send an SCCP CR without data, followed by an SCCP DT."
+      " This may be necessary if the remote component has a size limit on valid SCCP CR messages.\n")
+{
+	g_hnb_gw->config.max_sccp_cr_payload_len = atoi(argv[0]);
+	return CMD_SUCCESS;
+}
+
 DEFUN(cfg_hnbgw_iucs_remote_addr,
       cfg_hnbgw_iucs_remote_addr_cmd,
       "remote-addr NAME",
@@ -355,6 +367,8 @@ static int config_write_hnbgw(struct vty *vty)
 	vty_out(vty, "hnbgw%s", VTY_NEWLINE);
 	vty_out(vty, " log-prefix %s%s", g_hnb_gw->config.log_prefix_hnb_id ? "hnb-id" : "umts-cell-id",
 		VTY_NEWLINE);
+	if (g_hnb_gw->config.max_sccp_cr_payload_len != 999999)
+		vty_out(vty, " sccp cr max-payload-len %u%s", g_hnb_gw->config.max_sccp_cr_payload_len, VTY_NEWLINE);
 	return CMD_SUCCESS;
 }
 
@@ -421,6 +435,7 @@ void hnbgw_vty_init(struct hnb_gw *gw, void *tall_ctx)
 
 	install_element(HNBGW_NODE, &cfg_hnbgw_rnc_id_cmd);
 	install_element(HNBGW_NODE, &cfg_hnbgw_log_prefix_cmd);
+	install_element(HNBGW_NODE, &cfg_hnbgw_max_sccp_cr_payload_len_cmd);
 
 	install_element(HNBGW_NODE, &cfg_hnbgw_iuh_cmd);
 	install_node(&iuh_node, config_write_hnbgw_iuh);
