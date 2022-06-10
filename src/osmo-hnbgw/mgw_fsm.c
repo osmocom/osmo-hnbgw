@@ -767,6 +767,7 @@ int mgw_fsm_handle_rab_ass_resp(struct hnbgw_context_map *map, struct osmo_prim_
 
 		/* Send a release request, to make sure that the MSC is aware of the problem. */
 		tx_release_req(map);
+		return -1;
 	}
 
 	mgw_fsm_priv = map->mgw_fi->priv;
