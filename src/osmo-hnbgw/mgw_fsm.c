@@ -176,7 +176,7 @@ static void mgw_fsm_crcx_hnb(struct osmo_fsm_inst *fi, uint32_t event, void *dat
 	case MGW_EV_MGCP_OK:
 		mgw_info = osmo_mgcpc_ep_ci_get_rtp_info(mgw_fsm_priv->mgcpc_ep_ci_hnb);
 		if (!mgw_info) {
-			LOGPFSML(fi, LOGL_ERROR, "Got no response from MGW\n");
+			LOGPFSML(fi, LOGL_ERROR, "Got no RTP info response from MGW\n");
 			osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
 			return;
 		}
@@ -321,7 +321,7 @@ static void mgw_fsm_mdcx_hnb(struct osmo_fsm_inst *fi, uint32_t event, void *dat
 	case MGW_EV_MGCP_OK:
 		mgw_info = osmo_mgcpc_ep_ci_get_rtp_info(mgw_fsm_priv->mgcpc_ep_ci_hnb);
 		if (!mgw_info) {
-			LOGPFSML(fi, LOGL_ERROR, "Got no response from MGW\n");
+			LOGPFSML(fi, LOGL_ERROR, "Got no RTP info response from MGW\n");
 			osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
 			return;
 		}
