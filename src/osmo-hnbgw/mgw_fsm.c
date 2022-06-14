@@ -141,10 +141,33 @@ static void mgw_fsm_crcx_hnb_onenter(struct osmo_fsm_inst *fi, uint32_t prev_sta
 {
 	struct mgw_fsm_priv *mgw_fsm_priv = fi->priv;
 	struct hnbgw_context_map *map = mgw_fsm_priv->map;
+	struct osmo_sockaddr addr;
+	struct osmo_sockaddr_str addr_str;
+	RANAP_RAB_AssignmentRequestIEs_t *ies;
 	const char *epname;
 	struct mgcp_conn_peer mgw_info;
+	int rc;
 
 	LOGPFSML(fi, LOGL_DEBUG, "RAB-AssignmentRequest received, creating HNB side call-leg on MGW...\n");
+
+	/* Parse the RAB Assignment Request now */
+	ies = &mgw_fsm_priv->ranap_rab_ass_req_message->msg.raB_AssignmentRequestIEs;
+	rc = ranap_rab_ass_req_ies_extract_inet_addr(&addr, &mgw_fsm_priv->rab_id, ies, 0);
+	if (rc < 0) {
+		LOGPFSML(fi,  LOGL_ERROR, "Invalid RAB-AssignmentRequest -- abort\n");
+		osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
+		return;
+	}
+
+	rc = osmo_sockaddr_str_from_sockaddr(&addr_str, &addr.u.sas);
+	if (rc < 0) {
+		LOGPFSML(fi, LOGL_ERROR,
+			"Invalid RTP IP-address or port in RAB-AssignmentRequest -- abort\n");
+		osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
+		return;
+	}
+	osmo_strlcpy(mgw_fsm_priv->msc_rtp_addr, addr_str.ip, sizeof(mgw_fsm_priv->msc_rtp_addr));
+	mgw_fsm_priv->msc_rtp_port = addr_str.port;
 
 	mgw_info = (struct mgcp_conn_peer) {
 		.call_id = (map->rua_ctx_id << 8) | mgw_fsm_priv->rab_id,
@@ -496,8 +519,9 @@ static int mgw_fsm_timer_cb(struct osmo_fsm_inst *fi)
 	return 0;
 }
 
-static void mgw_fsm_priv_cleanup(struct mgw_fsm_priv *mgw_fsm_priv)
+static void mgw_fsm_cleanup(struct osmo_fsm_inst *fi, enum osmo_fsm_term_cause cause)
 {
+	struct mgw_fsm_priv *mgw_fsm_priv = fi->priv;
 	struct osmo_scu_prim *scu_prim;
 	struct msgb *scu_msg;
 
@@ -521,12 +545,6 @@ static void mgw_fsm_priv_cleanup(struct mgw_fsm_priv *mgw_fsm_priv)
 	}
 
 	talloc_free(mgw_fsm_priv);
-}
-
-static void mgw_fsm_cleanup(struct osmo_fsm_inst *fi, enum osmo_fsm_term_cause cause)
-{
-	struct mgw_fsm_priv *mgw_fsm_priv = fi->priv;
-	mgw_fsm_priv_cleanup(mgw_fsm_priv);
 }
 
 static void mgw_fsm_pre_term(struct osmo_fsm_inst *fi, enum osmo_fsm_term_cause cause)
@@ -659,11 +677,8 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph,
 {
 	static bool initialized = false;
 	struct mgw_fsm_priv *mgw_fsm_priv;
-	struct osmo_sockaddr addr;
-	struct osmo_sockaddr_str addr_str;
-	RANAP_RAB_AssignmentRequestIEs_t *ies;
-	int rc;
 	char fsm_name[255];
+	int rc;
 
 	/* Initialize FSM if not done yet */
 	if (!initialized) {
@@ -686,9 +701,6 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph,
 		OSMO_ASSERT(map->mgw_fi == NULL);
 	}
 
-	mgw_fsm_priv = talloc_zero(map, struct mgw_fsm_priv);
-	mgw_fsm_priv->ranap_rab_ass_req_message = message;
-
 	/* This FSM only supports RAB assignments with a single RAB assignment only. This limitation has been taken
 	 * into account under the assumption that voice calls typically require a single RAB only. Nevertheless, we
 	 * will block all incoming RAB assignments that try to assign more (or less) than one RAB. */
@@ -696,42 +708,21 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph,
 		LOGP(DMGW, LOGL_ERROR,
 		     "mgw_fsm_alloc_and_handle_rab_ass_req() rua_ctx_id=%d, RAB-AssignmentRequest with more than one RAB assignment -- abort!\n",
 		     map->rua_ctx_id);
-		goto error;
+		tx_release_req(map);
+		return -1;
 	}
 
-	/* Parse the RAB Assignment Request now, if it is bad for some reason we will exit early and not bother with
-	 * creating an FSM etc. */
-	ies = &mgw_fsm_priv->ranap_rab_ass_req_message->msg.raB_AssignmentRequestIEs;
-	rc = ranap_rab_ass_req_ies_extract_inet_addr(&addr, &mgw_fsm_priv->rab_id, ies, 0);
-	if (rc < 0) {
-		LOGP(DMGW, LOGL_ERROR,
-		     "mgw_fsm_alloc_and_handle_rab_ass_req() rua_ctx_id=%d, invalid RAB-AssignmentRequest -- abort!\n",
-		     map->rua_ctx_id);
-		goto error;
-	}
-
-	rc = osmo_sockaddr_str_from_sockaddr(&addr_str, &addr.u.sas);
-	if (rc < 0) {
-		LOGP(DMGW, LOGL_ERROR,
-		     "mgw_fsm_alloc_and_handle_rab_ass_req() rua_ctx_id=%d, Invalid RTP IP-address or Port in RAB-AssignmentRequest -- abort\n",
-		     map->rua_ctx_id);
-		goto error;
-	}
-	osmo_strlcpy(mgw_fsm_priv->msc_rtp_addr, addr_str.ip, sizeof(mgw_fsm_priv->msc_rtp_addr));
-	mgw_fsm_priv->msc_rtp_port = addr_str.port;
-
-	/* Allocate the FSM and start it. */
+	mgw_fsm_priv = talloc_zero(map, struct mgw_fsm_priv);
 	mgw_fsm_priv->map = map;
+	mgw_fsm_priv->ranap_rab_ass_req_message = message;
+
+	/* Allocate FSM */
 	snprintf(fsm_name, sizeof(fsm_name), "mgw-fsm-%u-%u", map->rua_ctx_id, mgw_fsm_priv->rab_id);
 	map->mgw_fi = osmo_fsm_inst_alloc(&mgw_fsm, map, mgw_fsm_priv, LOGL_DEBUG, fsm_name);
-	mgw_fsm_state_chg(map->mgw_fi, MGW_ST_CRCX_HNB);
 
+	/* Start the FSM */
+	mgw_fsm_state_chg(map->mgw_fi, MGW_ST_CRCX_HNB);
 	return 0;
-error:
-	/* Cleanup context and make sure that the call is cleared. */
-	mgw_fsm_priv_cleanup(mgw_fsm_priv);
-	tx_release_req(map);
-	return -EINVAL;
 }
 
 /*! Handlie RANAP RAB AssignmentResponse (deliver message, complete RTP stream switching).
