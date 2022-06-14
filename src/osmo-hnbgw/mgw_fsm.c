@@ -672,7 +672,7 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph,
 		initialized = true;
 	}
 
-	/* The RTP stream negortiation usually begins with a RAB-AssignmentRequest and ends with an IU-Release, however
+	/* The RTP stream negotiation usually begins with a RAB-AssignmentRequest and ends with an IU-Release, however
 	 * it may also be thet the MSC decides to release the RAB with a dedicated RAB-AssignmentRequest that contains
 	 * a ReleaseList. In this case an FSM will already be present. */
 	if (map->mgw_fi) {
