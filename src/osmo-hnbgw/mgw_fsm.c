@@ -134,7 +134,7 @@ static const struct osmo_tdef_state_timeout mgw_fsm_timeouts[32] = {
 	[MGW_ST_CRCX_MSC] = {.T = -1004 },
 };
 
-#define mgw_fsm_state_chg(state) \
+#define mgw_fsm_state_chg(fi, state) \
 	osmo_tdef_fsm_inst_state_chg(fi, state, mgw_fsm_timeouts, mgw_fsm_T_defs, -1)
 
 static void mgw_fsm_crcx_hnb_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state)
@@ -206,7 +206,7 @@ static void mgw_fsm_crcx_hnb(struct osmo_fsm_inst *fi, uint32_t event, void *dat
 			return;
 		}
 
-		mgw_fsm_state_chg(MGW_ST_ASSIGN);
+		mgw_fsm_state_chg(fi, MGW_ST_ASSIGN);
 		return;
 	default:
 		OSMO_ASSERT(false);
@@ -237,7 +237,7 @@ static void mgw_fsm_assign(struct osmo_fsm_inst *fi, uint32_t event, void *data)
 {
 	switch (event) {
 	case MGW_EV_RAB_ASS_RESP:
-		mgw_fsm_state_chg(MGW_ST_MDCX_HNB);
+		mgw_fsm_state_chg(fi, MGW_ST_MDCX_HNB);
 		return;
 	default:
 		OSMO_ASSERT(false);
@@ -325,7 +325,7 @@ static void mgw_fsm_mdcx_hnb(struct osmo_fsm_inst *fi, uint32_t event, void *dat
 			osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
 			return;
 		}
-		mgw_fsm_state_chg(MGW_ST_CRCX_MSC);
+		mgw_fsm_state_chg(fi, MGW_ST_CRCX_MSC);
 		return;
 	default:
 		OSMO_ASSERT(false);
@@ -725,7 +725,7 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph,
 	snprintf(fsm_name, sizeof(fsm_name), "mgw-fsm-%u-%u", map->rua_ctx_id, mgw_fsm_priv->rab_id);
 	fi = osmo_fsm_inst_alloc(&mgw_fsm, map, mgw_fsm_priv, LOGL_DEBUG, fsm_name);
 	map->mgw_fi = fi;
-	mgw_fsm_state_chg(MGW_ST_CRCX_HNB);
+	mgw_fsm_state_chg(fi, MGW_ST_CRCX_HNB);
 
 	return 0;
 error:
