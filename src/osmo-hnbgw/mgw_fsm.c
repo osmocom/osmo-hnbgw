@@ -658,7 +658,6 @@ static int handle_rab_release(struct hnbgw_context_map *map, struct osmo_prim_hd
 int handle_rab_ass_req(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph, ranap_message *message)
 {
 	static bool initialized = false;
-	struct osmo_fsm_inst *fi;
 	struct mgw_fsm_priv *mgw_fsm_priv;
 	struct osmo_sockaddr addr;
 	struct osmo_sockaddr_str addr_str;
@@ -683,7 +682,8 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph,
 
 		LOGPFSML(map->mgw_fi, LOGL_ERROR,
 			 "mgw_fsm_alloc_and_handle_rab_ass_req() unable to handle RAB-AssignmentRequest!\n");
-		osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
+		osmo_fsm_inst_state_chg(map->mgw_fi, MGW_ST_FAILURE, 0, 0);
+		OSMO_ASSERT(map->mgw_fi == NULL);
 	}
 
 	mgw_fsm_priv = talloc_zero(map, struct mgw_fsm_priv);
@@ -723,9 +723,8 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph,
 	/* Allocate the FSM and start it. */
 	mgw_fsm_priv->map = map;
 	snprintf(fsm_name, sizeof(fsm_name), "mgw-fsm-%u-%u", map->rua_ctx_id, mgw_fsm_priv->rab_id);
-	fi = osmo_fsm_inst_alloc(&mgw_fsm, map, mgw_fsm_priv, LOGL_DEBUG, fsm_name);
-	map->mgw_fi = fi;
-	mgw_fsm_state_chg(fi, MGW_ST_CRCX_HNB);
+	map->mgw_fi = osmo_fsm_inst_alloc(&mgw_fsm, map, mgw_fsm_priv, LOGL_DEBUG, fsm_name);
+	mgw_fsm_state_chg(map->mgw_fi, MGW_ST_CRCX_HNB);
 
 	return 0;
 error:
