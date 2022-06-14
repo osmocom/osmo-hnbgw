@@ -122,12 +122,12 @@ struct mgw_fsm_priv {
 	uint16_t msc_rtp_port;
 };
 
-struct osmo_tdef mgw_tdefs[] = {
+static const struct osmo_tdef mgw_tdefs[] = {
 	{.T = -2427, .default_val = 5, .desc = "timeout for MGCP response from MGW" },
 	{ }
 };
 
-struct osmo_tdef_state_timeout mgw_fsm_timeouts[32] = {
+static const struct osmo_tdef_state_timeout mgw_fsm_timeouts[32] = {
 	[MGW_ST_CRCX_HNB] = {.T = -1001 },
 	[MGW_ST_ASSIGN] = {.T = -1002 },
 	[MGW_ST_MDCX_HNB] = {.T = -1003 },
