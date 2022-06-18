@@ -19,9 +19,9 @@ GIT Repository
 
 You can clone from the official osmo-hnbgw.git repository using
 
-	git clone git://git.osmocom.org/osmo-hnbgw.git
+	git clone https://gitea.osmocom.org/cellular-infrastructure/osmo-hnbgw
 
-There is a cgit interface at https://git.osmocom.org/osmo-hnbgw/
+There is a web interface at https://gitea.osmocom.org/cellular-infrastructure/osmo-hnbgw
 
 Documentation
 -------------

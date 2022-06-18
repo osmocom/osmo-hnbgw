@@ -23,8 +23,8 @@ Build-Depends: debhelper (>=9),
                libosmo-rua-dev (>= 1.1.0),
                osmo-gsm-manuals-dev (>= 1.2.0)
 Standards-Version: 3.9.8
-Vcs-Git: git://git.osmocom.org/osmo-hnbgw.git
-Vcs-Browser: https://git.osmocom.org/osmo-hnbgw/
+Vcs-Git: https://gitea.osmocom.org/cellular-infrastructure/osmo-hnbgw
+Vcs-Browser: https://gitea.osmocom.org/cellular-infrastructure/osmo-hnbgw
 Homepage: https://projects.osmocom.org/projects/osmo-hnbgw
 
 Package: osmo-hnbgw
