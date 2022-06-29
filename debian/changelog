@@ -1,3 +1,40 @@
+osmo-hnbgw (1.3.0) unstable; urgency=medium
+
+  [ Philipp Maier ]
+  * hnbgw_cn.c: fix sourcecode formatting
+  * hbgw_hnbap: use osmo_plmn_from_bcd instead of gsm48_mcc_mnc_from_bcd
+  * ranap_rab_ass: add decoder and rewrite functions for RAB-AssignmentRequest/Response
+  * ranap_rab_ass: ensure specific rab_id
+  * ranap_rab_ass: add function to check if RAB is in FailureList
+  * ranap_rab_ass: add function to check if RAB is in ReleaseList
+  * ranap_rab_ass_test: cosmetic: correct test function names
+  * mgw_fsm: add MGW support to osmo-hnbgw
+  * overview.adoc: update network diagram
+  * running.adoc: explain MGW configuration
+  * osmo-hnbgw.cfg: use local port 2729 as default for MGCP client
+  * mgw_fsm: release call when FSM is not created
+  * ranap_rab_ass: check for more than one RAB assignment req
+
+  [ Neels Hofmeyr ]
+  * use osmo_select_main_ctx(), tweak log in handle_cn_conn_conf()
+  * allow calling rua_to_scu() without data
+  * tweak comments in rua_to_scu()
+  * add option to send SCCP CR without payload
+  * fix segfault in error handling for mgw_fi == NULL
+
+  [ Pau Espin Pedrol ]
+  * mgw_fsm: Mark structs as static const
+  * mgw_fsm: Improve logging
+  * cosmetic: mgw_fsm: Fix typo in log
+  * mgw_fsm: Change macro to not use local variables implicitly
+  * mgw_fsm: Fix error path accessing uninitialized fsm ptr
+  * mgw_fsm: Simplify cleanup paths
+
+  [ Harald Welte ]
+  * update URLs (git -> https; gitea)
+
+ -- Pau Espin Pedrol <pespin@sysmocom.de>  Wed, 29 Jun 2022 12:42:35 +0200
+
 osmo-hnbgw (1.2.1) unstable; urgency=medium
 
   * Do not turn some compiler warnings into errors by default
