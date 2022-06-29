@@ -541,6 +541,8 @@ int hnbgw_cnlink_init(struct hnb_gw *gw, const char *stp_host, uint16_t stp_port
 		LOGP(DRANAP, LOGL_NOTICE, "No cs7 instance configured for IuCS nor IuPS,"
 		     " creating default instance\n");
 		ss7 = osmo_ss7_instance_find_or_create(gw, 0);
+		if (!ss7)
+			return -1;
 		ss7->cfg.primary_pc = (23 << 3) + 5;
 	}
 
