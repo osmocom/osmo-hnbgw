@@ -370,12 +370,11 @@ static int handle_cn_data_ind(struct hnbgw_cnlink *cnlink,
 	}
 
 	/* Intercept RAB Assignment Request, to map RTP and GTP between access and core */
-	if (!map->is_ps) {
-		/* Circuit-Switched. Set up mapping of RTP ports via MGW */
-		message = talloc_zero(map, ranap_message);
-		rc = ranap_ran_rx_co_decode(map, message, msgb_l2(oph->msg), msgb_l2len(oph->msg));
-
-		if (rc == 0) {
+	message = talloc_zero(map, ranap_message);
+	rc = ranap_ran_rx_co_decode(map, message, msgb_l2(oph->msg), msgb_l2len(oph->msg));
+	if (rc == 0) {
+		if (!map->is_ps) {
+			/* Circuit-Switched. Set up mapping of RTP ports via MGW */
 			switch (message->procedureCode) {
 			case RANAP_ProcedureCode_id_RAB_Assignment:
 				/* mgw_fsm_alloc_and_handle_rab_ass_req() takes ownership of (ranap) message */
@@ -386,16 +385,8 @@ static int handle_cn_data_ind(struct hnbgw_cnlink *cnlink,
 				mgw_fsm_release(map);
 				break;
 			}
-			ranap_ran_rx_co_free(message);
-		}
-
-		talloc_free(message);
-	} else {
-		/* Packet-Switched. Set up mapping of GTP ports via UPF */
-		message = talloc_zero(map, ranap_message);
-		rc = ranap_ran_rx_co_decode(map, message, msgb_l2(oph->msg), msgb_l2len(oph->msg));
-
-		if (rc == 0) {
+		} else {
+			/* Packet-Switched. Set up mapping of GTP ports via UPF */
 			switch (message->procedureCode) {
 
 			case RANAP_ProcedureCode_id_RAB_Assignment:
@@ -412,16 +403,15 @@ static int handle_cn_data_ind(struct hnbgw_cnlink *cnlink,
 				break;
 
 			case RANAP_ProcedureCode_id_Iu_Release:
-				/* Any IU Release will terminate the MGW FSM, the message itsself is not passed to the
-				 * FSM code. It is just forwarded normally by the rua_tx_dt() call below. */
+				/* An IU Release will terminate the PFCP sessions for all RABs (ps_rab FSM instances).
+				 * Terminate all RABs and forward the IU Release directly by rua_tx_dt() below. */
 				hnbgw_gtpmap_release(map);
 				break;
 			}
-			ranap_ran_rx_co_free(message);
 		}
-
-		talloc_free(message);
+		ranap_ran_rx_co_free(message);
 	}
+	talloc_free(message);
 
 	return rua_tx_dt(map->hnb_ctx, map->is_ps, map->rua_ctx_id,
 			 msgb_l2(oph->msg), msgb_l2len(oph->msg));
