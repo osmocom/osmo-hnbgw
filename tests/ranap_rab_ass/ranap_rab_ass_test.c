@@ -61,7 +61,7 @@ void test_ranap_rab_ass_req_decode_encode(void)
 	OSMO_ASSERT(rc == 0);
 
 	encoded = ranap_rab_ass_req_encode(&message.msg.raB_AssignmentRequestIEs);
-	printf("ranap_rab_ass_req_encode %s\n", encoded ? "ok" : "ERROR");
+	OSMO_ASSERT(encoded != NULL);
 
 	printf("INPUT:  %s\n", osmo_hexdump_nospc(testvec, sizeof(testvec)));
 	printf("RESULT: %s\n", osmo_hexdump_nospc(encoded->data, encoded->len));
@@ -214,6 +214,7 @@ void test_ranap_rab_ass_req_ies_replace_inet_addr(void)
 	printf("after: addr=%s, port=%u, rab_id=%u\n", addr_str.ip, addr_str.port, rab_id);
 
 	encoded = ranap_rab_ass_req_encode(&message.msg.raB_AssignmentRequestIEs);
+	OSMO_ASSERT(encoded != NULL);
 	OSMO_ASSERT(encoded->len == sizeof(testvec_expected_out));
 	OSMO_ASSERT(memcmp(encoded->data, testvec_expected_out, encoded->len) == 0);
 
