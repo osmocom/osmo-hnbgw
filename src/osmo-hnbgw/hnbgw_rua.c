@@ -276,25 +276,37 @@ int rua_to_scu(struct hnb_context *hnb,
 	/* If there is data, see if it is a RAB Assignment message where we need to change the user plane information,
 	 * for RTP mapping via MGW (soon also GTP mapping via UPF). */
 	if (data && len && map && !release_context_map) {
-		message = talloc_zero(map, ranap_message);
-		rc = ranap_cn_rx_co_decode(map, message, msgb_l2(prim->oph.msg), msgb_l2len(prim->oph.msg));
+		if (!map->is_ps) {
+			message = talloc_zero(map, ranap_message);
+			rc = ranap_cn_rx_co_decode(map, message, msgb_l2(prim->oph.msg), msgb_l2len(prim->oph.msg));
 
-		if (rc == 0) {
-			switch (message->procedureCode) {
-			case RANAP_ProcedureCode_id_RAB_Assignment:
-				if (!map->is_ps) {
+			if (rc == 0) {
+				switch (message->procedureCode) {
+				case RANAP_ProcedureCode_id_RAB_Assignment:
 					/* mgw_fsm_handle_rab_ass_resp() takes ownership of prim->oph and (ranap) message */
 					return mgw_fsm_handle_rab_ass_resp(map, &prim->oph, message);
 				}
-#if ENABLE_PFCP
-				/* ps_rab_ass_fsm takes ownership of prim->oph and RANAP message */
-				return hnbgw_gtpmap_rx_rab_ass_resp(map, &prim->oph, message);
-#endif
+				ranap_cn_rx_co_free(message);
 			}
-			ranap_cn_rx_co_free(message);
-		}
 
-		talloc_free(message);
+			talloc_free(message);
+#if ENABLE_PFCP
+		} else {
+			message = talloc_zero(map, ranap_message);
+			rc = ranap_cn_rx_co_decode(map, message, msgb_l2(prim->oph.msg), msgb_l2len(prim->oph.msg));
+
+			if (rc == 0) {
+				switch (message->procedureCode) {
+				case RANAP_ProcedureCode_id_RAB_Assignment:
+					/* ps_rab_ass_fsm takes ownership of prim->oph and RANAP message */
+					return hnbgw_gtpmap_rx_rab_ass_resp(map, &prim->oph, message);
+				}
+				ranap_cn_rx_co_free(message);
+			}
+
+			talloc_free(message);
+#endif
+		}
 	}
 
 	rc = osmo_sccp_user_sap_down(cn->sccp_user, &prim->oph);
