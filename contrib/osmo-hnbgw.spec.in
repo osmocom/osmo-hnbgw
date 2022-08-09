@@ -45,6 +45,7 @@ BuildRequires:  pkgconfig(libosmovty) >= 1.7.0
 BuildRequires:  pkgconfig(libosmo-hnbap) >= 1.3.0
 BuildRequires:  pkgconfig(libosmo-ranap) >= 1.3.0
 BuildRequires:  pkgconfig(libosmo-rua) >= 1.3.0
+BuildRequires:  pkgconfig(libosmo-pfcp) >= 0.1.0
 BuildRequires:  pkgconfig(talloc)
 BuildRequires:  pkgconfig(libasn1c) >= 0.9.30
 %{?systemd_requires}
@@ -60,7 +61,8 @@ echo "%{version}" >.tarball-version
 autoreconf -fi
 %configure \
   --docdir=%{_docdir}/%{name} \
-  --with-systemdsystemunitdir=%{_unitdir}
+  --with-systemdsystemunitdir=%{_unitdir} \
+  --enable-pfcp
 make %{?_smp_mflags}
 
 %install
