@@ -20,8 +20,6 @@ AM_CFLAGS = \
 	$(LIBOSMORANAP_CFLAGS) \
 	$(LIBOSMOHNBAP_CFLAGS) \
 	$(LIBOSMOMGCPCLIENT_CFLAGS) \
-	$(LIBOSMOGTLV_CFLAGS) \
-	$(LIBOSMOPFCP_CFLAGS) \
 	$(NULL)
 
 AM_LDFLAGS = \
@@ -37,14 +35,11 @@ osmo_hnbgw_SOURCES = \
 	hnbgw_hnbap.c \
 	hnbgw_rua.c \
 	hnbgw_ranap.c \
-	hnbgw_pfcp.c \
 	hnbgw_vty.c \
 	context_map.c \
 	hnbgw_cn.c \
 	ranap_rab_ass.c \
 	mgw_fsm.c \
-	ps_rab_ass_fsm.c \
-	ps_rab_fsm.c \
 	tdefs.c \
 	$(NULL)
 
@@ -63,6 +58,20 @@ osmo_hnbgw_LDADD = \
 	$(LIBOSMOMGCPCLIENT_LIBS) \
 	$(LIBSCTP_LIBS) \
 	$(LIBOSMOMGCPCLIENT_LIBS) \
+	$(NULL)
+
+if ENABLE_PFCP
+AM_CFLAGS += \
+	$(LIBOSMOGTLV_CFLAGS) \
+	$(LIBOSMOPFCP_CFLAGS) \
+	$(NULL)
+osmo_hnbgw_LDADD += \
 	$(LIBOSMOGTLV_LIBS) \
 	$(LIBOSMOPFCP_LIBS) \
 	$(NULL)
+osmo_hnbgw_SOURCES += \
+	hnbgw_pfcp.c \
+	ps_rab_ass_fsm.c \
+	ps_rab_fsm.c \
+	$(NULL)
+endif

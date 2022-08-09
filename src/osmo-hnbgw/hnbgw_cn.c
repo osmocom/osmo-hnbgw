@@ -18,6 +18,8 @@
  *
  */
 
+#include "config.h"
+
 #include <arpa/inet.h>
 #include <errno.h>
 
@@ -29,7 +31,9 @@
 #include <osmocom/sigtran/sccp_sap.h>
 #include <osmocom/sigtran/sccp_helpers.h>
 
+#if ENABLE_PFCP
 #include <osmocom/pfcp/pfcp_cp_peer.h>
+#endif
 
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/hnbgw_rua.h>
@@ -356,7 +360,6 @@ static int handle_cn_data_ind(struct hnbgw_cnlink *cnlink,
 	struct hnbgw_context_map *map;
 	ranap_message *message;
 	int rc;
-	struct hnb_gw *hnb_gw = cnlink->gw;
 
 	/* Usually connection-oriented data is always passed transparently towards the specific HNB, via a RUA
 	 * connection identified by conn_id. An exception is made for RANAP RAB AssignmentRequest and
@@ -385,7 +388,9 @@ static int handle_cn_data_ind(struct hnbgw_cnlink *cnlink,
 				mgw_fsm_release(map);
 				break;
 			}
+#if ENABLE_PFCP
 		} else {
+			struct hnb_gw *hnb_gw = cnlink->gw;
 			/* Packet-Switched. Set up mapping of GTP ports via UPF */
 			switch (message->procedureCode) {
 
@@ -408,6 +413,7 @@ static int handle_cn_data_ind(struct hnbgw_cnlink *cnlink,
 				hnbgw_gtpmap_release(map);
 				break;
 			}
+#endif
 		}
 		ranap_ran_rx_co_free(message);
 	}

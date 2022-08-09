@@ -19,6 +19,8 @@
  *
  */
 
+#include "config.h"
+
 /* an expired mapping is destroyed  after 1..2 * EXPIRY_TIMER_SECS */
 #define EXPIRY_TIMER_SECS	23
 
@@ -166,7 +168,9 @@ void context_map_deactivate(struct hnbgw_context_map *map)
 		OSMO_ASSERT(map->mgw_fi == NULL);
 	}
 
+#if ENABLE_PFCP
 	hnbgw_gtpmap_release(map);
+#endif
 }
 
 static struct osmo_timer_list context_map_tmr;

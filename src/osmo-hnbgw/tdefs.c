@@ -14,8 +14,13 @@
  * GNU General Public License for more details.
  */
 
+#include "config.h"
+
 #include <osmocom/hnbgw/tdefs.h>
+
+#if ENABLE_PFCP
 #include <osmocom/pfcp/pfcp_endpoint.h>
+#endif
 
 struct osmo_tdef mgw_fsm_T_defs[] = {
 	{.T = -1001, .default_val = 5, .desc = "Timeout for HNB side call-leg (to-HNB) creation" },
@@ -34,6 +39,8 @@ struct osmo_tdef ps_T_defs[] = {
 struct osmo_tdef_group hnbgw_tdef_group[] = {
 	{.name = "mgw", .tdefs = mgw_fsm_T_defs, .desc = "MGW (Media Gateway) interface" },
 	{.name = "ps", .tdefs = ps_T_defs, .desc = "timers for Packet Switched domain" },
+#if ENABLE_PFCP
 	{.name = "pfcp", .tdefs = osmo_pfcp_tdefs, .desc = "PFCP timers" },
+#endif
 	{ }
 };

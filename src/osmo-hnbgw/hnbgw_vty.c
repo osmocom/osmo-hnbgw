@@ -18,6 +18,8 @@
  *
  */
 
+#include "config.h"
+
 #include <string.h>
 
 #include <osmocom/core/socket.h>
@@ -362,6 +364,8 @@ DEFUN(cfg_hnbgw_iups_remote_addr,
 	return CMD_SUCCESS;
 }
 
+#if ENABLE_PFCP
+
 static struct cmd_node pfcp_node = {
 	PFCP_NODE,
 	"%s(config-hnbgw-pfcp)# ",
@@ -402,6 +406,8 @@ DEFUN(cfg_pfcp_local_port, cfg_pfcp_local_port_cmd,
 	g_hnb_gw->config.pfcp.local_port = atoi(argv[0]);
 	return CMD_SUCCESS;
 }
+
+#endif /* ENABLE_PFCP */
 
 static int config_write_hnbgw(struct vty *vty)
 {
@@ -466,6 +472,7 @@ static int config_write_hnbgw_mgcp(struct vty *vty)
 	return CMD_SUCCESS;
 }
 
+#if ENABLE_PFCP
 static int config_write_hnbgw_pfcp(struct vty *vty)
 {
 	vty_out(vty, " pfcp%s", VTY_NEWLINE);
@@ -476,6 +483,7 @@ static int config_write_hnbgw_pfcp(struct vty *vty)
 
 	return CMD_SUCCESS;
 }
+#endif
 
 void hnbgw_vty_init(struct hnb_gw *gw, void *tall_ctx)
 {
@@ -515,11 +523,13 @@ void hnbgw_vty_init(struct hnb_gw *gw, void *tall_ctx)
 	install_element(HNBGW_NODE, &cfg_hnbgw_mgcp_cmd);
 	install_node(&mgcp_node, config_write_hnbgw_mgcp);
 
+#if ENABLE_PFCP
 	install_node(&pfcp_node, config_write_hnbgw_pfcp);
 	install_element(HNBGW_NODE, &cfg_hnbgw_pfcp_cmd);
 	install_element(PFCP_NODE, &cfg_pfcp_local_addr_cmd);
 	install_element(PFCP_NODE, &cfg_pfcp_local_port_cmd);
 	install_element(PFCP_NODE, &cfg_pfcp_remote_addr_cmd);
+#endif
 
 	mgcp_client_vty_init(tall_hnb_ctx, MGCP_NODE, g_hnb_gw->config.mgcp_client);
 	osmo_tdef_vty_groups_init(HNBGW_NODE, hnbgw_tdef_group);

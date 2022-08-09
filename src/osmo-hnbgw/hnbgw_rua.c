@@ -18,6 +18,7 @@
  *
  */
 
+#include "config.h"
 
 #include <osmocom/core/msgb.h>
 #include <osmocom/core/utils.h>
@@ -285,8 +286,10 @@ int rua_to_scu(struct hnb_context *hnb,
 					/* mgw_fsm_handle_rab_ass_resp() takes ownership of prim->oph and (ranap) message */
 					return mgw_fsm_handle_rab_ass_resp(map, &prim->oph, message);
 				}
+#if ENABLE_PFCP
 				/* ps_rab_ass_fsm takes ownership of prim->oph and RANAP message */
 				return hnbgw_gtpmap_rx_rab_ass_resp(map, &prim->oph, message);
+#endif
 			}
 			ranap_cn_rx_co_free(message);
 		}

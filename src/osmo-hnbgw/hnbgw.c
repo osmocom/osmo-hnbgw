@@ -61,7 +61,9 @@
 #include <osmocom/sigtran/protocol/m3ua.h>
 #include <osmocom/sigtran/sccp_sap.h>
 
+#if ENABLE_PFCP
 #include <osmocom/pfcp/pfcp_proto.h>
+#endif
 
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/hnbgw_hnbap.h>
@@ -104,7 +106,9 @@ static struct hnb_gw *hnb_gw_create(void *ctx)
 	gw->config.mgcp_client = talloc_zero(tall_hnb_ctx, struct mgcp_client_conf);
 	mgcp_client_conf_init(gw->config.mgcp_client);
 
+#if ENABLE_PFCP
 	gw->config.pfcp.remote_port = OSMO_PFCP_PORT;
+#endif
 
 	return gw;
 }
@@ -718,8 +722,10 @@ int main(int argc, char **argv)
 		return -EINVAL;
 	}
 
+#if ENABLE_PFCP
 	/* If UPF is configured, set up PFCP socket and send Association Setup Request to UPF */
 	hnbgw_pfcp_init(g_hnb_gw);
+#endif
 
 	if (hnbgw_cmdline_config.daemonize) {
 		rc = osmo_daemonize();
