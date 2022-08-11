@@ -106,7 +106,7 @@ static struct ps_rab *ps_rab_alloc(struct hnbgw_context_map *map, uint8_t rab_id
 	};
 	fi->priv = rab;
 
-	osmo_use_count_get_put(&rab->use_count, PS_RAB_USE_ACTIVE, 1);
+	OSMO_ASSERT(osmo_use_count_get_put(&rab->use_count, PS_RAB_USE_ACTIVE, 1) == 0);
 
 	llist_add_tail(&rab->entry, &map->ps_rabs);
 	return rab;
@@ -139,7 +139,7 @@ void ps_rab_pfcp_set_msg_ctx(struct ps_rab *rab, struct osmo_pfcp_msg *m)
 	m->ctx.session_fi = rab->fi;
 	m->ctx.session_use_count = &rab->use_count;
 	m->ctx.session_use_token = "PFCP_MSG";
-	osmo_use_count_get_put(m->ctx.session_use_count, m->ctx.session_use_token, 1);
+	OSMO_ASSERT(osmo_use_count_get_put(m->ctx.session_use_count, m->ctx.session_use_token, 1) == 0);
 }
 
 static struct osmo_pfcp_msg *ps_rab_new_pfcp_msg_req(struct ps_rab *rab, enum osmo_pfcp_message_type msg_type)
@@ -663,7 +663,7 @@ static int ps_rab_fsm_use_cb(struct osmo_use_count_entry *e, int32_t old_use_cou
 static void ps_rab_fsm_wait_use_count_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state)
 {
 	struct ps_rab *rab = fi->priv;
-	osmo_use_count_get_put(&rab->use_count, PS_RAB_USE_ACTIVE, -1);
+	OSMO_ASSERT(osmo_use_count_get_put(&rab->use_count, PS_RAB_USE_ACTIVE, -1) == 0);
 }
 
 static void ps_rab_fsm_allstate_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
