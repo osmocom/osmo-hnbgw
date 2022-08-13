@@ -69,6 +69,7 @@ specific interface, and will hence not encounter conflicts for multiple instance
 running on the same interface:
 
 - The SCCP/M3UA links are established by OsmoHNBGW contacting an STP.
+- The MGCP link is established by OsmoHNBGW contacting an MGW.
 
 To run multiple OsmoHNBGW instances on the same SCCP routing, each HNBGW has to
 configure a distinct point-code, see <<configure_iucs_iups>>.
