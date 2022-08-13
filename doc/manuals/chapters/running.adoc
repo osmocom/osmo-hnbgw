@@ -70,6 +70,7 @@ running on the same interface:
 
 - The SCCP/M3UA links are established by OsmoHNBGW contacting an STP.
 - The MGCP link is established by OsmoHNBGW contacting an MGW.
+- The PFCP link is established by OsmoHNBGW contacting a UPF.
 
 To run multiple OsmoHNBGW instances on the same SCCP routing, each HNBGW has to
 configure a distinct point-code, see <<configure_iucs_iups>>.
@@ -140,3 +141,36 @@ hnbgw
   mgw remote-port 2427
   mgw reset-endpoint rtpbridge/*
 ----
+
+==== Configure co-located User Plane Function
+
+OsmoHNBGW optionally supports relaying the GTP user plane via a co-located UPF,
+which is controlled by the PFCP protocol.
+
+PFCP support is optional at compile time, as well as run time. To use a co-located UPF,
+
+* osmo-hnbgw needs to be compiled with 'configure --enable-pfcp',
+* and osmo-hnbgw.cfg needs to configure a 'pfcp' / 'remote-addr' and
+  'local-addr'.
+
+The following example configures OsmoHNBGW to associate via PFCP with a UPF
+listening on UDP 127.0.0.2:8805, ready to setup GTP tunnel relays.
+
+----
+hnbgw
+ pfcp
+  remote-addr 127.0.0.2
+  local-addr 127.0.0.1
+----
+
+3GPP TS 29.244 4.2.2 specifies that PFCP Request messages shall be sent to UDP
+port 8805, i.e. the PFCP port is fixed as 8805 and currently not configurable in
+osmo-hnbgw.
+
+Setting a 'local-addr' is required: the PFCP protocol features a Node ID, which
+uniquely identifies PFCP peers across different interfaces. According to the
+PFCP specification, the Node ID can be a fully-qualified domain name (FQDN) or
+an IP address. Currently, osmo-hnbgw has no support for using an FQDN as Node
+ID, and so far uses the 'local-addr' as local Node ID -- hence the 'local-addr'
+must not be "0.0.0.0", which is an unfortunate consequence. This is likely to
+improve in the future, see https://osmocom.org/issues/5647 .
