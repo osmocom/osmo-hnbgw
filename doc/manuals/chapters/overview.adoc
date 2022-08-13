@@ -72,17 +72,18 @@ side, and the Iuh interface on the or ther hand:
 
 ----
                       Iuh                         IuCS/IuPS
-
-NAS                   +----+----+                 +----+----+
-Non-Access Stratum    | CC | MM |                 | CC | MM |
-- - - - - - - - - - - +----+----+-------+         +----+----+
-                      | RANAP   |       |    H    | RANAP   |
-Access Stratum        +---------+ HNBAP |    N    +---------+ - - SCCP USER SAP
-                      | RUA     |       |    B    | SUA     |  \
-                      +---------+-------+    -    +---------+  |
-                      |        SCTP     |    G    | SCTP    |  } SIGTRAN
-                      +-----------------+    W    +---------+  |
-                      |        IP       |         | IP      |  /
+                                                  +----+----+
+                                                  | CC | MM |
+NAS                   +----+----+            .  . +----+----+
+Non-Access Stratum    | CC | MM |         .       | RANAP   |
+- - - - - - - - - - - +----+----+-------+         +---------+
+                      | RANAP   |       |    H    | SCCP    |
+Access Stratum        +---------+ HNBAP |    N    +---------+
+                      | RUA     |       |    B    | M3UA    |
+                      +---------+-------+    -    +---------+
+                      |        SCTP     |    G    | SCTP    |
+                      +-----------------+    W    +---------+
+                      |        IP       |         | IP      |
                       +-----------------+         +---------+
 ----
 
