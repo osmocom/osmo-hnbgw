@@ -9,26 +9,62 @@ OsmoHNBGW implements the Home NodeB Gateway function in the 3G network architect
 as a gateway between the classic 3G core network (CN) domain with its IuCS and IuPS interface
 and the femtocell based RAN.
 
-A typical 3G network consisting of Osmocom components will look as illustrated in the following
+A typical 3G network consisting of Osmocom components is illustrated in the following
 diagram:
 
 [[fig-3g]]
 .Typical 3G network architecture used with OsmoHNBGW
+[graphviz]
 ----
-        +------------+              +----------+          +---------+          +---------+
- UE <-->| hNodeB     |<----Iuh----->| HNB-GW   |<--IuCS-->| OsmoMSC |<--GSUP-->| OsmoHLR |
- UE <-->| femto cell |              |          |          |         |          |         |
-        |            |              |          |          +---------+          +---------+
-        |            |<---IuUP--\   |          |
-        |            |<-------. |   |          |          +---------+           +------+
-        +------------+        | |   |          |<--IuPS-->| SGSN    |<--GTP-C-->| GGSN |
-                              | |   +----------+          |         |   .------>|      |
-                              | |                         +---------+   |       +------+
-                              | |   +----------+          +---------+   |
-                              | \-->| MGW      |<--IuUP-->| MGW     |   |
-                              |     | (HNB-GW) |          | (MSC)   |   |
-                              |     +----------+          +---------+   |
-                              `--------------------GTP-U----------------'
+digraph G {
+  rankdir = LR;
+
+  UE [label="UE\n(3G phone)"]
+  PBX [label="PBX\nAsterisk, FreeSwitch,\nKamailio, Yate, ..."]
+
+  subgraph cluster_msc_mgw {
+    style=dotted
+    MSC
+    MGW1 [label="MGW"]
+    MSC -> MGW1 [label="MGCP",constraint=false]
+  }
+
+  subgraph cluster_hnbgw_mgw_upf {
+    style=dotted
+    MGW3 [label="MGW"]
+    UPF
+    HNBGW [label=HNBGW,style=bold]
+    HNBGW -> MGW3 [label="MGCP",constraint=false]
+    HNBGW -> UPF [label="PFCP",constraint=false]
+  }
+
+  hNodeB [shape="box",label="hNodeB\n(3G femto cell)"]
+
+  MSC -> HLR [label="\nGSUP",style=bold]
+  SGSN -> HLR [label="GSUP",style="dashed,bold"]
+  UE -> hNodeB [label="Uu",style=bold]
+  UE -> hNodeB [style="dashed,bold"]
+  hNodeB -> HNBGW [label="Iuh",style="bold"]
+  STP2 [label="STP\n(SCCP/M3UA)"]
+  HNBGW -> STP2 -> SGSN [label="IuPS",style="dashed,bold"]
+  HNBGW -> STP2 -> MSC [label="IuCS",style="bold"]
+  SGSN -> GGSN [label="GTP-C",style="dashed,bold"]
+  hNodeB -> UPF -> GGSN [label="GTP-U(3G)",style="dashed"]
+  GGSN -> internet [label="tun",style="dashed"]
+
+  hNodeB -> MGW3 [label="IuUP/RTP",constraint=false]
+  MGW3 -> MGW1 [label="IuUP/RTP"]
+
+  MSC -> SIPConnector [label="MNCC socket",style=bold]
+
+  SIPConnector -> PBX [label="SIP",style=bold]
+  MGW1 -> PBX [label="RTP"]
+
+  A, B, C, D [style="invisible"]
+  A -> B [label="data (PS)",style="dashed"]
+  C -> D [label="voice/SMS/USSD (CS)"]
+
+}
 ----
 
 The HNB-GW performs a translation interface between the IuCS/IuPS interfaces on the one hand
