@@ -256,11 +256,10 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 		return 0;
 	} else if (rc < 0) {
 		LOGHNB(hnb, DMAIN, LOGL_ERROR, "Error during sctp_recvmsg()\n");
-		/* FIXME: clean up after disappeared HNB */
-		hnb_context_release(hnb);
+		osmo_stream_srv_destroy(conn);
 		goto out;
 	} else if (rc == 0) {
-		hnb_context_release(hnb);
+		osmo_stream_srv_destroy(conn);
 		rc = -1;
 
 		goto out;
@@ -294,6 +293,16 @@ out:
 	return rc;
 }
 
+static int hnb_closed_cb(struct osmo_stream_srv *conn)
+{
+	struct hnb_context *hnb = osmo_stream_srv_get_data(conn);
+
+	if (hnb)
+		hnb_context_release(hnb);
+
+	return 0;
+}
+
 struct hnb_context *hnb_context_alloc(struct hnb_gw *gw, struct osmo_stream_srv_link *link, int new_fd)
 {
 	struct hnb_context *ctx;
@@ -304,7 +313,7 @@ struct hnb_context *hnb_context_alloc(struct hnb_gw *gw, struct osmo_stream_srv_
 	INIT_LLIST_HEAD(&ctx->map_list);
 
 	ctx->gw = gw;
-	ctx->conn = osmo_stream_srv_create(tall_hnb_ctx, link, new_fd, hnb_read_cb, NULL, ctx);
+	ctx->conn = osmo_stream_srv_create(tall_hnb_ctx, link, new_fd, hnb_read_cb, hnb_closed_cb, ctx);
 	if (!ctx->conn) {
 		LOGP(DMAIN, LOGL_INFO, "error while creating connection\n");
 		talloc_free(ctx);
@@ -351,8 +360,7 @@ void hnb_context_release(struct hnb_context *ctx)
 		context_map_deactivate(map);
 	}
 	ue_context_free_by_hnb(ctx->gw, ctx);
-
-	osmo_stream_srv_destroy(ctx->conn);
+	osmo_stream_srv_set_data(ctx->conn, NULL);
 
 	talloc_free(ctx);
 }

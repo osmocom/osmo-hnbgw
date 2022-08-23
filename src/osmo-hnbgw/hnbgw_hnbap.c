@@ -426,6 +426,7 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 				"MCC=%u,MNC=%u,LAC=%u,RAC=%u,SAC=%u,CID=%u from %s\n",
 				ctx->id.mcc, ctx->id.mnc, ctx->id.lac, ctx->id.rac, ctx->id.sac, ctx->id.cid, name);
 			talloc_free(name);
+			hnbap_free_hnbregisterrequesties(&ies);
 			return hnbgw_tx_hnb_register_rej(ctx);
 		}
 	}
