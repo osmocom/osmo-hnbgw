@@ -49,6 +49,7 @@
 #include <osmocom/ctrl/ports.h>
 #include <osmocom/vty/telnet_interface.h>
 #include <osmocom/vty/logging.h>
+#include <osmocom/vty/misc.h>
 #include <osmocom/vty/command.h>
 #include <osmocom/vty/ports.h>
 
@@ -623,6 +624,7 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
+	vty_info.tall_ctx = tall_hnb_ctx;
 	vty_info.copyright = osmo_hnbgw_copyright;
 	vty_init(&vty_info);
 
@@ -631,6 +633,7 @@ int main(int argc, char **argv)
 	hnbgw_vty_init(g_hnb_gw, tall_hnb_ctx);
 	ctrl_vty_init(tall_hnb_ctx);
 	logging_vty_add_cmds();
+	osmo_talloc_vty_add_cmds();
 
 	/* Handle options after vty_init(), for --version */
 	handle_options(argc, argv);
