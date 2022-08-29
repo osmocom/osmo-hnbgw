@@ -291,7 +291,8 @@ int rua_to_scu(struct hnb_context *hnb,
 
 			talloc_free(message);
 #if ENABLE_PFCP
-		} else {
+		} else if (hnb_gw_is_gtp_mapping_enabled(hnb->gw)) {
+			/* map->is_ps == true and PFCP is enabled in osmo-hnbgw.cfg */
 			message = talloc_zero(map, ranap_message);
 			rc = ranap_cn_rx_co_decode(map, message, msgb_l2(prim->oph.msg), msgb_l2len(prim->oph.msg));
 
