@@ -4,6 +4,8 @@ Description=Osmocom Home Nodeb Gateway (OsmoHNBGW)
 [Service]
 Type=simple
 Restart=always
+StateDirectory=osmocom
+WorkingDirectory=%S/osmocom
 ExecStart=/usr/bin/osmo-hnbgw -c /etc/osmocom/osmo-hnbgw.cfg
 RestartSec=2
 
