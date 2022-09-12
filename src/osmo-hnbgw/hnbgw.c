@@ -279,6 +279,10 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 		rc = hnbgw_hnbap_rx(hnb, msg);
 		break;
 	case IUH_PPI_RUA:
+		if (!hnb->hnb_registered) {
+			LOGHNB(hnb, DMAIN, LOGL_NOTICE, "Discarding RUA as HNB is not registered\n");
+			goto out;
+		}
 		hnb->rua_stream = msgb_sctp_stream(msg);
 		rc = hnbgw_rua_rx(hnb, msg);
 		break;
