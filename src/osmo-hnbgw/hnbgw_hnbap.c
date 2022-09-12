@@ -69,7 +69,7 @@ static int hnbgw_tx_hnb_register_rej(struct hnb_context *ctx)
 		return rc;
 	}
 
-	/* generate a successfull outcome PDU */
+	/* generate a unsuccessful outcome PDU */
 	msg = hnbap_generate_unsuccessful_outcome(HNBAP_ProcedureCode_id_HNBRegister,
 						  HNBAP_Criticality_reject,
 						  &asn_DEF_HNBAP_HNBRegisterReject,
@@ -111,7 +111,7 @@ static int hnbgw_tx_hnb_register_acc(struct hnb_context *ctx)
 		return rc;
 	}
 
-	/* generate a successfull outcome PDU */
+	/* generate a successful outcome PDU */
 	msg = hnbap_generate_successful_outcome(HNBAP_ProcedureCode_id_HNBRegister,
 					       HNBAP_Criticality_reject,
 					       &asn_DEF_HNBAP_HNBRegisterAccept,
