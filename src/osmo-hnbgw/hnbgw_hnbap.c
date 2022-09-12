@@ -388,7 +388,7 @@ static int hnbgw_rx_hnb_deregister(struct hnb_context *ctx, ANY_t *in)
 	LOGHNB(ctx, DHNBAP, LOGL_DEBUG, "HNB-DE-REGISTER cause=%s\n", hnbap_cause_str(&ies.cause));
 
 	hnbap_free_hnbde_registeries(&ies);
-	hnb_context_release(ctx);
+	ctx->hnb_registered = false;
 
 	return 0;
 }

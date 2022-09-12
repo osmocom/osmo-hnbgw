@@ -84,6 +84,7 @@ struct hnbgw_cnlink {
 	struct llist_head map_list;
 };
 
+/* The lifecycle of the hnb_context object is the same as its conn */
 struct hnb_context {
 	/*! Entry in HNB-global list of HNB */
 	struct llist_head list;
@@ -101,8 +102,7 @@ struct hnb_context {
 	/*! SCTP stream ID for RUA */
 	uint16_t rua_stream;
 
-	/*! True if a HNB-REGISTER-REQ from this HNB has been accepted. Note that
-	 * this entire data structure is freed if the HNB sends HNB-DE-REGISTER-REQ. */
+	/*! True if a HNB-REGISTER-REQ from this HNB has been accepted. */
 	bool hnb_registered;
 
 	/* linked list of hnbgw_context_map */
