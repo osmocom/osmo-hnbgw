@@ -535,32 +535,48 @@ static int hnbgw_rx_initiating_msg(struct hnb_context *hnb, HNBAP_InitiatingMess
 {
 	int rc = 0;
 
-	switch (imsg->procedureCode) {
-	case HNBAP_ProcedureCode_id_HNBRegister:	/* 8.2 */
-		rc = hnbgw_rx_hnb_register_req(hnb, &imsg->value);
-		break;
-	case HNBAP_ProcedureCode_id_HNBDe_Register:	/* 8.3 */
-		rc = hnbgw_rx_hnb_deregister(hnb, &imsg->value);
-		break;
-	case HNBAP_ProcedureCode_id_UERegister: 	/* 8.4 */
-		rc = hnbgw_rx_ue_register_req(hnb, &imsg->value);
-		break;
-	case HNBAP_ProcedureCode_id_UEDe_Register:	/* 8.5 */
-		rc = hnbgw_rx_ue_deregister(hnb, &imsg->value);
-		break;
-	case HNBAP_ProcedureCode_id_ErrorIndication:	/* 8.6 */
-		rc = hnbgw_rx_err_ind(hnb, &imsg->value);
-		break;
-	case HNBAP_ProcedureCode_id_TNLUpdate:	/* 8.9 */
-	case HNBAP_ProcedureCode_id_HNBConfigTransfer:	/* 8.10 */
-	case HNBAP_ProcedureCode_id_RelocationComplete:	/* 8.11 */
-	case HNBAP_ProcedureCode_id_U_RNTIQuery:	/* 8.12 */
-	case HNBAP_ProcedureCode_id_privateMessage:
-		LOGHNB(hnb, DHNBAP, LOGL_NOTICE, "Unimplemented HNBAP Procedure %ld\n", imsg->procedureCode);
-		break;
-	default:
-		LOGHNB(hnb, DHNBAP, LOGL_NOTICE, "Unknown HNBAP Procedure %ld\n", imsg->procedureCode);
-		break;
+	if (!hnb->hnb_registered) {
+		switch (imsg->procedureCode) {
+		case HNBAP_ProcedureCode_id_HNBRegister:	/* 8.2 */
+			rc = hnbgw_rx_hnb_register_req(hnb, &imsg->value);
+			break;
+		case HNBAP_ProcedureCode_id_HNBDe_Register:	/* 8.3 */
+			rc = hnbgw_rx_hnb_deregister(hnb, &imsg->value);
+			break;
+		default:
+			LOGHNB(hnb, DHNBAP, LOGL_NOTICE, "HNBAP Procedure %ld not permitted for de-registered HNB\n",
+				imsg->procedureCode);
+			break;
+		}
+	} else {
+		switch (imsg->procedureCode) {
+		case HNBAP_ProcedureCode_id_HNBRegister:	/* 8.2 */
+			LOGHNB(hnb, DHNBAP, LOGL_NOTICE,
+			       "HNBAP Procedure HNB-Register not permitted for registered HNB\n");
+			break;
+		case HNBAP_ProcedureCode_id_HNBDe_Register:	/* 8.3 */
+			rc = hnbgw_rx_hnb_deregister(hnb, &imsg->value);
+			break;
+		case HNBAP_ProcedureCode_id_UERegister:		/* 8.4 */
+			rc = hnbgw_rx_ue_register_req(hnb, &imsg->value);
+			break;
+		case HNBAP_ProcedureCode_id_UEDe_Register:	/* 8.5 */
+			rc = hnbgw_rx_ue_deregister(hnb, &imsg->value);
+			break;
+		case HNBAP_ProcedureCode_id_ErrorIndication:	/* 8.6 */
+			rc = hnbgw_rx_err_ind(hnb, &imsg->value);
+			break;
+		case HNBAP_ProcedureCode_id_TNLUpdate:		/* 8.9 */
+		case HNBAP_ProcedureCode_id_HNBConfigTransfer:	/* 8.10 */
+		case HNBAP_ProcedureCode_id_RelocationComplete:	/* 8.11 */
+		case HNBAP_ProcedureCode_id_U_RNTIQuery:	/* 8.12 */
+		case HNBAP_ProcedureCode_id_privateMessage:
+			LOGHNB(hnb, DHNBAP, LOGL_NOTICE, "Unimplemented HNBAP Procedure %ld\n", imsg->procedureCode);
+			break;
+		default:
+			LOGHNB(hnb, DHNBAP, LOGL_NOTICE, "Unknown HNBAP Procedure %ld\n", imsg->procedureCode);
+			break;
+		}
 	}
 
 	return rc;
