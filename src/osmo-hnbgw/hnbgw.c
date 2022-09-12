@@ -245,10 +245,6 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 	if (!msg)
 		return -ENOMEM;
 
-	/* we store a reference to the HomeNodeB in the msg->dest for the
-	 * benefit of varoius downstream processing functions */
-	msg->dst = hnb;
-
 	rc = osmo_stream_srv_recv(conn, msg);
 	if (rc == -EAGAIN) {
 		/* Notification received */
@@ -266,6 +262,16 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 	} else {
 		msgb_put(msg, rc);
 	}
+
+	if (!hnb) {
+		/* TODO: turn this into an OSMO_ASSERT() once we're sure it doesn't happen anymore */
+		LOGP(DHNBAP, LOGL_ERROR, "hnb_read_cb() but no hnb_context ?!?\n");
+		return -ENODEV;
+	}
+
+	/* we store a reference to the HomeNodeB in the msg->dest for the
+	 * benefit of various downstream processing functions */
+	msg->dst = hnb;
 
 	switch (msgb_sctp_ppid(msg)) {
 	case IUH_PPI_HNBAP:
