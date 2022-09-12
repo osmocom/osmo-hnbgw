@@ -375,6 +375,9 @@ static int accept_cb(struct osmo_stream_srv_link *srv, int fd)
 	struct hnb_gw *gw = osmo_stream_srv_link_get_data(srv);
 	struct hnb_context *ctx;
 
+	LOGP(DMAIN, LOGL_INFO, "New HNB SCTP connection %s\n",
+	     osmo_sock_get_name2(fd));
+
 	ctx = hnb_context_alloc(gw, srv, fd);
 	if (!ctx)
 		return -ENOMEM;
