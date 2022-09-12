@@ -245,6 +245,7 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 	if (!msg)
 		return -ENOMEM;
 
+	OSMO_ASSERT(hnb);
 	/* we store a reference to the HomeNodeB in the msg->dest for the
 	 * benefit of various downstream processing functions */
 	msg->dst = hnb;
