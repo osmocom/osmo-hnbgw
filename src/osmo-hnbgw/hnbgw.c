@@ -256,10 +256,13 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 		msgb_free(msg);
 		return 0;
 	} else if (rc < 0) {
-		LOGHNB(hnb, DMAIN, LOGL_ERROR, "Error during sctp_recvmsg()\n");
+		LOGHNB(hnb, DMAIN, LOGL_ERROR, "Error during sctp_recvmsg(%s)\n",
+		       osmo_sock_get_name2(osmo_stream_srv_get_ofd(conn)->fd));
 		osmo_stream_srv_destroy(conn);
 		goto out;
 	} else if (rc == 0) {
+		LOGHNB(hnb, DMAIN, LOGL_ERROR, "Connection closed sctp_recvmsg(%s) = 0\n",
+		       osmo_sock_get_name2(osmo_stream_srv_get_ofd(conn)->fd));
 		osmo_stream_srv_destroy(conn);
 		rc = -1;
 		goto out;
@@ -356,6 +359,8 @@ void hnb_context_release(struct hnb_context *ctx)
 {
 	struct hnbgw_context_map *map, *map2;
 
+	LOGHNB(ctx, DMAIN, LOGL_INFO, "Releasing HNB context\n");
+
 	/* remove from the list of HNB contexts */
 	llist_del(&ctx->list);
 
@@ -371,6 +376,8 @@ void hnb_context_release(struct hnb_context *ctx)
 	ue_context_free_by_hnb(ctx->gw, ctx);
 
 	if (ctx->conn) { /* we own a conn, we must free it: */
+		LOGHNB(ctx, DMAIN, LOGL_INFO, "Closing HNB SCTP connection %s\n",
+		     osmo_sock_get_name2(osmo_stream_srv_get_ofd(ctx->conn)->fd));
 		/* Avoid our closed_cb calling hnb_context_release() again: */
 		osmo_stream_srv_set_data(ctx->conn, NULL);
 		osmo_stream_srv_destroy(ctx->conn);
