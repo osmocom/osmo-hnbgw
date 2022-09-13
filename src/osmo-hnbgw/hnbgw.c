@@ -300,9 +300,14 @@ out:
 static int hnb_closed_cb(struct osmo_stream_srv *conn)
 {
 	struct hnb_context *hnb = osmo_stream_srv_get_data(conn);
+	if (!hnb)
+		return 0; /* hnb_context is being freed, nothing do be done */
 
-	if (hnb)
-		hnb_context_release(hnb);
+	/* hnb: conn became broken, let's release the associated hnb.
+	 * conn object is being freed after closed_cb(), so unassign it from hnb
+	 * if available to avoid it freeing it again: */
+	hnb->conn = NULL;
+	hnb_context_release(hnb);
 
 	return 0;
 }
@@ -364,7 +369,12 @@ void hnb_context_release(struct hnb_context *ctx)
 		context_map_deactivate(map);
 	}
 	ue_context_free_by_hnb(ctx->gw, ctx);
-	osmo_stream_srv_set_data(ctx->conn, NULL);
+
+	if (ctx->conn) { /* we own a conn, we must free it: */
+		/* Avoid our closed_cb calling hnb_context_release() again: */
+		osmo_stream_srv_set_data(ctx->conn, NULL);
+		osmo_stream_srv_destroy(ctx->conn);
+	} /* else: we are called from closed_cb, so conn is being freed separately */
 
 	talloc_free(ctx);
 }
