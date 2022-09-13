@@ -246,7 +246,7 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 		return -ENOMEM;
 
 	/* we store a reference to the HomeNodeB in the msg->dest for the
-	 * benefit of varoius downstream processing functions */
+	 * benefit of various downstream processing functions */
 	msg->dst = hnb;
 
 	rc = osmo_stream_srv_recv(conn, msg);
@@ -261,7 +261,6 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 	} else if (rc == 0) {
 		osmo_stream_srv_destroy(conn);
 		rc = -1;
-
 		goto out;
 	} else {
 		msgb_put(msg, rc);
