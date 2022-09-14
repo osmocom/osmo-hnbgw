@@ -261,7 +261,7 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 		osmo_stream_srv_destroy(conn);
 		goto out;
 	} else if (rc == 0) {
-		LOGHNB(hnb, DMAIN, LOGL_ERROR, "Connection closed sctp_recvmsg(%s) = 0\n",
+		LOGHNB(hnb, DMAIN, LOGL_NOTICE, "Connection closed sctp_recvmsg(%s) = 0\n",
 		       osmo_sock_get_name2(osmo_stream_srv_get_ofd(conn)->fd));
 		osmo_stream_srv_destroy(conn);
 		rc = -1;
