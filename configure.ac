@@ -64,7 +64,6 @@ PKG_CHECK_MODULES(LIBOSMOMGCPCLIENT, libosmo-mgcp-client >= 1.10.0)
 AC_ARG_ENABLE([pfcp], [AS_HELP_STRING([--enable-pfcp], [Build with PFCP support, for GTP tunnel mapping via UPF])],
     [osmo_ac_pfcp="$enableval"],[osmo_ac_pfcp="no"])
 if test "x$osmo_ac_pfcp" = "xyes" ; then
-	PKG_CHECK_MODULES(LIBOSMOGTLV, libosmo-gtlv >= 0.1.0)
 	PKG_CHECK_MODULES(LIBOSMOPFCP, libosmo-pfcp >= 0.1.0)
 	AC_DEFINE(ENABLE_PFCP, 1, [Define to build with PFCP support])
 fi
