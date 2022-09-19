@@ -251,8 +251,25 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 	msg->dst = hnb;
 
 	rc = osmo_stream_srv_recv(conn, msg);
-	if (rc == -EAGAIN) {
-		/* Notification received */
+	/* Notification received */
+	if (msgb_sctp_msg_flags(msg) & OSMO_STREAM_SCTP_MSG_FLAGS_NOTIFICATION) {
+		union sctp_notification *notif = (union sctp_notification *)msgb_data(msg);
+		switch (notif->sn_header.sn_type) {
+		case SCTP_ASSOC_CHANGE:
+			switch (notif->sn_assoc_change.sac_state) {
+			case SCTP_RESTART:
+				LOGHNB(hnb, DMAIN, LOGL_NOTICE, "HNB SCTP conn RESTARTed, marking as HNBAP-unregistered\n");
+				hnb->hnb_registered = false;
+				break;
+			}
+			break;
+		}
+		msgb_free(msg);
+		return 0;
+	} else if (rc == -EAGAIN) {
+		/* Older versions of osmo_stream_srv_recv() not supporting
+		 * msgb_sctp_msg_flags() may still return -EAGAIN when an sctp
+		 * notification is received. */
 		msgb_free(msg);
 		return 0;
 	} else if (rc < 0) {
