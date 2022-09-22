@@ -254,6 +254,7 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 	/* Notification received */
 	if (msgb_sctp_msg_flags(msg) & OSMO_STREAM_SCTP_MSG_FLAGS_NOTIFICATION) {
 		union sctp_notification *notif = (union sctp_notification *)msgb_data(msg);
+		rc = 0;
 		switch (notif->sn_header.sn_type) {
 		case SCTP_ASSOC_CHANGE:
 			switch (notif->sn_assoc_change.sac_state) {
@@ -261,17 +262,23 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 				LOGHNB(hnb, DMAIN, LOGL_NOTICE, "HNB SCTP conn RESTARTed, marking as HNBAP-unregistered\n");
 				hnb->hnb_registered = false;
 				break;
+			case SCTP_SHUTDOWN_EVENT:
+				LOGHNB(hnb, DMAIN, LOGL_NOTICE,
+				       "sctp_recvmsg(%s) = SCTP_SHUTDOWN_EVENT, closing conn\n",
+				       osmo_sock_get_name2(osmo_stream_srv_get_ofd(conn)->fd));
+				osmo_stream_srv_destroy(conn);
+				rc = -1;
+				break;
 			}
 			break;
 		}
-		msgb_free(msg);
-		return 0;
+		goto out;
 	} else if (rc == -EAGAIN) {
 		/* Older versions of osmo_stream_srv_recv() not supporting
 		 * msgb_sctp_msg_flags() may still return -EAGAIN when an sctp
 		 * notification is received. */
-		msgb_free(msg);
-		return 0;
+		rc = 0;
+		goto out;
 	} else if (rc < 0) {
 		LOGHNB(hnb, DMAIN, LOGL_ERROR, "Error during sctp_recvmsg(%s)\n",
 		       osmo_sock_get_name2(osmo_stream_srv_get_ofd(conn)->fd));
