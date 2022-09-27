@@ -399,11 +399,15 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	HNBAP_HNBRegisterRequestIEs_t ies;
 	int rc;
 	struct osmo_plmn_id plmn;
+	struct osmo_fd *ofd = osmo_stream_srv_get_ofd(ctx->conn);
+	char name[OSMO_SOCK_NAME_MAXLEN];
+
+	osmo_sock_get_name_buf(name, sizeof(name), ofd->fd);
 
 	rc = hnbap_decode_hnbregisterrequesties(&ies, in);
 	if (rc < 0) {
-		LOGHNB(ctx, DHNBAP, LOGL_ERROR, "Failure to decode HNB-REGISTER-REQ from %s: rc=%d\n",
-			ctx->identity_info, rc);
+		LOGHNB(ctx, DHNBAP, LOGL_ERROR, "Failure to decode HNB-REGISTER-REQ %s from %s: rc=%d\n",
+		       ctx->identity_info, name, rc);
 		return rc;
 	}
 
@@ -420,19 +424,17 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 
 	llist_for_each_entry(hnb, &ctx->gw->hnb_list, list) {
 		if (hnb->hnb_registered && ctx != hnb && memcmp(&ctx->id, &hnb->id, sizeof(ctx->id)) == 0) {
-			struct osmo_fd *ofd = osmo_stream_srv_get_ofd(ctx->conn);
-			char *name = osmo_sock_get_name(ctx, ofd->fd);
 			LOGHNB(ctx, DHNBAP, LOGL_ERROR, "rejecting HNB-REGISTER-REQ with duplicate cell identity "
 				"MCC=%u,MNC=%u,LAC=%u,RAC=%u,SAC=%u,CID=%u from %s\n",
 				ctx->id.mcc, ctx->id.mnc, ctx->id.lac, ctx->id.rac, ctx->id.sac, ctx->id.cid, name);
-			talloc_free(name);
 			hnbap_free_hnbregisterrequesties(&ies);
 			return hnbgw_tx_hnb_register_rej(ctx);
 		}
 	}
 
-	LOGHNB(ctx, DHNBAP, LOGL_DEBUG, "HNB-REGISTER-REQ from %s%s\n", ctx->identity_info,
-	       ctx->hnb_registered ? " (duplicated)" : "");
+	LOGHNB(ctx, DHNBAP, LOGL_DEBUG, "HNB-REGISTER-REQ %s MCC=%u,MNC=%u,LAC=%u,RAC=%u,SAC=%u,CID=%u from %s%s\n",
+	       ctx->identity_info, ctx->id.mcc, ctx->id.mnc, ctx->id.lac, ctx->id.rac, ctx->id.sac, ctx->id.cid,
+	       name, ctx->hnb_registered ? " (duplicated)" : "");
 
 	ctx->hnb_registered = true;
 
