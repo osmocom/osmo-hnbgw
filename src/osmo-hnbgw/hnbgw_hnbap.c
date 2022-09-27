@@ -431,9 +431,10 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 		}
 	}
 
-	ctx->hnb_registered = true;
+	LOGHNB(ctx, DHNBAP, LOGL_DEBUG, "HNB-REGISTER-REQ from %s%s\n", ctx->identity_info,
+	       ctx->hnb_registered ? " (duplicated)" : "");
 
-	LOGHNB(ctx, DHNBAP, LOGL_DEBUG, "HNB-REGISTER-REQ from %s\n", ctx->identity_info);
+	ctx->hnb_registered = true;
 
 	/* Send HNBRegisterAccept */
 	rc = hnbgw_tx_hnb_register_acc(ctx);
@@ -550,9 +551,8 @@ static int hnbgw_rx_initiating_msg(struct hnb_context *hnb, HNBAP_InitiatingMess
 		}
 	} else {
 		switch (imsg->procedureCode) {
-		case HNBAP_ProcedureCode_id_HNBRegister:	/* 8.2 */
-			LOGHNB(hnb, DHNBAP, LOGL_NOTICE,
-			       "HNBAP Procedure HNB-Register not permitted for registered HNB\n");
+		case HNBAP_ProcedureCode_id_HNBRegister:	/*  8.2.4: Abnormal Condition, Accept. */
+			rc = hnbgw_rx_hnb_register_req(hnb, &imsg->value);
 			break;
 		case HNBAP_ProcedureCode_id_HNBDe_Register:	/* 8.3 */
 			rc = hnbgw_rx_hnb_deregister(hnb, &imsg->value);
