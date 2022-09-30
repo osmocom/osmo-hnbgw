@@ -262,14 +262,14 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 				LOGHNB(hnb, DMAIN, LOGL_NOTICE, "HNB SCTP conn RESTARTed, marking as HNBAP-unregistered\n");
 				hnb->hnb_registered = false;
 				break;
-			case SCTP_SHUTDOWN_EVENT:
-				LOGHNB(hnb, DMAIN, LOGL_NOTICE,
-				       "sctp_recvmsg(%s) = SCTP_SHUTDOWN_EVENT, closing conn\n",
-				       osmo_sock_get_name2(osmo_stream_srv_get_ofd(conn)->fd));
-				osmo_stream_srv_destroy(conn);
-				rc = -1;
-				break;
 			}
+			break;
+		case SCTP_SHUTDOWN_EVENT:
+			LOGHNB(hnb, DMAIN, LOGL_NOTICE,
+			       "sctp_recvmsg(%s) = SCTP_SHUTDOWN_EVENT, closing conn\n",
+			       osmo_sock_get_name2(osmo_stream_srv_get_ofd(conn)->fd));
+			osmo_stream_srv_destroy(conn);
+			rc = -1;
 			break;
 		}
 		goto out;
