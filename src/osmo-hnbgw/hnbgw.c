@@ -264,7 +264,7 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 				       "sctp_recvmsg(%s) = SCTP_COMM_LOST, closing conn\n",
 				       osmo_sock_get_name2(ofd->fd));
 				osmo_stream_srv_destroy(conn);
-				rc = -1;
+				rc = -EBADF;
 				break;
 			case SCTP_RESTART:
 				LOGHNB(hnb, DMAIN, LOGL_NOTICE, "HNB SCTP conn RESTARTed, marking as HNBAP-unregistered\n");
@@ -277,7 +277,7 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 			       "sctp_recvmsg(%s) = SCTP_SHUTDOWN_EVENT, closing conn\n",
 			       osmo_sock_get_name2(ofd->fd));
 			osmo_stream_srv_destroy(conn);
-			rc = -1;
+			rc = -EBADF;
 			break;
 		}
 		goto out;
@@ -291,12 +291,13 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 		LOGHNB(hnb, DMAIN, LOGL_ERROR, "Error during sctp_recvmsg(%s)\n",
 		       osmo_sock_get_name2(ofd->fd));
 		osmo_stream_srv_destroy(conn);
+		rc = -EBADF;
 		goto out;
 	} else if (rc == 0) {
 		LOGHNB(hnb, DMAIN, LOGL_NOTICE, "Connection closed sctp_recvmsg(%s) = 0\n",
 		       osmo_sock_get_name2(ofd->fd));
 		osmo_stream_srv_destroy(conn);
-		rc = -1;
+		rc = -EBADF;
 		goto out;
 	} else {
 		msgb_put(msg, rc);
