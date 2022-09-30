@@ -239,6 +239,7 @@ void ue_context_free(struct ue_context *ue)
 static int hnb_read_cb(struct osmo_stream_srv *conn)
 {
 	struct hnb_context *hnb = osmo_stream_srv_get_data(conn);
+	struct osmo_fd *ofd = osmo_stream_srv_get_ofd(conn);
 	struct msgb *msg = msgb_alloc(IUH_MSGB_SIZE, "Iuh rx");
 	int rc;
 
@@ -261,7 +262,7 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 			case SCTP_COMM_LOST:
 				LOGHNB(hnb, DMAIN, LOGL_NOTICE,
 				       "sctp_recvmsg(%s) = SCTP_COMM_LOST, closing conn\n",
-				       osmo_sock_get_name2(osmo_stream_srv_get_ofd(conn)->fd));
+				       osmo_sock_get_name2(ofd->fd));
 				osmo_stream_srv_destroy(conn);
 				rc = -1;
 				break;
@@ -274,7 +275,7 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 		case SCTP_SHUTDOWN_EVENT:
 			LOGHNB(hnb, DMAIN, LOGL_NOTICE,
 			       "sctp_recvmsg(%s) = SCTP_SHUTDOWN_EVENT, closing conn\n",
-			       osmo_sock_get_name2(osmo_stream_srv_get_ofd(conn)->fd));
+			       osmo_sock_get_name2(ofd->fd));
 			osmo_stream_srv_destroy(conn);
 			rc = -1;
 			break;
@@ -288,12 +289,12 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 		goto out;
 	} else if (rc < 0) {
 		LOGHNB(hnb, DMAIN, LOGL_ERROR, "Error during sctp_recvmsg(%s)\n",
-		       osmo_sock_get_name2(osmo_stream_srv_get_ofd(conn)->fd));
+		       osmo_sock_get_name2(ofd->fd));
 		osmo_stream_srv_destroy(conn);
 		goto out;
 	} else if (rc == 0) {
 		LOGHNB(hnb, DMAIN, LOGL_NOTICE, "Connection closed sctp_recvmsg(%s) = 0\n",
-		       osmo_sock_get_name2(osmo_stream_srv_get_ofd(conn)->fd));
+		       osmo_sock_get_name2(ofd->fd));
 		osmo_stream_srv_destroy(conn);
 		rc = -1;
 		goto out;
