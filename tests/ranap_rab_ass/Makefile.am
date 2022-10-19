@@ -11,6 +11,7 @@ AM_CFLAGS = \
 	$(LIBOSMOVTY_CFLAGS) \
 	$(LIBOSMORANAP_CFLAGS) \
 	$(LIBOSMOSIGTRAN_CFLAGS) \
+	$(LIBOSMOMGCPCLIENT_CFLAGS) \
 	$(COVERAGE_CFLAGS) \
 	$(NULL)
 
@@ -32,6 +33,7 @@ ranap_rab_ass_test_LDADD = \
 	$(LIBOSMOVTY_LIBS) \
 	$(LIBOSMORANAP_LIBS) \
 	$(LIBOSMOSIGTRAN_LIBS) \
+	$(LIBOSMOMGCPCLIENT_LIBS) \
 	$(COVERAGE_LDFLAGS) \
 	$(top_builddir)/src/osmo-hnbgw/ranap_rab_ass.o \
 	$(NULL)

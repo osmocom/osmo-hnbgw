@@ -464,14 +464,6 @@ static int config_write_hnbgw_iups(struct vty *vty)
 	return CMD_SUCCESS;
 }
 
-static int config_write_hnbgw_mgcp(struct vty *vty)
-{
-	vty_out(vty, " mgcp%s", VTY_NEWLINE);
-	mgcp_client_config_write(vty, "  ");
-
-	return CMD_SUCCESS;
-}
-
 #if ENABLE_PFCP
 static int config_write_hnbgw_pfcp(struct vty *vty)
 {
@@ -521,7 +513,11 @@ void hnbgw_vty_init(struct hnb_gw *gw, void *tall_ctx)
 	install_element_ve(&show_talloc_cmd);
 
 	install_element(HNBGW_NODE, &cfg_hnbgw_mgcp_cmd);
-	install_node(&mgcp_node, config_write_hnbgw_mgcp);
+	/* Deprecated: Old MGCP config without pooling support in MSC node: */
+	install_node(&mgcp_node, NULL);
+	mgcp_client_vty_init(tall_hnb_ctx, MGCP_NODE, g_hnb_gw->config.mgcp_client);
+
+	mgcp_client_pool_vty_init(HNBGW_NODE, MGW_NODE, " ", g_hnb_gw->mgw_pool);
 
 #if ENABLE_PFCP
 	install_node(&pfcp_node, config_write_hnbgw_pfcp);
@@ -531,6 +527,5 @@ void hnbgw_vty_init(struct hnb_gw *gw, void *tall_ctx)
 	install_element(PFCP_NODE, &cfg_pfcp_remote_addr_cmd);
 #endif
 
-	mgcp_client_vty_init(tall_hnb_ctx, MGCP_NODE, g_hnb_gw->config.mgcp_client);
 	osmo_tdef_vty_groups_init(HNBGW_NODE, hnbgw_tdef_group);
 }

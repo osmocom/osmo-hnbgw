@@ -136,10 +136,10 @@ An example configuration for OsmoHNBGW's MGCP client:
 
 ----
 hnbgw
- mgcp
-  mgw remote-ip 127.0.0.1
-  mgw remote-port 2427
-  mgw reset-endpoint rtpbridge/*
+ mgw 0
+  remote-ip 127.0.0.1
+  remote-port 2427
+  reset-endpoint rtpbridge/*
 ----
 
 ==== Configure co-located User Plane Function

@@ -104,6 +104,7 @@ static struct hnb_gw *hnb_gw_create(void *ctx)
 
 	context_map_init(gw);
 
+	gw->mgw_pool = mgcp_client_pool_alloc(gw);
 	gw->config.mgcp_client = talloc_zero(tall_hnb_ctx, struct mgcp_client_conf);
 	mgcp_client_conf_init(gw->config.mgcp_client);
 
@@ -673,6 +674,41 @@ static int hnb_ctrl_node_lookup(void *data, vector vline, int *node_type, void *
 	return 1;
 }
 
+static int hnbgw_mgw_setup(void)
+{
+	struct mgcp_client *mgcp_client_single;
+	unsigned int pool_members_initalized;
+
+	/* Initialize MGW pool. This initalizes and connects all MGCP clients that are currently configured in
+	 * the pool. Adding additional MGCP clients to the pool is possible but the user has to configure and
+	 * (re)connect them manually from the VTY. */
+	pool_members_initalized = mgcp_client_pool_connect(g_hnb_gw->mgw_pool);
+	if (pool_members_initalized) {
+		LOGP(DMGW, LOGL_NOTICE,
+		     "MGW pool with %u pool members configured, (ignoring MGW configuration in VTY node 'mgcp').\n",
+		     pool_members_initalized);
+		return 0;
+	}
+
+	/* Initialize and connect a single MGCP client. This MGCP client will appear as the one and only pool
+	 * member if there is no MGW pool configured. */
+	LOGP(DMGW, LOGL_NOTICE, "No MGW pool configured, using MGW configuration in VTY node 'mgcp'\n");
+	mgcp_client_single = mgcp_client_init(tall_hnb_ctx, g_hnb_gw->config.mgcp_client);
+	if (!mgcp_client_single) {
+		LOGP(DMGW, LOGL_ERROR, "MGW (single) client initalization failed\n");
+		return -EINVAL;
+	}
+	if (mgcp_client_connect(mgcp_client_single)) {
+		LOGP(DMGW, LOGL_ERROR, "MGW (single) connect failed at (%s:%u)\n",
+		     g_hnb_gw->config.mgcp_client->remote_addr,
+		     g_hnb_gw->config.mgcp_client->remote_port);
+		return -EINVAL;
+	}
+	mgcp_client_pool_register_single(g_hnb_gw->mgw_pool, mgcp_client_single);
+
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	struct osmo_stream_srv_link *srv;
@@ -784,17 +820,8 @@ int main(int argc, char **argv)
 	g_hnb_gw->iuh = srv;
 
 	/* Initialize and connect MGCP client. */
-	g_hnb_gw->mgcp_client = mgcp_client_init(tall_hnb_ctx, g_hnb_gw->config.mgcp_client);
-	if (!g_hnb_gw->mgcp_client) {
-		LOGP(DMGW, LOGL_ERROR, "MGW client initalization failed\n");
+	if (hnbgw_mgw_setup() != 0)
 		return -EINVAL;
-	}
-	if (mgcp_client_connect(g_hnb_gw->mgcp_client)) {
-		LOGP(DMGW, LOGL_ERROR, "MGW connect failed at (%s:%u)\n",
-		     g_hnb_gw->config.mgcp_client->remote_addr,
-		     g_hnb_gw->config.mgcp_client->remote_port);
-		return -EINVAL;
-	}
 
 #if ENABLE_PFCP
 	/* If UPF is configured, set up PFCP socket and send Association Setup Request to UPF */

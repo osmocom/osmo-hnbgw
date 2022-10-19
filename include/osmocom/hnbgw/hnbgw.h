@@ -10,6 +10,8 @@
 #define DEBUG
 #include <osmocom/core/logging.h>
 
+#include <osmocom/mgcp_client/mgcp_client.h>
+#include <osmocom/mgcp_client/mgcp_client_pool.h>
 
 enum {
 	DMAIN,
@@ -160,7 +162,9 @@ struct hnb_gw {
 		struct osmo_sccp_addr iucs_remote_addr;
 		struct osmo_sccp_addr iups_remote_addr;
 	} sccp;
-	struct mgcp_client *mgcp_client;
+	/* MGW pool, also includes the single MGCP client as fallback if no
+	 * pool is configured. */
+	struct mgcp_client_pool *mgw_pool;
 
 	struct {
 		struct osmo_pfcp_endpoint *ep;
