@@ -139,8 +139,25 @@ hnbgw
  mgw 0
   remote-ip 127.0.0.1
   remote-port 2427
-  reset-endpoint rtpbridge/*
+  reset-endpoint rtpbridge/* <1>
 ----
+<1> The 'reset-endpoint' setting instructs the OsmoMGW to send a wildcarded
+DLCX to the media gateway. This helps to clear lingering calls from the
+media gateway when the OsmoHNBGW is restarted.
+
+OsmoHNBGW is also able to handle a pool of media gateways for load
+distribution. See also <<mgw_pooling>>.
+
+[NOTE]
+====
+Previous versions of OsmoHNBGW didn't have the 'mgw' VTY node and
+hence didn't support the MGW pooling feature. Therefore, historically the MGW
+related commands where placed under the `mgcp` VTY node. The MGW related commands
+under the `mgcp` VTY are still parsed and used but its use is deprecated and
+hence discouraged in favour of the new `mgw` node. Writing the config to a file
+from within OsmoHNBGW will automatically convert the config to use the new `mgw`
+node.
+====
 
 ==== Configure co-located User Plane Function
 

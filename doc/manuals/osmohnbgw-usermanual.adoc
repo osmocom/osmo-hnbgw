@@ -24,6 +24,8 @@ include::./common/chapters/logging.adoc[]
 
 include::./common/chapters/cs7-config.adoc[]
 
+include::./common/chapters/mgwpool.adoc[]
+
 // include::{srcdir}/chapters/net.adoc[]
 
 // include::./common/chapters/control_if.adoc[]
