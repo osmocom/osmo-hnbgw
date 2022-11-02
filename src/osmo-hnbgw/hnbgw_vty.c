@@ -416,6 +416,7 @@ static int config_write_hnbgw(struct vty *vty)
 		VTY_NEWLINE);
 	if (g_hnb_gw->config.max_sccp_cr_payload_len != 999999)
 		vty_out(vty, " sccp cr max-payload-len %u%s", g_hnb_gw->config.max_sccp_cr_payload_len, VTY_NEWLINE);
+	osmo_tdef_vty_groups_write(vty, " ");
 	return CMD_SUCCESS;
 }
 
