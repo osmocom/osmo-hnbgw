@@ -58,8 +58,21 @@ static int alloc_cn_conn_id(struct hnbgw_cnlink *cn, uint32_t *id_out)
 	uint32_t i;
 	uint32_t id;
 
-	for (i = 0; i < 0xffffffff; i++) {
+	/* SUA: RFC3868 sec 3.10.4:
+	 *    The source reference number is a 4 octet long integer.
+	 *    This is allocated by the source SUA instance.
+	 * M3UA/SCCP: ITU-T Q.713 sec 3.3:
+	 *    The "source local reference" parameter field is a three-octet field containing a
+	 *    reference number which is generated and used by the local node to identify the
+	 *    connection section after the connection section is set up.
+	 *    The coding "all ones" is reserved for future use.
+	 * Hence, let's simply use 24 bit ids to fit all link types (excluding 0x00ffffff).
+	 */
+
+	for (i = 0; i < 0x00ffffff; i++) {
 		id = cn->next_conn_id++;
+		if (cn->next_conn_id == 0x00ffffff)
+			cn->next_conn_id = 0;
 		if (!cn_id_in_use(cn, id)) {
 			*id_out = id;
 			return 1;
