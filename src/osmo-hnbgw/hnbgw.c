@@ -773,8 +773,8 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	g_hnb_gw->ctrl = ctrl_interface_setup_dynip2(g_hnb_gw, ctrl_vty_get_bind_addr(), OSMO_CTRL_PORT_HNBGW,
-						     hnb_ctrl_node_lookup, _LAST_CTRL_NODE_HNB);
+	g_hnb_gw->ctrl = ctrl_interface_setup2(g_hnb_gw, OSMO_CTRL_PORT_HNBGW, hnb_ctrl_node_lookup,
+					       _LAST_CTRL_NODE_HNB);
 	if (!g_hnb_gw->ctrl) {
 		LOGP(DMAIN, LOGL_ERROR, "Failed to create CTRL interface on %s:%u\n",
 		     ctrl_vty_get_bind_addr(), OSMO_CTRL_PORT_HNBGW);
