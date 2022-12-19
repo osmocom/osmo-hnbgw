@@ -782,10 +782,8 @@ int mgw_fsm_handle_rab_ass_resp(struct hnbgw_context_map *map, struct osmo_prim_
  *  \returns 0 on success; negative on error. */
 int mgw_fsm_release(struct hnbgw_context_map *map)
 {
-	if (!map->mgw_fi) {
-		LOGP(DMGW, LOGL_ERROR, "mgw_fsm_release() rua_ctx_id=%d, no MGW fsm -- ignored!\n", map->rua_ctx_id);
+	if (!map->mgw_fi)
 		return -EINVAL;
-	}
 
 	osmo_fsm_inst_dispatch(map->mgw_fi, MGW_EV_RELEASE, NULL);
 	return 0;
