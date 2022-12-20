@@ -165,7 +165,7 @@ int context_map_send_cached_msg(struct hnbgw_context_map *map)
 
 void context_map_deactivate(struct hnbgw_context_map *map)
 {
-	LOG_MAP(map, DMAIN, LOGL_NOTICE, "Deactivating\n");
+	LOG_MAP(map, DMAIN, LOGL_INFO, "Deactivating\n");
 
 	/* set the state to reserved. We still show up in the list and
 	 * avoid re-allocation of the context-id until we are cleaned up
@@ -205,7 +205,7 @@ static void context_map_tmr_cb(void *data)
 		case MAP_S_RESERVED2:
 			/* second time we see this reserved
 			 * entry: remove it */
-			LOG_MAP(map, DMAIN, LOGL_NOTICE, "Deallocating\n");
+			LOG_MAP(map, DMAIN, LOGL_INFO, "Deallocating\n");
 			map->state = MAP_S_NULL;
 			llist_del(&map->cn_list);
 			llist_del(&map->hnb_list);
