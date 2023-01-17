@@ -256,6 +256,7 @@ static void mgw_fsm_assign_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state
 
 	LOGPFSML(fi, LOGL_DEBUG, "forwarding modified RAB-AssignmentRequest to HNB\n");
 	rua_tx_dt(map->hnb_ctx, map->is_ps, map->rua_ctx_id, msg->data, msg->len);
+	msgb_free(msg);
 }
 
 static void mgw_fsm_assign(struct osmo_fsm_inst *fi, uint32_t event, void *data)

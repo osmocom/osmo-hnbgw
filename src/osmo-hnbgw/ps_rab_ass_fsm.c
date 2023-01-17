@@ -352,6 +352,7 @@ continue_cleanloop:
 		return;
 	}
 	rua_tx_dt(rab_ass->map->hnb_ctx, rab_ass->map->is_ps, rab_ass->map->rua_ctx_id, msg->data, msg->len);
+	msgb_free(msg);
 	/* The request message has been forwarded. The response will be handled by a new FSM instance.
 	 * We are done. */
 	osmo_fsm_inst_term(rab_ass->fi, OSMO_FSM_TERM_REGULAR, NULL);
