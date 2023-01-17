@@ -284,6 +284,7 @@ static int hnbgw_tx_ue_register_acc_tmsi(struct hnb_context *hnb, HNBAP_UE_Ident
 	uint32_t ctx_id;
 	uint32_t tmsi = 0;
 	struct ue_context *ue;
+	struct ue_context *ue_allocated = NULL;
 	int rc;
 
 	memset(&accept, 0, sizeof(accept));
@@ -331,14 +332,19 @@ static int hnbgw_tx_ue_register_acc_tmsi(struct hnb_context *hnb, HNBAP_UE_Ident
 
 	ue = ue_context_by_tmsi(hnb->gw, tmsi);
 	if (!ue)
-		ue = ue_context_alloc(hnb, NULL, tmsi);
+		ue = ue_allocated = ue_context_alloc(hnb, NULL, tmsi);
 
 	asn1_u24_to_bitstring(&accept.context_ID, &ctx_id, ue->context_id);
 
 	memset(&accept_out, 0, sizeof(accept_out));
 	rc = hnbap_encode_ueregisteraccepties(&accept_out, &accept);
-	if (rc < 0)
+	if (rc < 0) {
+		/* If we allocated the UE context but the UE REGISTER fails, get rid of it again: there will likely
+		 * never be a UE DE-REGISTER for this UE from the HNB, and the ue_context would linger forever. */
+		if (ue_allocated)
+			ue_context_free(ue_allocated);
 		return rc;
+	}
 
 	msg = hnbap_generate_successful_outcome(HNBAP_ProcedureCode_id_UERegister,
 						HNBAP_Criticality_reject,
@@ -475,6 +481,7 @@ static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 {
 	HNBAP_UERegisterRequestIEs_t ies;
 	struct ue_context *ue;
+	struct ue_context *ue_allocated = NULL;
 	char imsi[16];
 	int rc;
 
@@ -516,11 +523,18 @@ static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 
 	ue = ue_context_by_imsi(ctx->gw, imsi);
 	if (!ue)
-		ue = ue_context_alloc(ctx, imsi, 0);
+		ue = ue_allocated = ue_context_alloc(ctx, imsi, 0);
 
 	hnbap_free_ueregisterrequesties(&ies);
 	/* Send UERegisterAccept */
-	return hnbgw_tx_ue_register_acc(ue);
+	rc = hnbgw_tx_ue_register_acc(ue);
+	if (rc < 0) {
+		/* If we allocated the UE context but the UE REGISTER fails, get rid of it again: there will likely
+		 * never be a UE DE-REGISTER for this UE from the HNB, and the ue_context would linger forever. */
+		if (ue_allocated)
+			ue_context_free(ue_allocated);
+	}
+	return rc;
 }
 
 static int hnbgw_rx_ue_deregister(struct hnb_context *ctx, ANY_t *in)
