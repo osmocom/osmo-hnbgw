@@ -115,6 +115,7 @@ struct mgw_fsm_priv {
 	struct osmo_prim_hdr *ranap_rab_ass_resp_oph;
 
 	/* MGW context */
+	struct mgcp_client *mgcpc;
 	struct osmo_mgcpc_ep *mgcpc_ep;
 	struct osmo_mgcpc_ep_ci *mgcpc_ep_ci_hnb;
 	struct osmo_mgcpc_ep_ci *mgcpc_ep_ci_msc;
@@ -141,7 +142,6 @@ static void mgw_fsm_crcx_hnb_onenter(struct osmo_fsm_inst *fi, uint32_t prev_sta
 	RANAP_RAB_AssignmentRequestIEs_t *ies;
 	const char *epname;
 	struct mgcp_conn_peer mgw_info;
-	struct mgcp_client *mgcp_client;
 	int rc;
 
 	LOGPFSML(fi, LOGL_DEBUG, "RAB-AssignmentRequest received, creating HNB side call-leg on MGW...\n");
@@ -173,16 +173,16 @@ static void mgw_fsm_crcx_hnb_onenter(struct osmo_fsm_inst *fi, uint32_t prev_sta
 	mgw_info.codecs[0] = CODEC_IUFP;
 	mgw_info.codecs_len = 1;
 
-	mgcp_client = mgcp_client_pool_get(map->hnb_ctx->gw->mgw_pool);
-	if (!mgcp_client) {
+	mgw_fsm_priv->mgcpc = mgcp_client_pool_get(map->hnb_ctx->gw->mgw_pool);
+	if (!mgw_fsm_priv->mgcpc) {
 		LOGPFSML(fi, LOGL_ERROR,
 			 "cannot ensure MGW endpoint -- no MGW configured, check configuration!\n");
 		osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
 		return;
 	}
-	epname = mgcp_client_rtpbridge_wildcard(mgcp_client);
+	epname = mgcp_client_rtpbridge_wildcard(mgw_fsm_priv->mgcpc);
 	mgw_fsm_priv->mgcpc_ep =
-	    osmo_mgcpc_ep_alloc(fi, MGW_EV_MGCP_TERM, mgcp_client, mgw_fsm_T_defs, fi->id, "%s", epname);
+	    osmo_mgcpc_ep_alloc(fi, MGW_EV_MGCP_TERM, mgw_fsm_priv->mgcpc, mgw_fsm_T_defs, fi->id, "%s", epname);
 	mgw_fsm_priv->mgcpc_ep_ci_hnb = osmo_mgcpc_ep_ci_add(mgw_fsm_priv->mgcpc_ep, "to-HNB");
 
 	osmo_mgcpc_ep_ci_request(mgw_fsm_priv->mgcpc_ep_ci_hnb, MGCP_VERB_CRCX, &mgw_info, fi, MGW_EV_MGCP_OK,
@@ -496,13 +496,14 @@ static void mgw_fsm_failure_onenter(struct osmo_fsm_inst *fi, uint32_t prev_stat
 static void mgw_fsm_allstate_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
 {
 	struct mgw_fsm_priv *mgw_fsm_priv = fi->priv;
-	struct mgcp_client *mgcp_client;
 
 	switch (event) {
 	case MGW_EV_MGCP_TERM:
 		/* Put MGCP client back into MGW pool */
-		mgcp_client = osmo_mgcpc_ep_client(mgw_fsm_priv->mgcpc_ep);
-		mgcp_client_pool_put(mgcp_client);
+		if (mgw_fsm_priv->mgcpc) {
+			mgcp_client_pool_put(mgw_fsm_priv->mgcpc);
+			mgw_fsm_priv->mgcpc = NULL;
+		}
 		mgw_fsm_priv->mgcpc_ep = NULL;
 		LOGPFSML(fi, LOGL_ERROR, "Media gateway failed\n");
 		osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
