@@ -147,6 +147,7 @@ static int hnbgw_tx_ue_register_acc(struct ue_context *ue)
 	memset(&accept_out, 0, sizeof(accept_out));
 	rc = hnbap_encode_ueregisteraccepties(&accept_out, &accept);
 	if (rc < 0) {
+		// FIXME: leaking 'accept'
 		return rc;
 	}
 
@@ -343,6 +344,8 @@ static int hnbgw_tx_ue_register_acc_tmsi(struct hnb_context *hnb, HNBAP_UE_Ident
 		 * never be a UE DE-REGISTER for this UE from the HNB, and the ue_context would linger forever. */
 		if (ue_allocated)
 			ue_context_free(ue_allocated);
+
+		// FIXME: leaking 'accept'
 		return rc;
 	}
 
