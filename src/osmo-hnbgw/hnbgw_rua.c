@@ -252,6 +252,9 @@ int rua_to_scu(struct hnb_context *hnb,
 		prim->u.disconnect.conn_id = map->scu_conn_id;
 		prim->u.disconnect.cause = cause;
 		release_context_map = true;
+		/* Mark SCCP conn as gracefully disconnected */
+		if (map)
+			map->scu_conn_active = false;
 		break;
 	case OSMO_SCU_PRIM_N_UNITDATA:
 		prim->u.unitdata.called_addr = *remote_addr;

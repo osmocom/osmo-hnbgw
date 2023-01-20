@@ -26,6 +26,8 @@
 
 #include <osmocom/core/timer.h>
 
+#include <osmocom/sigtran/sccp_helpers.h>
+
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/hnbgw_rua.h>
 #include <osmocom/hnbgw/context_map.h>
@@ -173,6 +175,12 @@ void context_map_deactivate(struct hnbgw_context_map *map)
 
 	if (map->state != MAP_S_RESERVED2)
 		map->state = MAP_S_RESERVED1;
+
+	/* Is SCCP still active and needs to be disconnected ungracefully? */
+	if (map->scu_conn_active) {
+		osmo_sccp_tx_disconn(map->hnb_ctx->gw->sccp.cnlink->sccp_user, map->scu_conn_id, NULL, 0);
+		map->scu_conn_active = false;
+	}
 
 	/* a possibly still existing MGW FSM must be terminated when the context
 	 * map is deactivated. (this is a cornercase) */

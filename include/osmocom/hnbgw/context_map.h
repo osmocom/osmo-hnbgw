@@ -43,6 +43,10 @@ struct hnbgw_context_map {
 	bool is_ps;
 	/* SCCP User SAP connection ID */
 	uint32_t scu_conn_id;
+	/* Set to true on SCCP Conn Conf, set to false when an OSMO_SCU_PRIM_N_DISCONNECT has been sent for the SCCP
+	 * User SAP conn. Useful to avoid leaking SCCP connections: guarantee that an OSMO_SCU_PRIM_N_DISCONNECT gets
+	 * sent, even when RUA fails to gracefully disconnect. */
+	bool scu_conn_active;
 	/* Pending data to be sent: when we send an "empty" SCCP CR first, the initial RANAP message will be sent in a
 	 * separate DT once the CR is confirmed. This caches the initial RANAP message. */
 	struct msgb *cached_msg;

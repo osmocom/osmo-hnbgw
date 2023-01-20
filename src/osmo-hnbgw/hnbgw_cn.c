@@ -337,6 +337,8 @@ static int handle_cn_conn_conf(struct hnbgw_cnlink *cnlink,
 			       struct osmo_prim_hdr *oph)
 {
 	struct osmo_ss7_instance *ss7 = osmo_sccp_get_ss7(cnlink->gw->sccp.client);
+	struct hnbgw_context_map *map;
+
 	LOGP(DMAIN, LOGL_DEBUG, "handle_cn_conn_conf() conn_id=%d, addrs: called=%s calling=%s responding=%s\n",
 	     param->conn_id,
 	     osmo_sccp_addr_to_str_c(OTC_SELECT, ss7, &param->called_addr),
@@ -346,9 +348,17 @@ static int handle_cn_conn_conf(struct hnbgw_cnlink *cnlink,
 	/* Nothing needs to happen for RUA, RUA towards the HNB doesn't seem to know any confirmations to its CONNECT
 	 * operation. */
 
+	map = context_map_by_cn(cnlink, param->conn_id);
+	if (!map)
+		return 0;
+
+	/* SCCP connection is confirmed. Mark conn as active, i.e. requires a DISCONNECT to clean up the SCCP
+	 * connection. */
+	map->scu_conn_active = true;
+
 	/* If our initial SCCP CR was sent without data payload, then the initial RANAP message is cached and waiting to
 	 * be sent as soon as the SCCP connection is confirmed. See if that is the case, send cached data. */
-	context_map_send_cached_msg(context_map_by_cn(cnlink, param->conn_id));
+	context_map_send_cached_msg(map);
 
 	return 0;
 }
