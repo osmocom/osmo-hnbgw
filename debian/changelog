@@ -1,3 +1,84 @@
+osmo-hnbgw (1.4.0) unstable; urgency=medium
+
+  [ Pau Espin Pedrol ]
+  * hnbgw_cn.c: Guard against null ss7 ptr during init
+  * cosmetic: Fix typo in log and whitespace
+  * hnbgw: Log new SCTP HNB connections
+  * hnb_context_release(): Make sure assigned conn is freed
+  * Improve logging around hnb_context and sctp conn lifecycle
+  * Change log level about conn becoming closed to NOTICE
+  * hnbgw: Unregister HNB if SCTP link is restarted
+  * hnbgw: Fix recent regression not closing conn upon rx of SCTP_SHUTDOWN_EVENT
+  * hnbap: Accept duplicated HNB Register Request on same conn
+  * hnbap: Improve logging around HNBAP HNB Register Request
+  * Workaround bug where old hnb_context from same remote addr+port is kept
+  * Fix handling of sctp SCTP_SHUTDOWN_EVENT notification
+  * Close conn when receiving SCTP_ASSOC_CHANGE notification
+  * hnb_read_cb: use local var to reduce get_ofd() calls
+  * hnb_read_cb(): -EBADF must be returned if conn is freed to avoid use-after-free
+  * Clear SCTP tx queue upon SCTP RESTART notification
+  * Makefile.am: Drop duplicated LIBOSMOMGCPCLIENT_LIBS
+  * Introduce support for libosmo-mgcp-client MGW pooling
+  * doc: Include mgwpool.adoc from osmo-gsm-manuals
+  * vty: Fix timers not printed when dumping running-config
+  * hnbgw: Avoid allocating SCCP conn id >0x00fffffe
+  * context_map: Lower loglevel to INFO when deallocating context IDs
+
+  [ Neels Hofmeyr ]
+  * mgw_fsm: move MGCP timeout to mgw_fsm_T_defs
+  * fix test_ranap_rab_ass_resp_decode_encode
+  * ranap_rab_ass_req_encode(): return msgb
+  * add ps_rab_ass FSM to map GTP via UPF
+  * reduce code dup in handle_cn_data_ind()
+  * build: add --enable-pfcp, make PFCP dep optional
+  * optimize: decode PS msgs only when PFCP is enabled
+  * ps_rab_fsm: check use cb success
+  * add example osmo-hnbgw-pfcp.cfg
+  * manual: add missing bit on the MGCP port
+  * manual: update overview chart with PFCP
+  * manual: update IuCS/IuPS protocol stack chart
+  * manual: explain the PFCP port
+  * example cfg: tweak logging
+  * debian,RPM: package with PFCP support
+
+  [ Vadim Yanitskiy ]
+  * tests/ranap_rab_ass: fix potential NULL pointer dereferences
+  * configure.ac: do not require unused dlopen
+
+  [ Oliver Smith ]
+  * rpm spec: add osmo-hnbgw-pfcp.cfg
+
+  [ Daniel Willmann ]
+  * Install show talloc-context VTY commands
+  * hnbgw_hnbap: Fix memory leaks in HNBAP handling
+
+  [ Harald Welte ]
+  * packate the new osmo-hnbgw-pfcp.cfg example config file
+  * cosmetic: Fix typos
+  * Abort if processing SCTP connection without HNB context
+  * hnbgw_rx_hnb_deregister: Don't call hnb_context_release()
+  * Don't process RUA messages if HNB is not registered
+  * Don't permit anything but HNB (de)registration until HNB is registered
+
+  [ Neels Janosch Hofmeyr ]
+  * fix regression: in RUA, do PFCP only when enabled
+  * do not depend on libosmo-gtlv
+  * drop bogus error log 'no MGW fsm'
+  * fix segfault on MGCP timeout
+  * fix msgb leak for RANAP RAB Ass. Req.
+  * fix possible leak of ue_context on UE REGISTER error
+  * fix SCCP conn leak on non-graceful HNB shutdown
+  * coverity: hnbgw_rua.c: remove redundant check
+
+  [ Max ]
+  * Set working directory in systemd service file
+  * ctrl: take both address and port from vty config
+
+  [ arehbein ]
+  * osmo-hnbgw: Transition to use of 'telnet_init_default'
+
+ -- Pau Espin Pedrol <pespin@sysmocom.de>  Tue, 07 Feb 2023 18:05:46 +0100
+
 osmo-hnbgw (1.3.0) unstable; urgency=medium
 
   [ Philipp Maier ]

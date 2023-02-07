@@ -49,22 +49,22 @@ AC_SEARCH_LIBS([sctp_recvmsg], [sctp], [
 LIBS=$old_LIBS
 
 PKG_CHECK_MODULES(LIBASN1C, libasn1c >= 0.9.30)
-PKG_CHECK_MODULES(LIBOSMOCORE, libosmocore >= 1.7.0)
-PKG_CHECK_MODULES(LIBOSMOVTY, libosmovty >= 1.7.0)
-PKG_CHECK_MODULES(LIBOSMOCTRL, libosmoctrl >= 1.7.0)
-PKG_CHECK_MODULES(LIBOSMOGSM, libosmogsm >= 1.7.0)
-PKG_CHECK_MODULES(LIBOSMONETIF, libosmo-netif >= 1.2.0)
-PKG_CHECK_MODULES(LIBOSMOSIGTRAN, libosmo-sigtran >= 1.6.0)
-PKG_CHECK_MODULES(LIBOSMORUA, libosmo-rua >= 1.3.0)
-PKG_CHECK_MODULES(LIBOSMORANAP, libosmo-ranap >= 1.3.0)
-PKG_CHECK_MODULES(LIBOSMOHNBAP, libosmo-hnbap >= 1.3.0)
-PKG_CHECK_MODULES(LIBOSMOMGCPCLIENT, libosmo-mgcp-client >= 1.10.0)
+PKG_CHECK_MODULES(LIBOSMOCORE, libosmocore >= 1.8.0)
+PKG_CHECK_MODULES(LIBOSMOVTY, libosmovty >= 1.8.0)
+PKG_CHECK_MODULES(LIBOSMOCTRL, libosmoctrl >= 1.8.0)
+PKG_CHECK_MODULES(LIBOSMOGSM, libosmogsm >= 1.8.0)
+PKG_CHECK_MODULES(LIBOSMONETIF, libosmo-netif >= 1.3.0)
+PKG_CHECK_MODULES(LIBOSMOSIGTRAN, libosmo-sigtran >= 1.7.0)
+PKG_CHECK_MODULES(LIBOSMORUA, libosmo-rua >= 1.4.0)
+PKG_CHECK_MODULES(LIBOSMORANAP, libosmo-ranap >= 1.4.0)
+PKG_CHECK_MODULES(LIBOSMOHNBAP, libosmo-hnbap >= 1.4.0)
+PKG_CHECK_MODULES(LIBOSMOMGCPCLIENT, libosmo-mgcp-client >= 1.11.0)
 
 # Enable PFCP support for GTP tunnel mapping via UPF
 AC_ARG_ENABLE([pfcp], [AS_HELP_STRING([--enable-pfcp], [Build with PFCP support, for GTP tunnel mapping via UPF])],
     [osmo_ac_pfcp="$enableval"],[osmo_ac_pfcp="no"])
 if test "x$osmo_ac_pfcp" = "xyes" ; then
-	PKG_CHECK_MODULES(LIBOSMOPFCP, libosmo-pfcp >= 0.1.0)
+	PKG_CHECK_MODULES(LIBOSMOPFCP, libosmo-pfcp >= 0.2.0)
 	AC_DEFINE(ENABLE_PFCP, 1, [Define to build with PFCP support])
 fi
 AM_CONDITIONAL(ENABLE_PFCP, test "x$osmo_ac_pfcp" = "xyes")
