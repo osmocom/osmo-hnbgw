@@ -1,0 +1,62 @@
+digraph G {
+rankdir=TB
+labelloc=t
+label="hnb_context_map\nRUA and SCCP FSMs"
+
+HNB_connect [label="HNB",shape=box3d]
+rua_to_scu_connect [label="rua_to_scu()",shape=box]
+HNB_DT [label="HNB",shape=box3d]
+rua_to_scu_DT [label="rua_to_scu()",shape=box]
+HNB_DT2 [label="HNB",shape=box3d]
+HNB_disconnect [label="HNB",shape=box3d]
+rua_to_scu_disconnect [label="rua_to_scu()",shape=box]
+CN [shape=box3d]
+CN2 [label="CN",shape=box3d]
+CN3 [label="CN",shape=box3d]
+CN4 [label="CN",shape=box3d]
+
+HNB_connect -> rua_to_scu_connect [label="RUA Connect",style=dotted]
+rua_to_scu_connect -> create [label="(1)",style=dotted]
+create [label="hnbgw_context_map_alloc()",shape=box]
+create -> {RUA_INIT,SCCP_INIT} [label="(1)",style="dashed,bold"]
+
+rua_to_scu_connect -> RUA_CONNECTED [label="(2)\nMAP_RUA_EV_RX_CONNECT",style=dashed]
+RUA_CONNECTED -> SCCP_WAIT_CC [label="(2)\nMAP_SCCP_EV_TX_RANAP_MSG",style=dashed]
+
+RUA_INIT -> RUA_CONNECTED -> RUA_DISCONNECTED [style=bold]
+
+SCCP_INIT -> SCCP_WAIT_CC -> SCCP_CONNECTED -> SCCP_WAIT_RLSD -> SCCP_DISCONNECTED [style=bold]
+SCCP_CONNECTED -> SCCP_DISCONNECTED [label="SCCP RLSD"]
+
+SCCP_WAIT_CC -> CN [label="(2) SCCP CR",style=dotted]
+CN -> SCCP_CONNECTED [label="(3) SCCP CC",style=dashed]
+
+CN4 -> SCCP_CONNECTED [label="(4) SCCP\nData Form 1",style=dotted]
+SCCP_CONNECTED -> RUA_CONNECTED [label="(4)\nMAP_RUA_EV_TX_RANAP_MSG",style=dotted]
+RUA_CONNECTED -> HNB_DT2 [label="(4)\nRUA DirectTransfer",style=dotted]
+
+HNB_DT -> rua_to_scu_DT [label="(5)\nRUA DirectTransfer",style=dotted]
+rua_to_scu_DT -> RUA_CONNECTED [label="(5)\nMAP_RUA_EV_RX_DIRECT_TRANSFER",style=dotted]
+RUA_CONNECTED -> SCCP_CONNECTED [label="(5)\nMAP_SCCP_EV_TX_RANAP_MSG",style=dotted]
+SCCP_CONNECTED -> CN3 [label="(5) SCCP\nData Form 1",style=dotted]
+
+HNB_disconnect -> rua_to_scu_disconnect [label="(6) RUA Id-Disconnect",style=dotted]
+rua_to_scu_disconnect -> RUA_DISCONNECTED [label="(6) MAP_RUA_EV_RX_DISCONNECT",style=dashed]
+RUA_DISCONNECTED -> SCCP_WAIT_RLSD [label="(6) MAP_SCCP_EV_RAN_DISC",style=dashed]
+
+CN2 -> SCCP_DISCONNECTED [label="(7) SCCP RLSD",style=dashed]
+
+{RUA_DISCONNECTED,SCCP_DISCONNECTED} -> release [label="onenter",style="dotted,bold"]
+release [label="map_check_released()",shape=box]
+release -> terminate [label="when both RUA and\nSCCP disconnected",style=dotted]
+terminate [label="hnbgw_context_map_free()",shape=octagon]
+
+subgraph cluster_legend {
+	label=""
+	style=invisible
+	A, B, C, D [style=invisible]
+	A -> B [label="event without\nstate change",style=dotted]
+	C -> D [label="event changes\nstate to...",style=dashed]
+}
+
+}

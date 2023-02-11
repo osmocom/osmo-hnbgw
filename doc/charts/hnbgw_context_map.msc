@@ -1,0 +1,109 @@
+msc {
+  hscale="2";
+  hnb[label="HNB"],rua[label="OsmoHNBGW\nRUA FSM / HNBAP"],sccp[label="OsmoHNBGW\nSCCP FSM"],cn[label="CN"];
+
+  hnb <=> rua [label="RANAP/RUA\n(Iuh)"];
+  rua <=> sccp [label="FSM events"];
+  sccp <=> cn [label="RANAP/SCCP/M3UA\n(IuCS, IuPS)"];
+
+  ...;
+  ...;
+  --- [label="Create a new context map (always from HNB)"];
+  hnb => rua [label="RUA Connect\nRANAP InitialUE-Message\nDTAP Location Updating Request"];
+  rua rbox sccp [label="hnbgw_context_map_alloc()"];
+  rua abox rua [label="MAP_RUA_ST_INIT"];
+  sccp abox sccp [label="MAP_SCCP_ST_INIT"];
+  rua rbox rua [label="MAP_RUA_EV_RX_CONNECT\ndata = ranap_msg"];
+  rua abox rua [label="MAP_RUA_ST_CONNECTED"];
+  rua => sccp [label="MAP_SCCP_EV_TX_RANAP_MSG\ndata = ranap_msg"];
+  sccp abox sccp [label="MAP_SCCP_ST_WAIT_CC"];
+  sccp => cn [label="SCCP Connection Request\nRANAP InitialUE-Message\nDTAP Location Updating Request"];
+  ...;
+  sccp <= cn [label="SCCP Connection Confirm"];
+  sccp abox sccp [label="MAP_SCCP_ST_CONNECTED"];
+  --- [label="if SCCP CC with payload"];
+  rua <= sccp [label="MAP_RUA_EV_TX_RANAP_MSG\ndata = ranap_msg"];
+  hnb <= rua [label="RUA DirectTransfer"];
+
+  ...;
+  ...;
+  --- [label="Layer 3 communication"];
+  sccp <= cn [label="SCCP Data Form 1"];
+  rua <= sccp [label="MAP_RUA_EV_TX_RANAP_MSG\ndata = ranap_msg"];
+  hnb <= rua [label="RUA DirectTransfer"];
+  ...;
+  hnb => rua [label="RUA DirectTransfer"];
+  rua => sccp [label="MAP_SCCP_EV_TX_RANAP_MSG\ndata = ranap_msg"];
+  sccp => cn [label="SCCP Data Form 1"];
+
+  ...;
+  ...;
+  --- [label="Usual release"];
+  sccp <= cn [label="SCCP Data Form 1\nIu-ReleaseCommand"];
+  rua <= sccp [label="MAP_RUA_EV_TX_RANAP_MSG\ndata = ranap_msg"];
+  hnb <= rua [label="RUA DirectTransfer\nIu-ReleaseCommand"];
+  ...;
+  hnb => rua [label="RUA Disconnect\nIu-ReleaseComplete"];
+  rua rbox rua [label="MAP_RUA_EV_RX_DISCONNECT"];
+  rua abox rua [label="MAP_RUA_ST_DISCONNECTED"];
+  rua => sccp [label="MAP_SCCP_EV_RAN_DISC\ndata = ranap_msg"];
+  sccp => cn [label="SCCP Data Form 1\nIu-ReleaseComplete\nNOT 'SCCP Released'! See 3GPP TS 48.006 9.2"];
+  sccp abox sccp [label="MAP_SCCP_ST_WAIT_RLSD"];
+  ...;
+  sccp <= cn [label="SCCP Released"];
+  sccp abox sccp [label="MAP_SCCP_ST_DISCONNECTED"];
+  rua rbox sccp [label="map_check_released()"];
+  rua rbox sccp [label="hnbgw_context_map_free()"];
+
+  ...;
+  ...;
+  --- [label="Ungraceful release from CN"];
+  sccp <= cn [label="SCCP Released"];
+  sccp => cn [label="SCCP Release Complete\n(implicit by libosmo-sigtran)"];
+  sccp rbox sccp [label="MAP_SCCP_EV_RX_RELEASED"];
+  sccp note sccp [label="In SCCP there is no \"link loss\".\nIn every case, we will be notified\nvia N-Disconnect prim per SCCP conn."];
+  sccp abox sccp [label="MAP_SCCP_ST_DISCONNECTED"];
+  rua <= sccp [label="MAP_RUA_EV_CN_DISC"];
+  hnb <= rua [label="RUA Disconnect"];
+  rua abox rua [label="MAP_RUA_ST_DISCONNECTED"];
+  rua rbox sccp [label="map_check_released()"];
+  rua rbox sccp [label="hnbgw_context_map_free()"];
+
+  ...;
+  ...;
+  ...;
+  --- [label="PCSTATE handling"];
+  sccp << cn [label="N-PCSTATE.indication\npoint-code unreachable"];
+  sccp note sccp [label="currently ignored"];
+
+  ...;
+  ...;
+  --- [label="Ungraceful release from HNB"];
+  hnb -x rua [label="link loss"];
+  rua rbox rua [label="MAP_RUA_EV_HNB_LINK_LOST"];
+  rua => sccp [label="MAP_SCCP_EV_RAN_DISC"];
+  sccp => cn [label="SCCP Released"];
+  sccp abox sccp [label="MAP_SCCP_ST_DISCONNECTED"];
+  rua abox rua [label="MAP_RUA_ST_DISCONNECTED"];
+  rua rbox sccp [label="map_check_released()"];
+  rua rbox sccp [label="hnbgw_context_map_free()"];
+
+  ...;
+  ...;
+  --- [label="Ungraceful release from HNB De-Register"];
+  hnb => rua [label="HNBAP HNB De-Register"];
+  --- [label="or"];
+  hnb => rua [label="HNBAP HNB Register\n(HNB restarted)"];
+  ---;
+  rua rbox rua [label="MAP_RUA_EV_HNB_LINK_LOST"];
+  hnb <= rua [label="RUA Disconnect"];
+  hnb note rua [label="TODO: does it make sense to send\nRUA Disconnect per context when HNB is/was gone?\nOr has the HNB implicitly discarded these?"];
+  rua abox rua [label="MAP_RUA_ST_DISCONNECTED"];
+  rua => sccp [label="MAP_SCCP_EV_RAN_DISC\nfrom map_rua_disconnected_onenter()"];
+  sccp abox sccp [label="MAP_SCCP_ST_WAIT_RLSD"];
+  rua => sccp [label="MAP_SCCP_EV_RAN_DISC\nto skip waiting for SCCP Released from CN"];
+  sccp => cn [label="SCCP Released"];
+  sccp abox sccp [label="MAP_SCCP_ST_DISCONNECTED"];
+  rua rbox sccp [label="map_check_released()"];
+  rua rbox sccp [label="hnbgw_context_map_free()"];
+}
