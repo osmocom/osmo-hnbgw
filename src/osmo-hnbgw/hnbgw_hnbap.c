@@ -467,7 +467,15 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 
 	LOGHNB(ctx, DHNBAP, LOGL_DEBUG, "HNB-REGISTER-REQ %s MCC=%u,MNC=%u,LAC=%u,RAC=%u,SAC=%u,CID=%u from %s%s\n",
 	       ctx->identity_info, ctx->id.mcc, ctx->id.mnc, ctx->id.lac, ctx->id.rac, ctx->id.sac, ctx->id.cid,
-	       name, ctx->hnb_registered ? " (duplicated)" : "");
+	       name, ctx->hnb_registered ? " (re-connecting)" : "");
+
+	if (ctx->hnb_registered) {
+		/* The HNB is already registered, and we are seeing a new HNB Register Request. The HNB has restarted
+		 * without us noticing. Clearly, the HNB does not expect any UE state to be active here, so discard any
+		 * UE contexts and SCCP connections associated with this HNB. */
+		LOGHNB(ctx, DHNBAP, LOGL_NOTICE, "HNB reconnecting, discarding all previous UE state\n");
+		hnb_context_release_ue_state(ctx);
+	}
 
 	ctx->hnb_registered = true;
 

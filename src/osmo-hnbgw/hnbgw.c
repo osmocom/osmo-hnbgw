@@ -395,14 +395,9 @@ const char *hnb_context_name(struct hnb_context *ctx)
 		return umts_cell_id_name(&ctx->id);
 }
 
-void hnb_context_release(struct hnb_context *ctx)
+void hnb_context_release_ue_state(struct hnb_context *ctx)
 {
 	struct hnbgw_context_map *map, *map2;
-
-	LOGHNB(ctx, DMAIN, LOGL_INFO, "Releasing HNB context\n");
-
-	/* remove from the list of HNB contexts */
-	llist_del(&ctx->list);
 
 	/* deactivate all context maps */
 	llist_for_each_entry_safe(map, map2, &ctx->map_list, hnb_list) {
@@ -414,6 +409,16 @@ void hnb_context_release(struct hnb_context *ctx)
 		context_map_deactivate(map);
 	}
 	ue_context_free_by_hnb(ctx->gw, ctx);
+}
+
+void hnb_context_release(struct hnb_context *ctx)
+{
+	LOGHNB(ctx, DMAIN, LOGL_INFO, "Releasing HNB context\n");
+
+	/* remove from the list of HNB contexts */
+	llist_del(&ctx->list);
+
+	hnb_context_release_ue_state(ctx);
 
 	if (ctx->conn) { /* we own a conn, we must free it: */
 		LOGHNB(ctx, DMAIN, LOGL_INFO, "Closing HNB SCTP connection %s\n",
