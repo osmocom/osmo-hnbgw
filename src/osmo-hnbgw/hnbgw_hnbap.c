@@ -49,6 +49,7 @@ static int hnbgw_hnbap_tx(struct hnb_context *ctx, struct msgb *msg)
 	return 0;
 }
 
+#if 0
 static int hnbgw_tx_hnb_register_rej(struct hnb_context *ctx)
 {
 	HNBAP_HNBRegisterReject_t reject_out;
@@ -90,6 +91,7 @@ static int hnbgw_tx_hnb_register_rej(struct hnb_context *ctx)
 
 	return 0;
 }
+#endif
 
 static int hnbgw_tx_hnb_register_acc(struct hnb_context *ctx)
 {
@@ -428,41 +430,24 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	ctx->id.mcc = plmn.mcc;
 	ctx->id.mnc = plmn.mnc;
 
+	/* Guard against duplicate entries of HNB with the same LAC,SAC,RAC,CID,MCC,MNC identity */
 	llist_for_each_entry_safe(hnb, tmp, &ctx->gw->hnb_list, list) {
-		if (hnb->hnb_registered && ctx != hnb && memcmp(&ctx->id, &hnb->id, sizeof(ctx->id)) == 0) {
-			/* If it's coming from the same remote IP addr+port, then it must be our internal
-			 * fault (bug), and we release the old context to keep going... */
-			struct osmo_fd *other_fd = osmo_stream_srv_get_ofd(hnb->conn);
-			struct osmo_sockaddr other_osa = {};
-			struct osmo_sockaddr cur_osa = {};
-			socklen_t len = sizeof(other_osa);
-			if (getpeername(other_fd->fd, &other_osa.u.sa, &len) < 0) {
-				LOGHNB(ctx, DHNBAP, LOGL_ERROR, "BUG! Found old registered HNB with invalid socket, releasing it\n");
-				hnb_context_release(hnb);
-				continue;
-			}
-			len = sizeof(cur_osa);
-			if (getpeername(ofd->fd, &cur_osa.u.sa, &len) < 0) {
-				LOGHNB(ctx, DHNBAP, LOGL_ERROR, "Error getpeername(): %s\n", strerror(errno));
-				if (osmo_sockaddr_cmp(&cur_osa, &other_osa) == 0) {
-					LOGHNB(ctx, DHNBAP, LOGL_ERROR, "BUG! Found old registered HNB with same remote address, releasing it\n");
-					hnb_context_release(hnb);
-					continue;
-				}
-			} else if (osmo_sockaddr_cmp(&cur_osa, &other_osa) == 0) {
-				LOGHNB(ctx, DHNBAP, LOGL_ERROR, "BUG! Found old registered HNB with same remote address, releasing it\n");
-				hnb_context_release(hnb);
-				continue;
-			} /* else: addresses are different, we continue below */
-
-			/* If new conn registering same HNB is from anoter remote addr+port, let's reject it to avoid
-			 * misconfigurations or someone trying to impersonate an already working HNB: */
-			LOGHNB(ctx, DHNBAP, LOGL_ERROR, "rejecting HNB-REGISTER-REQ with duplicate cell identity "
-				"MCC=%u,MNC=%u,LAC=%u,RAC=%u,SAC=%u,CID=%u from %s\n",
-				ctx->id.mcc, ctx->id.mnc, ctx->id.lac, ctx->id.rac, ctx->id.sac, ctx->id.cid, name);
-			hnbap_free_hnbregisterrequesties(&ies);
-			return hnbgw_tx_hnb_register_rej(ctx);
-		}
+		if (hnb == ctx)
+			continue;
+		if (!hnb->hnb_registered)
+			continue;
+		if (memcmp(&ctx->id, &hnb->id, sizeof(ctx->id)))
+			continue;
+		/* There is another hnb_context with the same id.
+		 * This can be misconfiguration -- the user must make sure to avoid two HNB with the same id.
+		 * Or this is the same HNB re-connecting on a new conn, before osmo-hnbgw noticed that the HNB has gone
+		 * down.
+		 * Allow the new HNB connection, discard the old hnb_context. */
+		LOGHNB(ctx, DHNBAP, LOGL_ERROR, "A HNB with the same cell identity already exists, discarding old HNB"
+		       " context, in favor of this new HNB-REGISTER-REQ for"
+		       " MCC=%u,MNC=%u,LAC=%u,RAC=%u,SAC=%u,CID=%u from %s\n",
+		       ctx->id.mcc, ctx->id.mnc, ctx->id.lac, ctx->id.rac, ctx->id.sac, ctx->id.cid, name);
+		hnb_context_release(hnb);
 	}
 
 	LOGHNB(ctx, DHNBAP, LOGL_DEBUG, "HNB-REGISTER-REQ %s MCC=%u,MNC=%u,LAC=%u,RAC=%u,SAC=%u,CID=%u from %s%s\n",
