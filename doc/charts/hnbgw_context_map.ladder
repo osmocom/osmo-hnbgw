@@ -1,0 +1,139 @@
+{hscale=2}
+hnb = HNB
+rua =	OsmoHNBGW
+	RUA FSM / HNBAP
+sccp =	OsmoHNBGW
+	SCCP FSM
+cn = CN
+
+hnb <-> rua	RANAP/RUA
+		(Iuh)
+rua <-> sccp	FSM events
+sccp <-> cn	RANAP/SCCP/M3UA
+		(IuCS, IuPS)
+
+...
+...
+---		Create a new context map (always from HNB)
+hnb -> rua	RUA Connect
+		RANAP InitialUE-Message
+		DTAP Location Updating Request
+rua () sccp	hnbgw_context_map_alloc()
+rua <> .	MAP_RUA_ST_INIT
+sccp <> .	MAP_SCCP_ST_INIT
+rua () .	MAP_RUA_EV_RX_CONNECT
+		data = ranap_msg
+rua <> .	MAP_RUA_ST_CONNECTED
+rua -> sccp	MAP_SCCP_EV_TX_RANAP_MSG
+		data = ranap_msg
+sccp <> .	MAP_SCCP_ST_WAIT_CC
+sccp -> cn	SCCP Connection Request
+		RANAP InitialUE-Message
+		DTAP Location Updating Request
+...
+sccp <- cn	SCCP Connection Confirm
+sccp <> .	MAP_SCCP_ST_CONNECTED
+---		if SCCP CC with payload
+rua <- sccp	MAP_RUA_EV_TX_RANAP_MSG
+		data = ranap_msg
+hnb <- rua	RUA DirectTransfer
+
+...
+...
+---		Layer 3 communication
+sccp <- cn	SCCP Data Form 1
+rua <- sccp	MAP_RUA_EV_TX_RANAP_MSG
+		data = ranap_msg
+hnb <- rua	RUA DirectTransfer
+...
+hnb -> rua	RUA DirectTransfer
+rua -> sccp	MAP_SCCP_EV_TX_RANAP_MSG
+		data = ranap_msg
+sccp -> cn	SCCP Data Form 1
+
+...
+...
+---		Usual release
+sccp <- cn	SCCP Data Form 1
+		Iu-ReleaseCommand
+rua <- sccp	MAP_RUA_EV_TX_RANAP_MSG
+		data = ranap_msg
+hnb <- rua	RUA DirectTransfer
+		Iu-ReleaseCommand
+...
+hnb -> rua	RUA Disconnect
+		Iu-ReleaseComplete
+rua () .	MAP_RUA_EV_RX_DISCONNECT
+rua <> .	MAP_RUA_ST_DISCONNECTED
+rua -> sccp	MAP_SCCP_EV_RAN_DISC
+		data = ranap_msg
+sccp -> cn	SCCP Data Form 1
+		Iu-ReleaseComplete
+		NOT 'SCCP Released'! See 3GPP TS 48.006 9.2
+sccp <> .	MAP_SCCP_ST_WAIT_RLSD
+...
+sccp <- cn	SCCP Released
+sccp <> .	MAP_SCCP_ST_DISCONNECTED
+rua () sccp	map_check_released()
+rua () sccp	hnbgw_context_map_free()
+
+...
+...
+---		Ungraceful release from CN
+sccp <- cn	SCCP Released
+sccp -> cn	SCCP Release Complete
+		(implicit by libosmo-sigtran)
+sccp () .	MAP_SCCP_EV_RX_RELEASED
+sccp [] .	In SCCP there is no "link loss".
+		In every case, we will be notified
+		via N-Disconnect prim per SCCP conn.
+sccp <> .	MAP_SCCP_ST_DISCONNECTED
+rua <- sccp	MAP_RUA_EV_CN_DISC
+hnb <- rua	RUA Disconnect
+rua <> .	MAP_RUA_ST_DISCONNECTED
+rua () sccp	map_check_released()
+rua () sccp	hnbgw_context_map_free()
+
+...
+...
+...
+---		PCSTATE handling
+sccp <-- cn	N-PCSTATE.indication
+		point-code unreachable
+sccp [] .	currently ignored
+
+...
+...
+---		Ungraceful release from HNB
+hnb ->< rua	link loss
+rua () .	MAP_RUA_EV_HNB_LINK_LOST
+rua -> sccp	MAP_SCCP_EV_RAN_DISC
+sccp -> cn	SCCP Released
+sccp <> .	MAP_SCCP_ST_DISCONNECTED
+rua <> .	MAP_RUA_ST_DISCONNECTED
+rua () sccp	map_check_released()
+rua () sccp	hnbgw_context_map_free()
+
+...
+...
+---		Ungraceful release from HNB De-Register
+hnb -> rua	HNBAP HNB De-Register
+---		or
+hnb -> rua	HNBAP HNB Register
+		(HNB restarted)
+---
+rua () .	MAP_RUA_EV_HNB_LINK_LOST
+hnb <- rua	RUA Disconnect
+hnb [] rua	TODO: does it make sense to send
+		RUA Disconnect per context when HNB is/was gone?
+		Or has the HNB implicitly discarded these?
+rua <> .	MAP_RUA_ST_DISCONNECTED
+rua -> sccp	MAP_SCCP_EV_RAN_DISC
+		from map_rua_disconnected_onenter()
+sccp <> .	MAP_SCCP_ST_WAIT_RLSD
+rua -> sccp	MAP_SCCP_EV_RAN_DISC
+		to skip waiting for SCCP Released from CN
+sccp -> cn	SCCP Released
+sccp <> .	MAP_SCCP_ST_DISCONNECTED
+rua () sccp	map_check_released()
+rua () sccp	hnbgw_context_map_free()
