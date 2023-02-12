@@ -87,7 +87,7 @@ static struct ps_rab *ps_rab_alloc(struct hnbgw_context_map *map, uint8_t rab_id
 
 	/* Allocate with the global hnb_gw, so that we can gracefully handle PFCP release even if a hnb_ctx gets
 	 * deallocated. */
-	fi = osmo_fsm_inst_alloc(&ps_rab_fsm, map->hnb_ctx->gw, NULL, LOGL_DEBUG, NULL);
+	fi = osmo_fsm_inst_alloc(&ps_rab_fsm, map->gw, NULL, LOGL_DEBUG, NULL);
 	OSMO_ASSERT(fi);
 	osmo_fsm_inst_update_id_f_sanitize(fi, '-', "%s-RUA-%u-RAB-%u", hnb_context_name(map->hnb_ctx), map->rua_ctx_id,
 					   rab_id);
@@ -96,7 +96,7 @@ static struct ps_rab *ps_rab_alloc(struct hnbgw_context_map *map, uint8_t rab_id
 	OSMO_ASSERT(rab);
 	*rab = (struct ps_rab){
 		.fi = fi,
-		.hnb_gw = map->hnb_ctx->gw,
+		.hnb_gw = map->gw,
 		.map = map,
 		.rab_id = rab_id,
 		.use_count = {
@@ -683,6 +683,7 @@ static void ps_rab_fsm_allstate_action(struct osmo_fsm_inst *fi, uint32_t event,
 
 static void ps_rab_forget_map(struct ps_rab *rab)
 {
+	/* remove from map->ps_rabs */
 	if (rab->map)
 		llist_del(&rab->entry);
 	rab->map = NULL;

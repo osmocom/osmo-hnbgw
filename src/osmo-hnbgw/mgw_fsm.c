@@ -52,10 +52,7 @@
 /* Send Iu Release Request, this is done in erroneous cases from which we cannot recover */
 static void tx_release_req(struct hnbgw_context_map *map)
 {
-	struct hnb_context *hnb = map->hnb_ctx;
-	struct hnbgw_cnlink *cn = hnb->gw->sccp.cnlink;
 	struct msgb *msg;
-	struct osmo_scu_prim *prim;
 	static const struct RANAP_Cause cause = {
 		.present = RANAP_Cause_PR_transmissionNetwork,
 		.choice.transmissionNetwork =
@@ -64,11 +61,8 @@ static void tx_release_req(struct hnbgw_context_map *map)
 
 	msg = ranap_new_msg_iu_rel_req(&cause);
 	msg->l2h = msg->data;
-
-	prim = (struct osmo_scu_prim *)msgb_push(msg, sizeof(*prim));
-	prim->u.data.conn_id = map->scu_conn_id;
-	osmo_prim_init(&prim->oph, SCCP_SAP_USER, OSMO_SCU_PRIM_N_DATA, PRIM_OP_REQUEST, msg);
-	osmo_sccp_user_sap_down(cn->sccp_user, &prim->oph);
+	talloc_steal(OTC_SELECT, msg);
+	map_sccp_dispatch(map, MAP_SCCP_EV_TX_DATA_REQUEST, msg);
 }
 
 #define S(x)	(1 << (x))
@@ -112,7 +106,7 @@ struct mgw_fsm_priv {
 	/* Pointers to messages and prim header we take ownership of */
 	ranap_message *ranap_rab_ass_req_message;
 	ranap_message *ranap_rab_ass_resp_message;
-	struct osmo_prim_hdr *ranap_rab_ass_resp_oph;
+	struct msgb *ranap_rab_ass_resp_msgb;
 
 	/* MGW context */
 	struct mgcp_client *mgcpc;
@@ -173,7 +167,7 @@ static void mgw_fsm_crcx_hnb_onenter(struct osmo_fsm_inst *fi, uint32_t prev_sta
 	mgw_info.codecs[0] = CODEC_IUFP;
 	mgw_info.codecs_len = 1;
 
-	mgw_fsm_priv->mgcpc = mgcp_client_pool_get(map->hnb_ctx->gw->mgw_pool);
+	mgw_fsm_priv->mgcpc = mgcp_client_pool_get(map->gw->mgw_pool);
 	if (!mgw_fsm_priv->mgcpc) {
 		LOGPFSML(fi, LOGL_ERROR,
 			 "cannot ensure MGW endpoint -- no MGW configured, check configuration!\n");
@@ -255,8 +249,9 @@ static void mgw_fsm_assign_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state
 	}
 
 	LOGPFSML(fi, LOGL_DEBUG, "forwarding modified RAB-AssignmentRequest to HNB\n");
-	rua_tx_dt(map->hnb_ctx, map->is_ps, map->rua_ctx_id, msg->data, msg->len);
-	msgb_free(msg);
+	msg->l2h = msg->data;
+	talloc_steal(OTC_SELECT, msg);
+	map_rua_dispatch(map, MAP_RUA_EV_TX_DIRECT_TRANSFER, msg);
 }
 
 static void mgw_fsm_assign(struct osmo_fsm_inst *fi, uint32_t event, void *data)
@@ -274,8 +269,6 @@ static void mgw_fsm_mdcx_hnb_onenter(struct osmo_fsm_inst *fi, uint32_t prev_sta
 {
 	struct mgw_fsm_priv *mgw_fsm_priv = fi->priv;
 	struct hnbgw_context_map *map = mgw_fsm_priv->map;
-	struct hnb_context *hnb = map->hnb_ctx;
-	struct hnbgw_cnlink *cn = hnb->gw->sccp.cnlink;
 	struct mgcp_conn_peer mgw_info;
 	struct osmo_sockaddr addr;
 	struct osmo_sockaddr_str addr_str;
@@ -298,6 +291,8 @@ static void mgw_fsm_mdcx_hnb_onenter(struct osmo_fsm_inst *fi, uint32_t prev_sta
 	if (rc < 0) {
 		rab_failed_at_hnb = ranap_rab_ass_resp_ies_check_failure(ies, mgw_fsm_priv->rab_id);
 		if (rab_failed_at_hnb) {
+			struct msgb *msg;
+
 			LOGPFSML(fi, LOGL_ERROR,
 				 "The RAB-AssignmentResponse contains a RAB-FailedList, RAB-Assignment (%u) failed.\n",
 				 mgw_fsm_priv->rab_id);
@@ -305,8 +300,12 @@ static void mgw_fsm_mdcx_hnb_onenter(struct osmo_fsm_inst *fi, uint32_t prev_sta
 			/* Forward the RAB-AssignmentResponse transparently. This will ensure that the MSC is informed
 			 * about the problem. */
 			LOGPFSML(fi, LOGL_DEBUG, "forwarding unmodified RAB-AssignmentResponse to MSC\n");
-			rc = osmo_sccp_user_sap_down(cn->sccp_user, mgw_fsm_priv->ranap_rab_ass_resp_oph);
-			mgw_fsm_priv->ranap_rab_ass_resp_oph = NULL;
+
+			msg = mgw_fsm_priv->ranap_rab_ass_resp_msgb;
+			mgw_fsm_priv->ranap_rab_ass_resp_msgb = NULL;
+			talloc_steal(OTC_SELECT, msg);
+
+			rc = map_sccp_dispatch(map, MAP_SCCP_EV_TX_DATA_REQUEST, msg);
 			if (rc < 0) {
 				LOGPFSML(fi, LOGL_DEBUG, "failed to forward RAB-AssignmentResponse message\n");
 				osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
@@ -431,15 +430,15 @@ static void mgw_fsm_crcx_msc(struct osmo_fsm_inst *fi, uint32_t event, void *dat
 		 * the original message. Ensure that there is enough room in l2h to grow. (The current implementation
 		 * should yield a message with the same size, but there is no guarantee for that) */
 		msg_max_len =
-		    msgb_l2len(mgw_fsm_priv->ranap_rab_ass_resp_oph->msg) +
-		    msgb_tailroom(mgw_fsm_priv->ranap_rab_ass_resp_oph->msg);
-		rc = msgb_resize_area(mgw_fsm_priv->ranap_rab_ass_resp_oph->msg,
-				      mgw_fsm_priv->ranap_rab_ass_resp_oph->msg->l2h,
-				      msgb_l2len(mgw_fsm_priv->ranap_rab_ass_resp_oph->msg), msg_max_len);
+		    msgb_l2len(mgw_fsm_priv->ranap_rab_ass_resp_msgb) +
+		    msgb_tailroom(mgw_fsm_priv->ranap_rab_ass_resp_msgb);
+		rc = msgb_resize_area(mgw_fsm_priv->ranap_rab_ass_resp_msgb,
+				      mgw_fsm_priv->ranap_rab_ass_resp_msgb->l2h,
+				      msgb_l2len(mgw_fsm_priv->ranap_rab_ass_resp_msgb), msg_max_len);
 		OSMO_ASSERT(rc == 0);
 
-		rc = ranap_rab_ass_resp_encode(msgb_l2(mgw_fsm_priv->ranap_rab_ass_resp_oph->msg),
-					       msgb_l2len(mgw_fsm_priv->ranap_rab_ass_resp_oph->msg), ies);
+		rc = ranap_rab_ass_resp_encode(msgb_l2(mgw_fsm_priv->ranap_rab_ass_resp_msgb),
+					       msgb_l2len(mgw_fsm_priv->ranap_rab_ass_resp_msgb), ies);
 		if (rc < 0) {
 			LOGPFSML(fi, LOGL_ERROR, "failed to re-encode RAB-AssignmentResponse message\n");
 			osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
@@ -447,9 +446,9 @@ static void mgw_fsm_crcx_msc(struct osmo_fsm_inst *fi, uint32_t event, void *dat
 		}
 
 		/* Resize l2h back to the actual message length */
-		rc = msgb_resize_area(mgw_fsm_priv->ranap_rab_ass_resp_oph->msg,
-				      mgw_fsm_priv->ranap_rab_ass_resp_oph->msg->l2h,
-				      msgb_l2len(mgw_fsm_priv->ranap_rab_ass_resp_oph->msg), rc);
+		rc = msgb_resize_area(mgw_fsm_priv->ranap_rab_ass_resp_msgb,
+				      mgw_fsm_priv->ranap_rab_ass_resp_msgb->l2h,
+				      msgb_l2len(mgw_fsm_priv->ranap_rab_ass_resp_msgb), rc);
 		OSMO_ASSERT(rc == 0);
 
 		/* When the established state is entered, the modified RAB AssignmentResponse is forwarded to the MSC.
@@ -466,14 +465,16 @@ static void mgw_fsm_established_onenter(struct osmo_fsm_inst *fi, uint32_t prev_
 {
 	struct mgw_fsm_priv *mgw_fsm_priv = fi->priv;
 	struct hnbgw_context_map *map = mgw_fsm_priv->map;
-	struct osmo_prim_hdr *oph = mgw_fsm_priv->ranap_rab_ass_resp_oph;
-	struct hnb_context *hnb = map->hnb_ctx;
-	struct hnbgw_cnlink *cn = hnb->gw->sccp.cnlink;
+	struct msgb *ranap_msg;
 	int rc;
 
 	LOGPFSML(fi, LOGL_DEBUG, "forwarding modified RAB-AssignmentResponse to MSC\n");
-	rc = osmo_sccp_user_sap_down(cn->sccp_user, oph);
-	mgw_fsm_priv->ranap_rab_ass_resp_oph = NULL;
+
+	ranap_msg = mgw_fsm_priv->ranap_rab_ass_resp_msgb;
+	mgw_fsm_priv->ranap_rab_ass_resp_msgb = NULL;
+	talloc_steal(OTC_SELECT, ranap_msg);
+
+	rc = map_sccp_dispatch(map, MAP_SCCP_EV_TX_DATA_REQUEST, ranap_msg);
 	if (rc < 0) {
 		LOGPFSML(fi, LOGL_DEBUG, "failed to forward RAB-AssignmentResponse message\n");
 		osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
@@ -530,28 +531,6 @@ static int mgw_fsm_timer_cb(struct osmo_fsm_inst *fi)
 static void mgw_fsm_cleanup(struct osmo_fsm_inst *fi, enum osmo_fsm_term_cause cause)
 {
 	struct mgw_fsm_priv *mgw_fsm_priv = fi->priv;
-	struct osmo_scu_prim *scu_prim;
-	struct msgb *scu_msg;
-
-	if (mgw_fsm_priv->ranap_rab_ass_req_message) {
-		ranap_ran_rx_co_free(mgw_fsm_priv->ranap_rab_ass_req_message);
-		talloc_free(mgw_fsm_priv->ranap_rab_ass_req_message);
-		mgw_fsm_priv->ranap_rab_ass_req_message = NULL;
-	}
-
-	if (mgw_fsm_priv->ranap_rab_ass_resp_message) {
-		ranap_cn_rx_co_free(mgw_fsm_priv->ranap_rab_ass_resp_message);
-		talloc_free(mgw_fsm_priv->ranap_rab_ass_resp_message);
-		mgw_fsm_priv->ranap_rab_ass_resp_message = NULL;
-	}
-
-	if (mgw_fsm_priv->ranap_rab_ass_resp_oph) {
-		scu_prim = (struct osmo_scu_prim *)mgw_fsm_priv->ranap_rab_ass_resp_oph;
-		scu_msg = scu_prim->oph.msg;
-		msgb_free(scu_msg);
-		mgw_fsm_priv->ranap_rab_ass_resp_oph = NULL;
-	}
-
 	talloc_free(mgw_fsm_priv);
 }
 
@@ -654,7 +633,7 @@ static struct osmo_fsm mgw_fsm = {
 };
 
 /* The MSC may ask to release a specific RAB within a RAB-AssignmentRequest */
-static int handle_rab_release(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph, ranap_message *message)
+static int handle_rab_release(struct hnbgw_context_map *map, struct msgb *ranap_msg, ranap_message *message)
 {
 	bool rab_release_req;
 	struct osmo_fsm_inst *fi = map->mgw_fi;
@@ -672,7 +651,7 @@ static int handle_rab_release(struct hnbgw_context_map *map, struct osmo_prim_hd
 	/* Forward the unmodifed RAB-AssignmentRequest to HNB, so that the HNB is informed about the RAB release as
 	 * well */
 	LOGPFSML(fi, LOGL_DEBUG, "forwarding unmodified RAB-AssignmentRequest to HNB\n");
-	rc = rua_tx_dt(map->hnb_ctx, map->is_ps, map->rua_ctx_id, msgb_l2(oph->msg), msgb_l2len(oph->msg));
+	rc = map_rua_dispatch(map, MAP_RUA_EV_TX_DIRECT_TRANSFER, ranap_msg);
 
 	/* Release the FSM normally */
 	osmo_fsm_inst_state_chg(fi, MGW_ST_RELEASE, 0, 0);
@@ -680,12 +659,14 @@ static int handle_rab_release(struct hnbgw_context_map *map, struct osmo_prim_hd
 	return rc;
 }
 
-/*! Allocate MGW FSM and handle RANAP RAB AssignmentRequest).
- *  \ptmap[in] map hanbgw context map that is responsible for this call.
- *  \ptmap[in] oph osmo prim header with RANAP RAB AssignmentResponse (function takes no ownership).
- *  \ptmap[in] message ranap message container (function takes ownership).
+/*! Allocate MGW FSM and handle RANAP RAB AssignmentRequest.
+ *  \param[in] map hnbgw context map that is responsible for this call.
+ *  \param[in] ranap_msg msgb containing RANAP RAB AssignmentRequest at msgb_l2(), allocated in OTC_SELECT.
+ *                       This function may talloc_steal(ranap_msg) to keep it for later.
+ *  \param[in] message decoded RANAP message container, allocated in OTC_SELECT.
+ *                     This function may talloc_steal(message) to keep it for later.
  *  \returns 0 on success; negative on error. */
-int handle_rab_ass_req(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph, ranap_message *message)
+int handle_rab_ass_req(struct hnbgw_context_map *map, struct msgb *ranap_msg, ranap_message *message)
 {
 	static bool initialized = false;
 	struct mgw_fsm_priv *mgw_fsm_priv;
@@ -703,7 +684,7 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph,
 	 * a ReleaseList. In this case an FSM will already be present. */
 	if (map->mgw_fi) {
 		/* A RAB Release might be in progress, handle it */
-		rc = handle_rab_release(map, oph, message);
+		rc = handle_rab_release(map, ranap_msg, message);
 		if (rc >= 0)
 			return rc;
 
@@ -726,6 +707,8 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph,
 
 	mgw_fsm_priv = talloc_zero(map, struct mgw_fsm_priv);
 	mgw_fsm_priv->map = map;
+
+	talloc_steal(mgw_fsm_priv, message);
 	mgw_fsm_priv->ranap_rab_ass_req_message = message;
 
 	/* Allocate FSM */
@@ -738,17 +721,17 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph,
 }
 
 /*! Handlie RANAP RAB AssignmentResponse (deliver message, complete RTP stream switching).
- *  \ptmap[in] map hanbgw context map that is responsible for this call.
- *  \ptmap[in] oph osmo prim header with RANAP RAB AssignmentResponse (function takes ownership).
- *  \ptmap[in] message ranap message container with decoded ranap message (function takes ownership).
+ *  \param[in] map hnbgw context map that is responsible for this call.
+ *  \param[in] ranap_msg msgb containing RANAP RAB AssignmentResponse at msgb_l2(), allocated in OTC_SELECT.
+ *                       This function may talloc_steal(ranap_msg) to keep it for later.
+ *  \param[in] message decoded RANAP message container, allocated in OTC_SELECT.
+ *                     This function may talloc_steal(message) to keep it for later.
  *  \returns 0 on success; negative on error. */
-int mgw_fsm_handle_rab_ass_resp(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph, ranap_message *message)
+int mgw_fsm_handle_rab_ass_resp(struct hnbgw_context_map *map, struct msgb *ranap_msg, ranap_message *message)
 {
 	struct mgw_fsm_priv *mgw_fsm_priv;
-	struct osmo_scu_prim *prim;
-	struct msgb *msg;
 
-	OSMO_ASSERT(oph);
+	OSMO_ASSERT(ranap_msg);
 
 	if (!map->mgw_fi) {
 		/* NOTE: This situation is a corner-case. We may end up here when the co-located MGW caused a problem
@@ -758,23 +741,19 @@ int mgw_fsm_handle_rab_ass_resp(struct hnbgw_context_map *map, struct osmo_prim_
 		     "mgw_fsm_handle_rab_ass_resp() rua_ctx_id=%d, no MGW fsm -- sending Iu-Release-Request!\n",
 		     map->rua_ctx_id);
 
-		/* Cleanup ranap message */
-		ranap_cn_rx_co_free(message);
-		talloc_free(message);
-
-		/* Toss RAB-AssignmentResponse */
-		prim = (struct osmo_scu_prim *)oph;
-		msg = prim->oph.msg;
-		msgb_free(msg);
-
 		/* Send a release request, to make sure that the MSC is aware of the problem. */
 		tx_release_req(map);
 		return -1;
 	}
 
 	mgw_fsm_priv = map->mgw_fi->priv;
-	mgw_fsm_priv->ranap_rab_ass_resp_oph = oph;
+
+	talloc_steal(mgw_fsm_priv, ranap_msg);
+	mgw_fsm_priv->ranap_rab_ass_resp_msgb = ranap_msg;
+
+	talloc_steal(mgw_fsm_priv, message);
 	mgw_fsm_priv->ranap_rab_ass_resp_message = message;
+
 	osmo_fsm_inst_dispatch(map->mgw_fi, MGW_EV_RAB_ASS_RESP, NULL);
 	return 0;
 }

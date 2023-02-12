@@ -98,8 +98,6 @@ static struct hnb_gw *hnb_gw_create(void *ctx)
 	INIT_LLIST_HEAD(&gw->hnb_list);
 	INIT_LLIST_HEAD(&gw->ue_list);
 
-	context_map_init(gw);
-
 	gw->mgw_pool = mgcp_client_pool_alloc(gw);
 	gw->config.mgcp_client = talloc_zero(tall_hnb_ctx, struct mgcp_client_conf);
 	mgcp_client_conf_init(gw->config.mgcp_client);
@@ -397,18 +395,16 @@ void hnb_context_release_ue_state(struct hnb_context *ctx)
 
 	/* deactivate all context maps */
 	llist_for_each_entry_safe(map, map2, &ctx->map_list, hnb_list) {
-		/* remove it from list, as HNB context will soon be
-		 * gone.  Let's hope the second osmo_llist_del in the
-		 * map garbage collector works fine? */
-		llist_del(&map->hnb_list);
-		llist_del(&map->cn_list);
 		context_map_hnb_released(map);
+		/* hnbgw_context_map will remove itself from lists when it is ready. */
 	}
 	ue_context_free_by_hnb(ctx->gw, ctx);
 }
 
 void hnb_context_release(struct hnb_context *ctx)
 {
+	struct hnbgw_context_map *map;
+
 	LOGHNB(ctx, DMAIN, LOGL_INFO, "Releasing HNB context\n");
 
 	/* remove from the list of HNB contexts */
@@ -423,6 +419,14 @@ void hnb_context_release(struct hnb_context *ctx)
 		osmo_stream_srv_set_data(ctx->conn, NULL);
 		osmo_stream_srv_destroy(ctx->conn);
 	} /* else: we are called from closed_cb, so conn is being freed separately */
+
+	/* hnbgw_context_map are still listed in ctx->map_list, but we are freeing ctx. Remove all entries from the
+	 * list, but keep the hnbgw_context_map around for graceful release. They are also listed under
+	 * hnbgw_cnlink->map_list, and will remove themselves when ready. */
+	while ((map = llist_first_entry_or_null(&ctx->map_list, struct hnbgw_context_map, hnb_list))) {
+		llist_del(&map->hnb_list);
+		map->hnb_ctx = NULL;
+	}
 
 	talloc_free(ctx);
 }
@@ -468,6 +472,16 @@ static const struct log_info_cat log_cat[] = {
 		.name = "DMGW", .loglevel = LOGL_NOTICE, .enabled = 1,
 		.color = "\033[1;33m",
 		.description = "Media Gateway",
+	},
+	[DHNB] = {
+		.name = "DHNB", .loglevel = LOGL_NOTICE, .enabled = 1,
+		.color = OSMO_LOGCOLOR_CYAN,
+		.description = "HNB side (via RUA)",
+	},
+	[DCN] = {
+		.name = "DCN", .loglevel = LOGL_NOTICE, .enabled = 1,
+		.color = OSMO_LOGCOLOR_DARKYELLOW,
+		.description = "Core Network side (via SCCP)",
 	},
 };
 
@@ -840,4 +854,13 @@ int main(int argc, char **argv)
 
 	/* not reached */
 	exit(0);
+}
+
+struct msgb *hnbgw_ranap_msg_alloc(const char *name)
+{
+	struct msgb *ranap_msg;
+	ranap_msg = msgb_alloc_c(OTC_SELECT, sizeof(struct osmo_scu_prim) + 1500, name);
+	msgb_reserve(ranap_msg, sizeof(struct osmo_scu_prim));
+	ranap_msg->l2h = ranap_msg->data;
+	return ranap_msg;
 }

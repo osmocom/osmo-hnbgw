@@ -37,6 +37,8 @@ osmo_hnbgw_SOURCES = \
 	hnbgw_ranap.c \
 	hnbgw_vty.c \
 	context_map.c \
+	context_map_rua.c \
+	context_map_sccp.c \
 	hnbgw_cn.c \
 	ranap_rab_ass.c \
 	mgw_fsm.c \

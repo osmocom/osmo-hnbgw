@@ -110,7 +110,7 @@ struct ps_rab_ass {
 	ranap_message *ranap_rab_ass_req_message;
 
 	ranap_message *ranap_rab_ass_resp_message;
-	struct osmo_prim_hdr *ranap_rab_ass_resp_oph;
+	struct msgb *ranap_rab_ass_resp_msgb;
 
 	/* A RAB Assignment may contain more than one RAB. Each RAB sets up a distinct ps_rab_fsm (aka PFCP session) and
 	 * reports back about local F-TEIDs assigned by the UPF. This gives the nr of RAB events we expect from
@@ -214,16 +214,25 @@ error_exit:
 	return rc;
 }
 
-int hnbgw_gtpmap_rx_rab_ass_req(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph, ranap_message *message)
+/*! Allocate ps_rab_ass_fsm and handle PS RANAP RAB AssignmentRequest.
+ *  \param[in] map hnbgw context map that is responsible for this conn.
+ *  \param[in] ranap_msg msgb containing RANAP RAB AssignmentRequest at msgb_l2(), allocated in OTC_SELECT.
+ *                       This function may talloc_steal(ranap_msg) to keep it for later.
+ *  \param[in] message decoded RANAP message container, allocated in OTC_SELECT.
+ *                     This function may talloc_steal(message) to keep it for later.
+ *  \returns 0 on success; negative on error. */
+int hnbgw_gtpmap_rx_rab_ass_req(struct hnbgw_context_map *map, struct msgb *ranap_msg, ranap_message *message)
 {
 	RANAP_RAB_AssignmentRequestIEs_t *ies = &message->msg.raB_AssignmentRequestIEs;
 	int i;
 
-	struct hnb_gw *hnb_gw = map->hnb_ctx->gw;
+	struct hnb_gw *hnb_gw = map->gw;
 	struct ps_rab_ass *rab_ass;
 	struct osmo_fsm_inst *fi;
 
 	rab_ass = ps_rab_ass_alloc(map);
+
+	talloc_steal(rab_ass, message);
 	rab_ass->ranap_rab_ass_req_message = message;
 	/* Now rab_ass owns message and will clean it up */
 
@@ -351,8 +360,10 @@ continue_cleanloop:
 		ps_rab_ass_failure(rab_ass);
 		return;
 	}
-	rua_tx_dt(rab_ass->map->hnb_ctx, rab_ass->map->is_ps, rab_ass->map->rua_ctx_id, msg->data, msg->len);
-	msgb_free(msg);
+	talloc_steal(OTC_SELECT, msg);
+	msg->l2h = msg->data;
+	map_rua_dispatch(rab->map, MAP_RUA_EV_TX_DIRECT_TRANSFER, msg);
+
 	/* The request message has been forwarded. The response will be handled by a new FSM instance.
 	 * We are done. */
 	osmo_fsm_inst_term(rab_ass->fi, OSMO_FSM_TERM_REGULAR, NULL);
@@ -385,7 +396,7 @@ static int ps_rab_setup_access_remote(struct ps_rab_ass *rab_ass,
 	return ps_rab_rx_access_remote_f_teid(map, rab_id, &args);
 }
 
-int hnbgw_gtpmap_rx_rab_ass_resp(struct hnbgw_context_map *map, struct osmo_prim_hdr *oph, ranap_message *message)
+int hnbgw_gtpmap_rx_rab_ass_resp(struct hnbgw_context_map *map, struct msgb *ranap_msg, ranap_message *message)
 {
 	/* hNodeB responds with its own F-TEIDs. Need to tell the UPF about those to complete the GTP mapping.
 	 * 1. here, extract the F-TEIDs (one per RAB),
@@ -408,7 +419,7 @@ int hnbgw_gtpmap_rx_rab_ass_resp(struct hnbgw_context_map *map, struct osmo_prim
 	struct ps_rab_ass *rab_ass;
 	struct osmo_fsm_inst *fi;
 	RANAP_RAB_AssignmentResponseIEs_t *ies;
-	struct hnb_gw *hnb_gw = map->hnb_ctx->gw;
+	struct hnb_gw *hnb_gw = map->gw;
 
 	/* Make sure we indeed deal with a setup-or-modify list */
 	ies = &message->msg.raB_AssignmentResponseIEs;
@@ -418,8 +429,12 @@ int hnbgw_gtpmap_rx_rab_ass_resp(struct hnbgw_context_map *map, struct osmo_prim
 	}
 
 	rab_ass = ps_rab_ass_alloc(map);
+
+	talloc_steal(rab_ass, message);
 	rab_ass->ranap_rab_ass_resp_message = message;
-	rab_ass->ranap_rab_ass_resp_oph = oph;
+
+	talloc_steal(rab_ass, ranap_msg);
+	rab_ass->ranap_rab_ass_resp_msgb = ranap_msg;
 	/* Now rab_ass owns message and will clean it up */
 
 	if (!osmo_pfcp_cp_peer_is_associated(hnb_gw->pfcp.cp_peer)) {
@@ -494,8 +509,8 @@ static void ps_rab_ass_resp_send_if_ready(struct ps_rab_ass *rab_ass)
 {
 	int i;
 	int rc;
-	struct hnbgw_cnlink *cn = rab_ass->map->cn_link;
 	RANAP_RAB_AssignmentResponseIEs_t *ies = &rab_ass->ranap_rab_ass_resp_message->msg.raB_AssignmentResponseIEs;
+	struct msgb *msg;
 
 	/* Go through all RABs in the RAB Assignment Response message and replace with the F-TEID that the UPF assigned,
 	 * verifying that instructing the UPF has succeeded. */
@@ -565,10 +580,13 @@ continue_cleanloop:
 		ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_SetupOrModifiedItem, &item_ies);
 	}
 
+	msg = rab_ass->ranap_rab_ass_resp_msgb;
+	rab_ass->ranap_rab_ass_resp_msgb = NULL;
+	talloc_steal(OTC_SELECT, msg);
+
 	/* Replaced all the GTP info, re-encode the message. Since we are replacing data 1:1, taking care to use the
 	 * same IP address encoding, the resulting message size must be identical to the original message size. */
-	rc = ranap_rab_ass_resp_encode(msgb_l2(rab_ass->ranap_rab_ass_resp_oph->msg),
-				       msgb_l2len(rab_ass->ranap_rab_ass_resp_oph->msg), ies);
+	rc = ranap_rab_ass_resp_encode(msgb_l2(msg), msgb_l2len(msg), ies);
 	if (rc < 0) {
 		LOG_PS_RAB_ASS(rab_ass, LOGL_ERROR, "Re-encoding RANAP PS RAB-AssignmentResponse failed\n");
 		ps_rab_ass_failure(rab_ass);
@@ -576,8 +594,8 @@ continue_cleanloop:
 	}
 
 	LOG_PS_RAB_ASS(rab_ass, LOGL_NOTICE, "Sending RANAP PS RAB-AssignmentResponse with mapped GTP info\n");
-	rc = osmo_sccp_user_sap_down(cn->sccp_user, rab_ass->ranap_rab_ass_resp_oph);
-	rab_ass->ranap_rab_ass_resp_oph = NULL;
+
+	rc = map_sccp_dispatch(rab_ass->map, MAP_SCCP_EV_TX_DATA_REQUEST, msg);
 	if (rc < 0) {
 		LOG_PS_RAB_ASS(rab_ass, LOGL_ERROR, "Sending RANAP PS RAB-AssignmentResponse failed\n");
 		ps_rab_ass_failure(rab_ass);
@@ -590,28 +608,7 @@ continue_cleanloop:
 static void ps_rab_ass_fsm_cleanup(struct osmo_fsm_inst *fi, enum osmo_fsm_term_cause cause)
 {
 	struct ps_rab_ass *rab_ass = fi->priv;
-	struct osmo_scu_prim *scu_prim;
-	struct msgb *scu_msg;
 	struct ps_rab *rab;
-
-	if (rab_ass->ranap_rab_ass_req_message) {
-		ranap_ran_rx_co_free(rab_ass->ranap_rab_ass_req_message);
-		talloc_free(rab_ass->ranap_rab_ass_req_message);
-		rab_ass->ranap_rab_ass_req_message = NULL;
-	}
-
-	if (rab_ass->ranap_rab_ass_resp_message) {
-		ranap_cn_rx_co_free(rab_ass->ranap_rab_ass_resp_message);
-		talloc_free(rab_ass->ranap_rab_ass_resp_message);
-		rab_ass->ranap_rab_ass_resp_message = NULL;
-	}
-
-	if (rab_ass->ranap_rab_ass_resp_oph) {
-		scu_prim = (struct osmo_scu_prim *)rab_ass->ranap_rab_ass_resp_oph;
-		scu_msg = scu_prim->oph.msg;
-		msgb_free(scu_msg);
-		rab_ass->ranap_rab_ass_resp_oph = NULL;
-	}
 
 	llist_for_each_entry(rab, &rab_ass->map->ps_rabs, entry) {
 		if (rab->req_fi == fi)

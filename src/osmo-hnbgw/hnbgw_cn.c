@@ -345,16 +345,13 @@ static int handle_cn_conn_conf(struct hnbgw_cnlink *cnlink,
 	     osmo_sccp_addr_to_str_c(OTC_SELECT, ss7, &param->calling_addr),
 	     osmo_sccp_addr_to_str_c(OTC_SELECT, ss7, &param->responding_addr));
 
-	/* Nothing needs to happen for RUA, RUA towards the HNB doesn't seem to know any confirmations to its CONNECT
-	 * operation. */
-
 	map = context_map_by_cn(cnlink, param->conn_id);
-	if (!map)
+	if (!map) {
+		/* We have no such SCCP connection. Ignore. */
 		return 0;
+	}
 
-	/* SCCP connection is confirmed. Mark conn as active, i.e. requires a DISCONNECT to clean up the SCCP
-	 * connection. */
-	map->scu_conn_active = true;
+	map_sccp_dispatch(map, MAP_SCCP_EV_RX_CONNECTION_CONFIRM, oph->msg);
 	return 0;
 }
 
@@ -363,79 +360,14 @@ static int handle_cn_data_ind(struct hnbgw_cnlink *cnlink,
 			      struct osmo_prim_hdr *oph)
 {
 	struct hnbgw_context_map *map;
-	ranap_message *message;
-	int rc;
-
-	/* Usually connection-oriented data is always passed transparently towards the specific HNB, via a RUA
-	 * connection identified by conn_id. An exception is made for RANAP RAB AssignmentRequest and
-	 * RANAP RAB AssignmentResponse, since those messages contain transport layer information (RTP stream IP/Port),
-	 * which is rewritten by the FSM that controls the co-located media gateway. */
 
 	map = context_map_by_cn(cnlink, param->conn_id);
 	if (!map) {
-		/* FIXME: Return an error / released primitive */
+		/* We have no such SCCP connection. Ignore. */
 		return 0;
 	}
 
-	/* Intercept RAB Assignment Request, to map RTP and GTP between access and core */
-	if (!map->is_ps) {
-		/* Circuit-Switched. Set up mapping of RTP ports via MGW */
-		message = talloc_zero(map, ranap_message);
-		rc = ranap_ran_rx_co_decode(map, message, msgb_l2(oph->msg), msgb_l2len(oph->msg));
-
-		if (rc == 0) {
-			switch (message->procedureCode) {
-			case RANAP_ProcedureCode_id_RAB_Assignment:
-				/* mgw_fsm_alloc_and_handle_rab_ass_req() takes ownership of (ranap) message */
-				return handle_rab_ass_req(map, oph, message);
-			case RANAP_ProcedureCode_id_Iu_Release:
-				/* Any IU Release will terminate the MGW FSM, the message itsself is not passed to the
-				 * FSM code. It is just forwarded normally by the rua_tx_dt() call below. */
-				mgw_fsm_release(map);
-				break;
-			}
-			ranap_ran_rx_co_free(message);
-		}
-
-		talloc_free(message);
-#if ENABLE_PFCP
-	} else {
-		struct hnb_gw *hnb_gw = cnlink->gw;
-		/* Packet-Switched. Set up mapping of GTP ports via UPF */
-		message = talloc_zero(map, ranap_message);
-		rc = ranap_ran_rx_co_decode(map, message, msgb_l2(oph->msg), msgb_l2len(oph->msg));
-
-		if (rc == 0) {
-			switch (message->procedureCode) {
-
-			case RANAP_ProcedureCode_id_RAB_Assignment:
-				/* If a UPF is configured, handle the RAB Assignment via ps_rab_ass_fsm, and replace the
-				 * GTP F-TEIDs in the RAB Assignment message before passing it on to RUA. */
-				if (hnb_gw_is_gtp_mapping_enabled(hnb_gw)) {
-					LOGP(DMAIN, LOGL_DEBUG,
-					     "RAB Assignment: setting up GTP tunnel mapping via UPF %s\n",
-					     osmo_sockaddr_to_str_c(OTC_SELECT, &hnb_gw->pfcp.cp_peer->remote_addr));
-					return hnbgw_gtpmap_rx_rab_ass_req(map, oph, message);
-				}
-				/* If no UPF is configured, directly forward the message as-is (no GTP mapping). */
-				LOGP(DMAIN, LOGL_DEBUG, "RAB Assignment: no UPF configured, forwarding as-is\n");
-				break;
-
-			case RANAP_ProcedureCode_id_Iu_Release:
-				/* Any IU Release will terminate the MGW FSM, the message itsself is not passed to the
-				 * FSM code. It is just forwarded normally by the rua_tx_dt() call below. */
-				hnbgw_gtpmap_release(map);
-				break;
-			}
-			ranap_ran_rx_co_free(message);
-		}
-
-		talloc_free(message);
-#endif
-	}
-
-	return rua_tx_dt(map->hnb_ctx, map->is_ps, map->rua_ctx_id,
-			 msgb_l2(oph->msg), msgb_l2len(oph->msg));
+	return map_sccp_dispatch(map, MAP_SCCP_EV_RX_DATA_INDICATION, oph->msg);
 }
 
 static int handle_cn_disc_ind(struct hnbgw_cnlink *cnlink,
@@ -449,22 +381,13 @@ static int handle_cn_disc_ind(struct hnbgw_cnlink *cnlink,
 	LOGP(DMAIN, LOGL_DEBUG, "handle_cn_disc_ind() responding_addr=%s\n",
 	     inet_ntoa(param->responding_addr.ip.v4));
 
-	RUA_Cause_t rua_cause = {
-		.present = RUA_Cause_PR_NOTHING,
-		/* FIXME: Convert incoming SCCP cause to RUA cause */
-	};
-
-	/* we need to notify the HNB associated with this connection via
-	 * a RUA DISCONNECT */
-
 	map = context_map_by_cn(cnlink, param->conn_id);
 	if (!map) {
-		/* FIXME: Return an error / released primitive */
+		/* We have no connection. Ignore. */
 		return 0;
 	}
 
-	return rua_tx_disc(map->hnb_ctx, map->is_ps, map->rua_ctx_id,
-			   &rua_cause, msgb_l2(oph->msg), msgb_l2len(oph->msg));
+	return map_sccp_dispatch(map, MAP_SCCP_EV_RX_RELEASED, oph->msg);
 }
 
 /* Entry point for primitives coming up from SCCP User SAP */
@@ -492,6 +415,8 @@ static int sccp_sap_up(struct osmo_prim_hdr *oph, void *ctx)
 		return -1;
 	}
 
+	talloc_steal(OTC_SELECT, oph->msg);
+
 	switch (OSMO_PRIM_HDR(oph)) {
 	case OSMO_PRIM(OSMO_SCU_PRIM_N_UNITDATA, PRIM_OP_INDICATION):
 		rc = handle_cn_unitdata(cnlink, &prim->u.unitdata, oph);
@@ -511,8 +436,6 @@ static int sccp_sap_up(struct osmo_prim_hdr *oph, void *ctx)
 			OSMO_PRIM_HDR(oph));
 		break;
 	}
-
-	msgb_free(oph->msg);
 
 	return rc;
 }
@@ -636,4 +559,9 @@ int hnbgw_cnlink_init(struct hnb_gw *gw, const char *stp_host, uint16_t stp_port
 	gw->sccp.cnlink = cnlink;
 
 	return 0;
+}
+
+const struct osmo_sccp_addr *hnbgw_cn_get_remote_addr(struct hnb_gw *gw, bool is_ps)
+{
+	return is_ps ? &gw->sccp.iups_remote_addr : &gw->sccp.iucs_remote_addr;
 }

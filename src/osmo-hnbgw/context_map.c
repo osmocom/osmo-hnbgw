@@ -34,12 +34,23 @@
 #include <osmocom/hnbgw/ps_rab_ass_fsm.h>
 
 const struct value_string hnbgw_context_map_state_names[] = {
-	{MAP_S_NULL     , "not-initialized"},
-	{MAP_S_ACTIVE   , "active"},
-	{MAP_S_RESERVED1, "inactive-reserved"},
-	{MAP_S_RESERVED2, "inactive-discard"},
-	{0, NULL}
+	{ MAP_S_CONNECTING, "connecting" },
+	{ MAP_S_ACTIVE, "active" },
+	{ MAP_S_DISCONNECTING, "disconnecting" },
+	{}
 };
+
+/* Combine the RUA and SCCP states, for VTY reporting only. */
+enum hnbgw_context_map_state context_map_get_state(struct hnbgw_context_map *map)
+{
+	enum hnbgw_context_map_state rua = map_rua_get_state(map);
+	enum hnbgw_context_map_state sccp = map_sccp_get_state(map);
+	if (rua == MAP_S_ACTIVE && sccp == MAP_S_ACTIVE)
+		return MAP_S_ACTIVE;
+	if (rua == MAP_S_DISCONNECTING || sccp == MAP_S_DISCONNECTING)
+		return MAP_S_DISCONNECTING;
+	return MAP_S_CONNECTING;
+}
 
 /* is a given SCCP USER SAP Connection ID in use for a given CN link? */
 static int cn_id_in_use(struct hnbgw_cnlink *cn, uint32_t id)
@@ -92,11 +103,15 @@ context_map_alloc_by_hnb(struct hnb_context *hnb, uint32_t rua_ctx_id,
 	uint32_t new_scu_conn_id;
 
 	llist_for_each_entry(map, &hnb->map_list, hnb_list) {
-		if (map->state != MAP_S_ACTIVE)
+		if (map->cn_link != cn_if_new)
 			continue;
-		if (map->cn_link != cn_if_new) {
+
+		/* Matching on RUA context id -- only match for RUA context that has not been disconnected yet. If an
+		 * inactive context map for a rua_ctx_id is still around, we may have two entries for the same
+		 * rua_ctx_id around at the same time. That should only stay until its SCCP side is done releasing. */
+		if (!map_rua_is_active(map))
 			continue;
-		}
+
 		if (map->rua_ctx_id == rua_ctx_id
 		    && map->is_ps == is_ps) {
 			return map;
@@ -113,7 +128,7 @@ context_map_alloc_by_hnb(struct hnb_context *hnb, uint32_t rua_ctx_id,
 
 	/* allocate a new map entry. */
 	map = talloc_zero(hnb, struct hnbgw_context_map);
-	map->state = MAP_S_NULL;
+	map->gw = hnb->gw;
 	map->cn_link = cn_if_new;
 	map->hnb_ctx = hnb;
 	map->rua_ctx_id = rua_ctx_id;
@@ -122,12 +137,41 @@ context_map_alloc_by_hnb(struct hnb_context *hnb, uint32_t rua_ctx_id,
 	INIT_LLIST_HEAD(&map->ps_rab_ass);
 	INIT_LLIST_HEAD(&map->ps_rabs);
 
+	map_rua_fsm_alloc(map);
+	map_sccp_fsm_alloc(map);
+
 	/* put it into both lists */
 	llist_add_tail(&map->hnb_list, &hnb->map_list);
 	llist_add_tail(&map->cn_list, &cn_if_new->map_list);
-	map->state = MAP_S_ACTIVE;
 
 	return map;
+}
+
+int _map_rua_dispatch(struct hnbgw_context_map *map, uint32_t event, struct msgb *ranap_msg,
+		      const char *file, int line)
+{
+	OSMO_ASSERT(map);
+	if (!map->rua_fi) {
+		LOG_MAP(map, DRUA, LOGL_ERROR, "not ready to receive RUA events\n");
+		return -EINVAL;
+	}
+	return _osmo_fsm_inst_dispatch(map->rua_fi, event, ranap_msg, file, line);
+}
+
+int _map_sccp_dispatch(struct hnbgw_context_map *map, uint32_t event, struct msgb *ranap_msg,
+		       const char *file, int line)
+{
+	OSMO_ASSERT(map);
+	if (!map->sccp_fi) {
+		LOG_MAP(map, DRUA, LOGL_ERROR, "not ready to receive SCCP events\n");
+		return -EINVAL;
+	}
+	return _osmo_fsm_inst_dispatch(map->sccp_fi, event, ranap_msg, file, line);
+}
+
+unsigned int msg_has_l2_data(const struct msgb *msg)
+{
+	return msg && msgb_l2(msg) ? msgb_l2len(msg) : 0;
 }
 
 /* Map from a CN + Connection ID to HNB + Context ID */
@@ -137,8 +181,12 @@ context_map_by_cn(struct hnbgw_cnlink *cn, uint32_t scu_conn_id)
 	struct hnbgw_context_map *map;
 
 	llist_for_each_entry(map, &cn->map_list, cn_list) {
-		if (map->state != MAP_S_ACTIVE)
+		/* Matching on SCCP conn id -- only match for SCCP conn that has not been disconnected yet. If an
+		 * inactive context map for an scu_conn_id is still around, we may have two entries for the same
+		 * scu_conn_id around at the same time. That should only stay until its RUA side is done releasing. */
+		if (!map_sccp_is_active(map))
 			continue;
+
 		if (map->scu_conn_id == scu_conn_id) {
 			return map;
 		}
@@ -152,23 +200,37 @@ context_map_by_cn(struct hnbgw_cnlink *cn, uint32_t scu_conn_id)
 
 void context_map_hnb_released(struct hnbgw_context_map *map)
 {
-	LOG_MAP(map, DMAIN, LOGL_INFO, "Deactivating\n");
+	/* When a HNB disconnects from RUA, the hnb_context will be freed. This hnbgw_context_map was allocated as a
+	 * child of the hnb_context and would also be deallocated along with the hnb_context. However, the SCCP side for
+	 * this hnbgw_context_map may still be waiting for a graceful release (SCCP RLC). Move this hnbgw_context_map to
+	 * the global hnb_gw talloc ctx, so it can stay around for graceful release / for SCCP timeout.
+	 *
+	 * We could also always allocate hnbgw_context_map under hnb_gw, but it is nice to see which hnb_context owns
+	 * which hnbgw_context_map in a talloc report.
+	 */
+	talloc_steal(map->gw, map);
 
-	/* set the state to reserved. We still show up in the list and
-	 * avoid re-allocation of the context-id until we are cleaned up
-	 * by the context_map garbage collector timer */
+	/* Tell RUA that the HNB is gone. SCCP release will follow via FSM events. */
+	map_rua_dispatch(map, MAP_RUA_EV_HNB_LINK_LOST, NULL);
+}
 
-	if (map->state != MAP_S_RESERVED2)
-		map->state = MAP_S_RESERVED1;
-
-	/* Is SCCP still active and needs to be disconnected ungracefully? */
-	if (map->scu_conn_active) {
-		osmo_sccp_tx_disconn(map->hnb_ctx->gw->sccp.cnlink->sccp_user, map->scu_conn_id, NULL, 0);
-		map->scu_conn_active = false;
+void context_map_free(struct hnbgw_context_map *map)
+{
+	/* guard against FSM termination infinitely looping back here */
+	if (map->deallocating) {
+		LOG_MAP(map, DMAIN, LOGL_DEBUG, "context_map_free(): already deallocating\n");
+		return;
 	}
+	map->deallocating = true;
 
-	/* a possibly still existing MGW FSM must be terminated when the context
-	 * map is deactivated. (this is a cornercase) */
+	if (map->rua_fi)
+		osmo_fsm_inst_term(map->rua_fi, OSMO_FSM_TERM_REGULAR, NULL);
+	OSMO_ASSERT(map->rua_fi == NULL);
+
+	if (map->sccp_fi)
+		osmo_fsm_inst_term(map->sccp_fi, OSMO_FSM_TERM_REGULAR, NULL);
+	OSMO_ASSERT(map->sccp_fi == NULL);
+
 	if (map->mgw_fi) {
 		mgw_fsm_release(map);
 		OSMO_ASSERT(map->mgw_fi == NULL);
@@ -177,46 +239,21 @@ void context_map_hnb_released(struct hnbgw_context_map *map)
 #if ENABLE_PFCP
 	hnbgw_gtpmap_release(map);
 #endif
+
+	if (map->cn_link)
+		llist_del(&map->cn_list);
+	if (map->hnb_ctx)
+		llist_del(&map->hnb_list);
+
+	LOG_MAP(map, DMAIN, LOGL_INFO, "Deallocating\n");
+	talloc_free(map);
 }
 
-static struct osmo_timer_list context_map_tmr;
-
-static void context_map_tmr_cb(void *data)
+void context_map_check_released(struct hnbgw_context_map *map)
 {
-	struct hnb_gw *gw = data;
-	struct hnbgw_cnlink *cn = gw->sccp.cnlink;
-	struct hnbgw_context_map *map, *next_map;
-
-	DEBUGP(DMAIN, "Running context mapper garbage collection\n");
-	llist_for_each_entry_safe(map, next_map, &cn->map_list, cn_list) {
-		switch (map->state) {
-		case MAP_S_RESERVED1:
-			/* first time we see this reserved
-			 * entry: mark it for stage 2 */
-			map->state = MAP_S_RESERVED2;
-			break;
-		case MAP_S_RESERVED2:
-			/* second time we see this reserved
-			 * entry: remove it */
-			LOG_MAP(map, DMAIN, LOGL_INFO, "Deallocating\n");
-			map->state = MAP_S_NULL;
-			llist_del(&map->cn_list);
-			llist_del(&map->hnb_list);
-			talloc_free(map);
-			break;
-		default:
-			break;
-		}
+	if (map_rua_is_active(map) || map_sccp_is_active(map)) {
+		/* still active, do not release yet. */
+		return;
 	}
-	/* re-schedule this timer */
-	osmo_timer_schedule(&context_map_tmr, EXPIRY_TIMER_SECS, 0);
-}
-
-int context_map_init(struct hnb_gw *gw)
-{
-	context_map_tmr.cb = context_map_tmr_cb;
-	context_map_tmr.data = gw;
-	osmo_timer_schedule(&context_map_tmr, EXPIRY_TIMER_SECS, 0);
-
-	return 0;
+	context_map_free(map);
 }

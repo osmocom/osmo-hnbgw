@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <osmocom/core/linuxlist.h>
+#include <osmocom/hnbgw/hnbgw.h>
 
 #define LOG_MAP(HNB_CTX_MAP, SUBSYS, LEVEL, FMT, ARGS...) \
 	LOGHNB((HNB_CTX_MAP) ? (HNB_CTX_MAP)->hnb_ctx : NULL, \
@@ -10,12 +11,56 @@
 	       (HNB_CTX_MAP) ? ((HNB_CTX_MAP)->is_ps ? "PS" : "CS") : "NULL", \
 	       ##ARGS)
 
+/* All these events' data argument may either be NULL, or point to a RANAP msgb.
+ * - The msgb shall be in the OTC_SELECT talloc pool, so that they will be deallocated automatically. Some events
+ *   processing will store the msgb for later, in which case it will take over ownership of the msgb by means of
+ *   talloc_steal().
+ * - For events that may send a RANAP message towards CN via SCCP, the msgb shall have reserved headroom to fit a struct
+ *   osmo_scu_prim. These are: MAP_RUA_EV_RX_*.
+ * - The RANAP message shall be at msgb_l2().
+ */
+enum map_rua_fsm_event {
+	/* Receiving a RUA Connect from HNB. */
+	MAP_RUA_EV_RX_CONNECT,
+	/* Receiving some data from HNB via RUA, to forward via SCCP to CN. */
+	MAP_RUA_EV_RX_DIRECT_TRANSFER,
+	/* Receiving a RUA Disconnect from HNB. */
+	MAP_RUA_EV_RX_DISCONNECT,
+	/* SCCP has received some data from CN to forward via RUA to HNB. */
+	MAP_RUA_EV_TX_DIRECT_TRANSFER,
+	/* The CN side is disconnected (e.g. received an SCCP Released), that means we are going gracefully disconnect
+	 * RUA, too. */
+	MAP_RUA_EV_CN_DISC,
+	/* All of a sudden, there is no RUA link. For example, HNB vanished / restarted, or SCTP SHUTDOWN on the RUA
+	 * link. Skip RUA disconnect. */
+	MAP_RUA_EV_HNB_LINK_LOST,
+};
+
+/* All these events' data argument is identical to enum map_rua_fsm_event, with this specialisation:
+ * - The events that may send a RANAP message towards CN via SCCP and hence require a headroom for an osmo_scu_prim are:
+ *   MAP_SCCP_EV_TX_DATA_REQUEST, MAP_SCCP_EV_RAN_DISC.
+ */
+enum map_sccp_fsm_event {
+	/* Receiving an SCCP CC from CN. */
+	MAP_SCCP_EV_RX_CONNECTION_CONFIRM,
+	/* Receiving some data from CN via SCCP, to forward via RUA to HNB. */
+	MAP_SCCP_EV_RX_DATA_INDICATION,
+	/* RUA has received some data from HNB to forward via SCCP to CN. */
+	MAP_SCCP_EV_TX_DATA_REQUEST,
+	/* The RAN side received a Disconnect, that means we are going to expect SCCP to disconnect too.
+	 * CN should have received an Iu-ReleaseComplete with or before this, give CN a chance to send an SCCP RLSD;
+	 * after a timeout we will send a non-standard RLSD to the CN instead. */
+	MAP_SCCP_EV_RAN_DISC,
+	/* Receiving an SCCP RLSD from CN, or libosmo-sigtran tells us about SCCP connection timeout. All done. */
+	MAP_SCCP_EV_RX_RELEASED,
+};
+
+/* For context_map_get_state(), to combine the RUA and SCCP states, for VTY reporting only. */
 enum hnbgw_context_map_state {
-	MAP_S_NULL,
-	MAP_S_ACTIVE,		/* currently active map */
-	MAP_S_RESERVED1,	/* just disconnected, still resrved */
-	MAP_S_RESERVED2,	/* still reserved */
-	MAP_S_NUM_STATES	/* Number of states, keep this at the end */
+	MAP_S_CONNECTING,       /* not active yet; effectively waiting for SCCP CC */
+	MAP_S_ACTIVE,           /* both RUA and SCCP are connected */
+	MAP_S_DISCONNECTING,    /* not active anymore; effectively waiting for SCCP RLSD */
+	MAP_S_NUM_STATES        /* Number of states, keep this at the end */
 };
 
 extern const struct value_string hnbgw_context_map_state_names[];
@@ -28,27 +73,36 @@ struct hnbgw_cnlink;
 struct hnbgw_context_map {
 	/* entry in the per-CN list of mappings */
 	struct llist_head cn_list;
-	/* entry in the per-HNB list of mappings. */
+	/* entry in the per-HNB list of mappings. If hnb_ctx == NULL, then this llist entry has been llist_del()eted and
+	 * must not be used. */
 	struct llist_head hnb_list;
 
-	/* Pointer to HNB for this map, to transceive RUA. */
+	/* Backpointer to global hnb_gw. */
+	struct hnb_gw *gw;
+
+	/* Pointer to HNB for this map, to transceive RUA. If the HNB has disconnected without releasing the RUA
+	 * context, this is NULL. */
 	struct hnb_context *hnb_ctx;
 	/* RUA context ID used in RUA messages to/from the hnb_gw. */
 	uint32_t rua_ctx_id;
+	/* FSM handling the RUA state for rua_ctx_id. */
+	struct osmo_fsm_inst *rua_fi;
 
 	/* Pointer to CN, to transceive SCCP. */
 	struct hnbgw_cnlink *cn_link;
 	/* SCCP User SAP connection ID used in SCCP messages to/from the cn_link. */
 	uint32_t scu_conn_id;
-	/* Set to true on SCCP Conn Conf, set to false when an OSMO_SCU_PRIM_N_DISCONNECT has been sent for the SCCP
-	 * User SAP conn. Useful to avoid leaking SCCP connections: guarantee that an OSMO_SCU_PRIM_N_DISCONNECT gets
-	 * sent, even when RUA fails to gracefully disconnect. */
-	bool scu_conn_active;
+	/* FSM handling the SCCP state for scu_conn_id. */
+	struct osmo_fsm_inst *sccp_fi;
 
 	/* False for CS, true for PS */
 	bool is_ps;
 
-	enum hnbgw_context_map_state state;
+	/* When an FSM is asked to disconnect but must still wait for a response, it may set this flag, to continue to
+	 * disconnect once the response is in. In particular, when SCCP is asked to disconnect after an SCCP Connection
+	 * Request was already sent and while waiting for a Connection Confirmed, we should still wait for the SCCP CC
+	 * and immediately release it after that, to not leak the connection. */
+	bool please_disconnect;
 
 	/* FSM instance for the MGW, handles the async MGCP communication necessary to intercept CS RAB Assignment and
 	 * redirect the RTP via the MGW. */
@@ -71,17 +125,40 @@ struct hnbgw_context_map {
 	/* All PS RABs and their GTP tunnel mappings. list of struct ps_rab. Each ps_rab FSM handles the PFCP
 	 * communication for one particular RAB ID. */
 	struct llist_head ps_rabs;
+
+	/* Flag to prevent calling context_map_free() from cleanup code paths triggered by context_map_free() itself. */
+	bool deallocating;
 };
 
+enum hnbgw_context_map_state context_map_get_state(struct hnbgw_context_map *map);
+enum hnbgw_context_map_state map_rua_get_state(struct hnbgw_context_map *map);
+enum hnbgw_context_map_state map_sccp_get_state(struct hnbgw_context_map *map);
 
 struct hnbgw_context_map *
 context_map_alloc_by_hnb(struct hnb_context *hnb, uint32_t rua_ctx_id,
 			 bool is_ps,
 			 struct hnbgw_cnlink *cn_if_new);
 
+void map_rua_fsm_alloc(struct hnbgw_context_map *map);
+void map_sccp_fsm_alloc(struct hnbgw_context_map *map);
+
 struct hnbgw_context_map *
 context_map_by_cn(struct hnbgw_cnlink *cn, uint32_t scu_conn_id);
 
 void context_map_hnb_released(struct hnbgw_context_map *map);
 
-int context_map_init(struct hnb_gw *gw);
+#define map_rua_dispatch(MAP, EVENT, MSGB) \
+	_map_rua_dispatch(MAP, EVENT, MSGB, __FILE__, __LINE__)
+int _map_rua_dispatch(struct hnbgw_context_map *map, uint32_t event, struct msgb *ranap_msg,
+		      const char *file, int line);
+
+#define map_sccp_dispatch(MAP, EVENT, MSGB) \
+	_map_sccp_dispatch(MAP, EVENT, MSGB, __FILE__, __LINE__)
+int _map_sccp_dispatch(struct hnbgw_context_map *map, uint32_t event, struct msgb *ranap_msg,
+		       const char *file, int line);
+
+bool map_rua_is_active(struct hnbgw_context_map *map);
+bool map_sccp_is_active(struct hnbgw_context_map *map);
+void context_map_check_released(struct hnbgw_context_map *map);
+
+unsigned int msg_has_l2_data(const struct msgb *msg);

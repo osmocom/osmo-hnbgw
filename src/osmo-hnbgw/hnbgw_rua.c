@@ -62,6 +62,11 @@ static int hnbgw_rua_tx(struct hnb_context *ctx, struct msgb *msg)
 	if (!msg)
 		return -EINVAL;
 
+	if (!ctx || !ctx->conn) {
+		LOGHNB(ctx, DRUA, LOGL_ERROR, "RUA context to this HNB is not connected, cannot transmit message\n");
+		return -ENOTCONN;
+	}
+
 	msgb_sctp_ppid(msg) = IUH_PPI_RUA;
 	osmo_stream_srv_send(ctx->conn, msg);
 
@@ -198,23 +203,16 @@ static int rua_to_scu(struct hnb_context *hnb,
 		      uint32_t context_id, uint32_t cause,
 		      const uint8_t *data, unsigned int len)
 {
-	struct msgb *msg;
-	struct osmo_scu_prim *prim;
+	struct msgb *ranap_msg = NULL;
 	struct hnbgw_context_map *map = NULL;
 	struct hnbgw_cnlink *cn = hnb->gw->sccp.cnlink;
-	struct osmo_sccp_addr *remote_addr;
 	bool is_ps;
-	bool release_context_map = false;
-	ranap_message *message;
-	int rc;
 
 	switch (cN_DomainIndicator) {
 	case RUA_CN_DomainIndicator_cs_domain:
-		remote_addr = &hnb->gw->sccp.iucs_remote_addr;
 		is_ps = false;
 		break;
 	case RUA_CN_DomainIndicator_ps_domain:
-		remote_addr = &hnb->gw->sccp.iups_remote_addr;
 		is_ps = true;
 		break;
 	default:
@@ -227,9 +225,15 @@ static int rua_to_scu(struct hnb_context *hnb,
 		return 0;
 	}
 
-	msg = msgb_alloc(1500, "rua_to_sccp");
-
-	prim = (struct osmo_scu_prim *) msgb_put(msg, sizeof(*prim));
+	/* If there is RANAP data, include it in the msgb. In RUA there is always data in practice, but theoretically it
+	 * could be an empty Connect or Disconnect. */
+	if (data && len) {
+		/* According to API doc of map_rua_fsm_event: allocate msgb for RANAP data from OTC_SELECT, reserve
+		 * headroom for an osmo_scu_prim. Point l2h at the RANAP data. */
+		ranap_msg = hnbgw_ranap_msg_alloc("RANAP_from_RUA");
+		ranap_msg->l2h = msgb_put(ranap_msg, len);
+		memcpy(ranap_msg->l2h, data, len);
+	}
 
 	map = context_map_alloc_by_hnb(hnb, context_id, is_ps, cn);
 	OSMO_ASSERT(map);
@@ -237,91 +241,21 @@ static int rua_to_scu(struct hnb_context *hnb,
 	LOG_MAP(map, DRUA, LOGL_DEBUG, "rx RUA %s with %u bytes RANAP data\n",
 		rua_procedure_code_name(rua_procedure), data ? len : 0);
 
-	/* add primitive header */
 	switch (rua_procedure) {
 
 	case RUA_ProcedureCode_id_Connect:
-		osmo_prim_init(&prim->oph, SCCP_SAP_USER, OSMO_SCU_PRIM_N_CONNECT, PRIM_OP_REQUEST, msg);
-		prim->u.connect.called_addr = *remote_addr;
-		prim->u.connect.calling_addr = cn->gw->sccp.local_addr;
-		prim->u.connect.sccp_class = 2;
-		prim->u.connect.conn_id = map->scu_conn_id;
-		/* Two separate logs because of osmo_sccp_addr_dump(). */
-		LOGHNB(hnb, DRUA, LOGL_DEBUG, "RUA to SCCP N_CONNECT: called_addr:%s\n",
-			osmo_sccp_addr_dump(&prim->u.connect.called_addr));
-		LOGHNB(hnb, DRUA, LOGL_DEBUG, "RUA to SCCP N_CONNECT: calling_addr:%s\n",
-			osmo_sccp_addr_dump(&prim->u.connect.calling_addr));
-		break;
+		return map_rua_dispatch(map, MAP_RUA_EV_RX_CONNECT, ranap_msg);
 
 	case RUA_ProcedureCode_id_DirectTransfer:
-		osmo_prim_init(&prim->oph, SCCP_SAP_USER, OSMO_SCU_PRIM_N_DATA, PRIM_OP_REQUEST, msg);
-		prim->u.data.conn_id = map->scu_conn_id;
-		break;
+		return map_rua_dispatch(map, MAP_RUA_EV_RX_DIRECT_TRANSFER, ranap_msg);
 
 	case RUA_ProcedureCode_id_Disconnect:
-		osmo_prim_init(&prim->oph, SCCP_SAP_USER, OSMO_SCU_PRIM_N_DISCONNECT, PRIM_OP_REQUEST, msg);
-		prim->u.disconnect.conn_id = map->scu_conn_id;
-		prim->u.disconnect.cause = cause;
-		release_context_map = true;
-		/* Mark SCCP conn as gracefully disconnected */
-		map->scu_conn_active = false;
-		break;
+		return map_rua_dispatch(map, MAP_RUA_EV_RX_DISCONNECT, ranap_msg);
 
 	default:
 		/* No caller may ever pass a different RUA procedure code */
 		OSMO_ASSERT(false);
 	}
-
-	/* If there is RANAP data, include it in the msgb. Usually there is data, but this could also be an SCCP CR
-	 * a.k.a. OSMO_SCU_PRIM_N_CONNECT without RANAP payload. */
-	if (data && len) {
-		msg->l2h = msgb_put(msg, len);
-		memcpy(msg->l2h, data, len);
-	}
-
-	/* If there is data, see if it is a RAB Assignment message where we need to change the user plane information,
-	 * for RTP mapping via MGW (soon also GTP mapping via UPF). */
-	if (data && len && map && !release_context_map) {
-		if (!map->is_ps) {
-			message = talloc_zero(map, ranap_message);
-			rc = ranap_cn_rx_co_decode2(message, msgb_l2(prim->oph.msg), msgb_l2len(prim->oph.msg));
-
-			if (rc == 0) {
-				switch (message->procedureCode) {
-				case RANAP_ProcedureCode_id_RAB_Assignment:
-					/* mgw_fsm_handle_rab_ass_resp() takes ownership of prim->oph and (ranap) message */
-					return mgw_fsm_handle_rab_ass_resp(map, &prim->oph, message);
-				}
-				ranap_cn_rx_co_free(message);
-			}
-
-			talloc_free(message);
-#if ENABLE_PFCP
-		} else if (hnb_gw_is_gtp_mapping_enabled(hnb->gw)) {
-			/* map->is_ps == true and PFCP is enabled in osmo-hnbgw.cfg */
-			message = talloc_zero(map, ranap_message);
-			rc = ranap_cn_rx_co_decode2(message, msgb_l2(prim->oph.msg), msgb_l2len(prim->oph.msg));
-
-			if (rc == 0) {
-				switch (message->procedureCode) {
-				case RANAP_ProcedureCode_id_RAB_Assignment:
-					/* ps_rab_ass_fsm takes ownership of prim->oph and RANAP message */
-					return hnbgw_gtpmap_rx_rab_ass_resp(map, &prim->oph, message);
-				}
-				ranap_cn_rx_co_free(message);
-			}
-
-			talloc_free(message);
-#endif
-		}
-	}
-
-	rc = osmo_sccp_user_sap_down(cn->sccp_user, &prim->oph);
-
-	if (map && release_context_map)
-		context_map_hnb_released(map);
-
-	return rc;
 }
 
 static uint32_t rua_to_scu_cause(RUA_Cause_t *in)

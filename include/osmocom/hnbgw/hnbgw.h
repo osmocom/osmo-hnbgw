@@ -19,6 +19,8 @@ enum {
 	DRUA,
 	DRANAP,
 	DMGW,
+	DHNB,
+	DCN,
 };
 
 #define LOGHNB(HNB_CTX, ss, lvl, fmt, args ...) \
@@ -201,3 +203,5 @@ static inline bool hnb_gw_is_gtp_mapping_enabled(const struct hnb_gw *gw)
 {
 	return gw->config.pfcp.remote_addr != NULL;
 }
+
+struct msgb *hnbgw_ranap_msg_alloc(const char *name);

@@ -208,10 +208,8 @@ static void vty_dump_hnb_info(struct vty *vty, struct hnb_context *hnb)
 		hnb->hnbap_stream, hnb->rua_stream, VTY_NEWLINE);
 
 	llist_for_each_entry(map, &hnb->map_list, hnb_list) {
-		map_count[map->is_ps? 1 : 0]++;
-		state_count[map->is_ps? 1 : 0]
-			   [(map->state >= 0 && map->state < MAP_S_NUM_STATES)?
-			    map->state : MAP_S_NUM_STATES]++;
+		map_count[map->is_ps ? 1 : 0]++;
+		state_count[map->is_ps ? 1 : 0][context_map_get_state(map)]++;
 	}
 	vty_dump_hnb_info__map_states(vty, "IuCS", map_count[0], state_count[0]);
 	vty_dump_hnb_info__map_states(vty, "IuPS", map_count[1], state_count[1]);
