@@ -29,7 +29,6 @@
 #include <osmocom/sigtran/sccp_helpers.h>
 
 #include <osmocom/hnbgw/hnbgw.h>
-#include <osmocom/hnbgw/hnbgw_rua.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/mgw_fsm.h>
 #include <osmocom/hnbgw/ps_rab_ass_fsm.h>
@@ -149,20 +148,6 @@ context_map_by_cn(struct hnbgw_cnlink *cn, uint32_t scu_conn_id)
 	 * established from HNB towards CN. */
 	LOGP(DMAIN, LOGL_NOTICE, "Unable to resolve map for CN " "connection ID %p/%u\n", cn, scu_conn_id);
 	return NULL;
-}
-
-int context_map_send_cached_msg(struct hnbgw_context_map *map)
-{
-	int rc;
-	if (!map || !map->cached_msg)
-		return 0;
-	rc = rua_to_scu(map->hnb_ctx,
-			map->is_ps ? RUA_CN_DomainIndicator_ps_domain : RUA_CN_DomainIndicator_cs_domain,
-			OSMO_SCU_PRIM_N_DATA, map->rua_ctx_id, 0,
-			msgb_data(map->cached_msg), msgb_length(map->cached_msg));
-	msgb_free(map->cached_msg);
-	map->cached_msg = NULL;
-	return rc;
 }
 
 void context_map_deactivate(struct hnbgw_context_map *map)

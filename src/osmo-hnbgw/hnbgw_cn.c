@@ -355,11 +355,6 @@ static int handle_cn_conn_conf(struct hnbgw_cnlink *cnlink,
 	/* SCCP connection is confirmed. Mark conn as active, i.e. requires a DISCONNECT to clean up the SCCP
 	 * connection. */
 	map->scu_conn_active = true;
-
-	/* If our initial SCCP CR was sent without data payload, then the initial RANAP message is cached and waiting to
-	 * be sent as soon as the SCCP connection is confirmed. See if that is the case, send cached data. */
-	context_map_send_cached_msg(map);
-
 	return 0;
 }
 

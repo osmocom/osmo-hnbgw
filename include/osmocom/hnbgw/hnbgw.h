@@ -136,7 +136,6 @@ struct hnb_gw {
 		bool hnbap_allow_tmsi;
 		/*! print hnb-id (true) or MCC-MNC-LAC-RAC-SAC (false) in logs */
 		bool log_prefix_hnb_id;
-		unsigned int max_sccp_cr_payload_len;
 		struct mgcp_client_conf *mgcp_client;
 		struct {
 			char *local_addr;
@@ -192,8 +191,6 @@ void hnb_context_release_ue_state(struct hnb_context *ctx);
 
 void hnbgw_vty_init(struct hnb_gw *gw, void *tall_ctx);
 int hnbgw_vty_go_parent(struct vty *vty);
-
-bool hnbgw_requires_empty_sccp_cr(struct hnb_gw *gw, unsigned int ranap_msg_len);
 
 /* Return true when the user configured GTP mapping to be enabled, by configuring a PFCP link to a UPF.
  * Return false when the user configured to skip GTP mapping and RANAP PS RAB Requests/Responses should be passed thru

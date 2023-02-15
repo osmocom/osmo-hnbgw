@@ -94,10 +94,6 @@ static struct hnb_gw *hnb_gw_create(void *ctx)
 	gw->config.iuh_local_port = IUH_DEFAULT_SCTP_PORT;
 	gw->config.log_prefix_hnb_id = true;
 
-	/* No limit by default, always include the initial RANAP message in the SCCP CR towards the CN.
-	 * 999999 is the maximum value in hnbgw_vty.c */
-	gw->config.max_sccp_cr_payload_len = 999999;
-
 	gw->next_ue_ctx_id = 23;
 	INIT_LLIST_HEAD(&gw->hnb_list);
 	INIT_LLIST_HEAD(&gw->ue_list);
@@ -429,11 +425,6 @@ void hnb_context_release(struct hnb_context *ctx)
 	} /* else: we are called from closed_cb, so conn is being freed separately */
 
 	talloc_free(ctx);
-}
-
-bool hnbgw_requires_empty_sccp_cr(struct hnb_gw *gw, unsigned int ranap_msg_len)
-{
-	return ranap_msg_len > gw->config.max_sccp_cr_payload_len;
 }
 
 /*! call-back when the listen FD has something to read */

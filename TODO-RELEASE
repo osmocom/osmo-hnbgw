@@ -7,3 +7,5 @@
 # If any interfaces have been added since the last public release: c:r:a + 1.
 # If any interfaces have been removed or changed since the last public release: c:r:0.
 #library	what		description / commit summary line
+osmo-hnbgw	cfg		config deprecated: 'sccp cr max-payload-len <0-999999>'
+libosmo-sigtran	>=1.7.0		Ensure SCCP CR max payload length of 130 bytes is enforced.

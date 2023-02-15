@@ -2,9 +2,6 @@
 
 #include <stdint.h>
 #include <osmocom/core/linuxlist.h>
-#include <osmocom/rua/RUA_CN-DomainIndicator.h>
-
-struct msgb;
 
 #define LOG_MAP(HNB_CTX_MAP, SUBSYS, LEVEL, FMT, ARGS...) \
 	LOGHNB((HNB_CTX_MAP) ? (HNB_CTX_MAP)->hnb_ctx : NULL, \
@@ -47,9 +44,6 @@ struct hnbgw_context_map {
 	 * User SAP conn. Useful to avoid leaking SCCP connections: guarantee that an OSMO_SCU_PRIM_N_DISCONNECT gets
 	 * sent, even when RUA fails to gracefully disconnect. */
 	bool scu_conn_active;
-	/* Pending data to be sent: when we send an "empty" SCCP CR first, the initial RANAP message will be sent in a
-	 * separate DT once the CR is confirmed. This caches the initial RANAP message. */
-	struct msgb *cached_msg;
 
 	enum hnbgw_context_map_state state;
 
@@ -79,8 +73,6 @@ context_map_alloc_by_hnb(struct hnb_context *hnb, uint32_t rua_ctx_id,
 
 struct hnbgw_context_map *
 context_map_by_cn(struct hnbgw_cnlink *cn, uint32_t scu_conn_id);
-
-int context_map_send_cached_msg(struct hnbgw_context_map *map);
 
 void context_map_deactivate(struct hnbgw_context_map *map);
 
