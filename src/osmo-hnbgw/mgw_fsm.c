@@ -780,7 +780,7 @@ int mgw_fsm_handle_rab_ass_resp(struct hnbgw_context_map *map, struct osmo_prim_
 }
 
 /*! Release the FSM and clear its associated RTP streams.
- *  \ptmap[in] map hanbgw context map that is responsible for this call.
+ *  \ptmap[in] map hnbgw context map that is responsible for this call.
  *  \returns 0 on success; negative on error. */
 int mgw_fsm_release(struct hnbgw_context_map *map)
 {

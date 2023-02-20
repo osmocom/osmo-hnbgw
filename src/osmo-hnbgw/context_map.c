@@ -111,7 +111,7 @@ context_map_alloc_by_hnb(struct hnb_context *hnb, uint32_t rua_ctx_id,
 	LOGHNB(hnb, DMAIN, LOGL_INFO, "Creating new Mapping RUA CTX %p/%u <-> SCU Conn ID %p/%u\n",
 		hnb, rua_ctx_id, cn_if_new, new_scu_conn_id);
 
-	/* alloate a new map entry */
+	/* allocate a new map entry. */
 	map = talloc_zero(hnb, struct hnbgw_context_map);
 	map->state = MAP_S_NULL;
 	map->cn_link = cn_if_new;

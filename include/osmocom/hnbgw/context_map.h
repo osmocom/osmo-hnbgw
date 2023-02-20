@@ -47,17 +47,22 @@ struct hnbgw_context_map {
 
 	enum hnbgw_context_map_state state;
 
-	/* FSM instance for the MGW */
+	/* FSM instance for the MGW, handles the async MGCP communication necessary to intercept CS RAB Assignment and
+	 * redirect the RTP via the MGW. */
 	struct osmo_fsm_inst *mgw_fi;
 
-	/* FSMs handling RANAP RAB assignments for PS. list of struct ps_rab_ass. For PS RAB Assignment, each Request
-	 * and gets one ps_rab_ass FSM and each Response gets one ps_rab_ass FSM. The reason is that theoretically, each
-	 * such message can contain any number and any combination of RAB IDs, and Request and Response don't
-	 * necessarily match the RAB IDs contained. In practice I only ever see a single RAB matching in Request and
-	 * Response, but we cannot rely on that to always be true. The state of each RAB's PFCP negotiation is kept
-	 * separately in the list hnbgw_context_map.ps_rabs, and as soon as all RABs appearing in a PS RAB Assignment
-	 * message have completed their PFCP setup, we can replace the GTP info for the RAB IDs and forward the RAB
-	 * Assignment Request to HNB / the RAB Assignment Response to CN. */
+	/* FSMs handling RANAP RAB assignments for PS, list of struct ps_rab_ass. They handle the async PFCP
+	 * communication necessary to intercept PS RAB Assignment and redirect the GTP via the UPF.
+	 *
+	 * For PS RAB Assignment, each Request gets one ps_rab_ass FSM and each Response gets one ps_rab_ass FSM.
+	 * The reason is that theoretically, each such message can contain any number and any combination of RAB IDs,
+	 * and Request and Response don't necessarily match the RAB IDs contained. In practice I only ever see a single
+	 * RAB matching in Request and Response, but we cannot rely on that to always be true.
+	 *
+	 * The state of each RAB's PFCP negotiation is kept separately in the list ps_rabs, and as soon as all RABs
+	 * appearing in a PS RAB Assignment message have completed their PFCP setup, we can replace the GTP info for the
+	 * RAB IDs and forward the RAB Assignment Request to HNB / the RAB Assignment Response to CN.
+	 */
 	struct llist_head ps_rab_ass;
 
 	/* All PS RABs and their GTP tunnel mappings. list of struct ps_rab. Each ps_rab FSM handles the PFCP

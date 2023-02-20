@@ -620,6 +620,7 @@ static void ps_rab_ass_fsm_cleanup(struct osmo_fsm_inst *fi, enum osmo_fsm_term_
 			rab->resp_fi = NULL;
 	}
 
+	/* remove from map->ps_rab_ass */
 	llist_del(&rab_ass->entry);
 }
 
