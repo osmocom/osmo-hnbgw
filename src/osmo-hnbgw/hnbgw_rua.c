@@ -156,8 +156,6 @@ int rua_tx_disc(struct hnb_context *hnb, int is_ps, uint32_t context_id,
 		ies.ranaP_Message.size = len;
 	}
 
-	/* FIXME: msgb_free(msg)? ownership not yet clear */
-
 	memset(&out, 0, sizeof(out));
 	rc = rua_encode_disconnecties(&out, &ies);
 	if (rc < 0)
