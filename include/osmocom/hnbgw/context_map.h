@@ -8,7 +8,7 @@
 	       SUBSYS, LEVEL, "RUA-%u %s: " FMT, \
 	       (HNB_CTX_MAP) ? (HNB_CTX_MAP)->rua_ctx_id : 0, \
 	       (HNB_CTX_MAP) ? ((HNB_CTX_MAP)->is_ps ? "PS" : "CS") : "NULL", \
-	       ##ARGS) \
+	       ##ARGS)
 
 enum hnbgw_context_map_state {
 	MAP_S_NULL,
