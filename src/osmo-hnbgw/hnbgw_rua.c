@@ -128,7 +128,7 @@ int rua_tx_dt(struct hnb_context *hnb, int is_ps, uint32_t context_id,
 					      &out);
 	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RUA_DirectTransfer, &out);
 
-	LOGHNB(hnb, DRUA, LOGL_DEBUG, "transmitting RUA (cn=%s) payload of %u bytes\n",
+	LOGHNB(hnb, DRUA, LOGL_DEBUG, "transmitting RUA DirectTransfer (cn=%s) payload of %u bytes\n",
 		is_ps ? "ps" : "cs", msgb_length(msg));
 
 	return hnbgw_rua_tx(hnb, msg);
@@ -167,9 +167,9 @@ int rua_tx_disc(struct hnb_context *hnb, int is_ps, uint32_t context_id,
 					      &out);
 	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RUA_Disconnect, &out);
 
-	LOGHNB(hnb, DRUA, LOGL_DEBUG, "transmitting RUA (cn=%s) payload of %u bytes\n",
-		is_ps ? "ps" : "cs", msgb_length(msg));
 
+	LOGHNB(hnb, DRUA, LOGL_DEBUG, "transmitting RUA Disconnect (cn=%s) payload of %u bytes\n",
+	       is_ps ? "ps" : "cs", msgb_length(msg));
 
 	return hnbgw_rua_tx(hnb, msg);
 }
