@@ -150,7 +150,7 @@ context_map_by_cn(struct hnbgw_cnlink *cn, uint32_t scu_conn_id)
 	return NULL;
 }
 
-void context_map_deactivate(struct hnbgw_context_map *map)
+void context_map_hnb_released(struct hnbgw_context_map *map)
 {
 	LOG_MAP(map, DMAIN, LOGL_INFO, "Deactivating\n");
 

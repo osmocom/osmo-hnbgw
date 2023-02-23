@@ -79,6 +79,6 @@ context_map_alloc_by_hnb(struct hnb_context *hnb, uint32_t rua_ctx_id,
 struct hnbgw_context_map *
 context_map_by_cn(struct hnbgw_cnlink *cn, uint32_t scu_conn_id);
 
-void context_map_deactivate(struct hnbgw_context_map *map);
+void context_map_hnb_released(struct hnbgw_context_map *map);
 
 int context_map_init(struct hnb_gw *gw);

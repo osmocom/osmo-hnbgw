@@ -313,7 +313,7 @@ static int rua_to_scu(struct hnb_context *hnb,
 	rc = osmo_sccp_user_sap_down(cn->sccp_user, &prim->oph);
 
 	if (map && release_context_map)
-		context_map_deactivate(map);
+		context_map_hnb_released(map);
 
 	return rc;
 }

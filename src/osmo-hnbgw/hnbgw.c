@@ -402,7 +402,7 @@ void hnb_context_release_ue_state(struct hnb_context *ctx)
 		 * map garbage collector works fine? */
 		llist_del(&map->hnb_list);
 		llist_del(&map->cn_list);
-		context_map_deactivate(map);
+		context_map_hnb_released(map);
 	}
 	ue_context_free_by_hnb(ctx->gw, ctx);
 }
