@@ -174,13 +174,27 @@ int rua_tx_disc(struct hnb_context *hnb, int is_ps, uint32_t context_id,
 	return hnbgw_rua_tx(hnb, msg);
 }
 
+static struct value_string rua_procedure_code_names[] = {
+	{ RUA_ProcedureCode_id_Connect, "Connect" },
+	{ RUA_ProcedureCode_id_DirectTransfer, "DirectTransfer" },
+	{ RUA_ProcedureCode_id_Disconnect, "Disconnect" },
+	{ RUA_ProcedureCode_id_ConnectionlessTransfer, "ConnectionlessTransfer" },
+	{ RUA_ProcedureCode_id_ErrorIndication, "ErrorIndication" },
+	{ RUA_ProcedureCode_id_privateMessage, "PrivateMessage" },
+	{}
+};
+
+static inline const char *rua_procedure_code_name(enum RUA_ProcedureCode val)
+{
+	return get_value_string(rua_procedure_code_names, val);
+}
 
 /* dispatch a RUA connection-oriented message received from a HNB to a context mapping's RUA FSM, so that it is
  * forwarded to the CN via SCCP connection-oriented messages.
  * Connectionless messages are handled in hnbgw_ranap_rx() instead, not here. */
 static int rua_to_scu(struct hnb_context *hnb,
 		      RUA_CN_DomainIndicator_t cN_DomainIndicator,
-		      enum osmo_scu_prim_type type,
+		      enum RUA_ProcedureCode rua_procedure,
 		      uint32_t context_id, uint32_t cause,
 		      const uint8_t *data, unsigned int len)
 {
@@ -216,20 +230,18 @@ static int rua_to_scu(struct hnb_context *hnb,
 	msg = msgb_alloc(1500, "rua_to_sccp");
 
 	prim = (struct osmo_scu_prim *) msgb_put(msg, sizeof(*prim));
-	osmo_prim_init(&prim->oph, SCCP_SAP_USER, type, PRIM_OP_REQUEST, msg);
-
-	/* Only connection-oriented messages are handled by this function */
-	OSMO_ASSERT(type != OSMO_SCU_PRIM_N_UNITDATA);
 
 	map = context_map_alloc_by_hnb(hnb, context_id, is_ps, cn);
 	OSMO_ASSERT(map);
-	LOGHNB(hnb, DRUA, LOGL_DEBUG, "rua_to_scu() %s to %s, rua_ctx_id %u scu_conn_id %u\n",
-	       cn_domain_indicator_to_str(cN_DomainIndicator), osmo_sccp_addr_dump(remote_addr),
-	       map->rua_ctx_id, map->scu_conn_id);
+
+	LOG_MAP(map, DRUA, LOGL_DEBUG, "rx RUA %s with %u bytes RANAP data\n",
+		rua_procedure_code_name(rua_procedure), data ? len : 0);
 
 	/* add primitive header */
-	switch (type) {
-	case OSMO_SCU_PRIM_N_CONNECT:
+	switch (rua_procedure) {
+
+	case RUA_ProcedureCode_id_Connect:
+		osmo_prim_init(&prim->oph, SCCP_SAP_USER, OSMO_SCU_PRIM_N_CONNECT, PRIM_OP_REQUEST, msg);
 		prim->u.connect.called_addr = *remote_addr;
 		prim->u.connect.calling_addr = cn->gw->sccp.local_addr;
 		prim->u.connect.sccp_class = 2;
@@ -240,18 +252,24 @@ static int rua_to_scu(struct hnb_context *hnb,
 		LOGHNB(hnb, DRUA, LOGL_DEBUG, "RUA to SCCP N_CONNECT: calling_addr:%s\n",
 			osmo_sccp_addr_dump(&prim->u.connect.calling_addr));
 		break;
-	case OSMO_SCU_PRIM_N_DATA:
+
+	case RUA_ProcedureCode_id_DirectTransfer:
+		osmo_prim_init(&prim->oph, SCCP_SAP_USER, OSMO_SCU_PRIM_N_DATA, PRIM_OP_REQUEST, msg);
 		prim->u.data.conn_id = map->scu_conn_id;
 		break;
-	case OSMO_SCU_PRIM_N_DISCONNECT:
+
+	case RUA_ProcedureCode_id_Disconnect:
+		osmo_prim_init(&prim->oph, SCCP_SAP_USER, OSMO_SCU_PRIM_N_DISCONNECT, PRIM_OP_REQUEST, msg);
 		prim->u.disconnect.conn_id = map->scu_conn_id;
 		prim->u.disconnect.cause = cause;
 		release_context_map = true;
 		/* Mark SCCP conn as gracefully disconnected */
 		map->scu_conn_active = false;
 		break;
+
 	default:
-		return -EINVAL;
+		/* No caller may ever pass a different RUA procedure code */
+		OSMO_ASSERT(false);
 	}
 
 	/* If there is RANAP data, include it in the msgb. Usually there is data, but this could also be an SCCP CR
@@ -385,7 +403,7 @@ static int rua_rx_init_connect(struct msgb *msg, ANY_t *in)
 		cn_domain_indicator_to_str(ies.cN_DomainIndicator), context_id,
 		ies.establishment_Cause == RUA_Establishment_Cause_emergency_call ? "emergency" : "normal");
 
-	rc = rua_to_scu(hnb, ies.cN_DomainIndicator, OSMO_SCU_PRIM_N_CONNECT,
+	rc = rua_to_scu(hnb, ies.cN_DomainIndicator, RUA_ProcedureCode_id_Connect,
 			context_id, 0, ies.ranaP_Message.buf,
 			ies.ranaP_Message.size);
 
@@ -420,7 +438,7 @@ static int rua_rx_init_disconnect(struct msgb *msg, ANY_t *in)
 	}
 
 	rc = rua_to_scu(hnb, ies.cN_DomainIndicator,
-			OSMO_SCU_PRIM_N_DISCONNECT,
+			RUA_ProcedureCode_id_Disconnect,
 			context_id, scu_cause, ranap_data, ranap_len);
 
 	rua_free_disconnecties(&ies);
@@ -445,7 +463,7 @@ static int rua_rx_init_dt(struct msgb *msg, ANY_t *in)
 
 	rc = rua_to_scu(hnb,
 			ies.cN_DomainIndicator,
-			OSMO_SCU_PRIM_N_DATA,
+			RUA_ProcedureCode_id_DirectTransfer,
 			context_id, 0, ies.ranaP_Message.buf,
 			ies.ranaP_Message.size);
 
