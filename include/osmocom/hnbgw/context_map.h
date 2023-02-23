@@ -28,22 +28,25 @@ struct hnbgw_cnlink;
 struct hnbgw_context_map {
 	/* entry in the per-CN list of mappings */
 	struct llist_head cn_list;
-	/* entry in the per-HNB list of mappings */
+	/* entry in the per-HNB list of mappings. */
 	struct llist_head hnb_list;
-	/* pointer to HNB */
+
+	/* Pointer to HNB for this map, to transceive RUA. */
 	struct hnb_context *hnb_ctx;
-	/* pointer to CN */
-	struct hnbgw_cnlink *cn_link;
-	/* RUA contxt ID */
+	/* RUA context ID used in RUA messages to/from the hnb_gw. */
 	uint32_t rua_ctx_id;
-	/* False for CS, true for PS */
-	bool is_ps;
-	/* SCCP User SAP connection ID */
+
+	/* Pointer to CN, to transceive SCCP. */
+	struct hnbgw_cnlink *cn_link;
+	/* SCCP User SAP connection ID used in SCCP messages to/from the cn_link. */
 	uint32_t scu_conn_id;
 	/* Set to true on SCCP Conn Conf, set to false when an OSMO_SCU_PRIM_N_DISCONNECT has been sent for the SCCP
 	 * User SAP conn. Useful to avoid leaking SCCP connections: guarantee that an OSMO_SCU_PRIM_N_DISCONNECT gets
 	 * sent, even when RUA fails to gracefully disconnect. */
 	bool scu_conn_active;
+
+	/* False for CS, true for PS */
+	bool is_ps;
 
 	enum hnbgw_context_map_state state;
 
