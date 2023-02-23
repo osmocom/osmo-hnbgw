@@ -175,8 +175,9 @@ int rua_tx_disc(struct hnb_context *hnb, int is_ps, uint32_t context_id,
 }
 
 
-
-/* forward a RUA message to the SCCP User API to SCCP */
+/* dispatch a RUA connection-oriented message received from a HNB to a context mapping's RUA FSM, so that it is
+ * forwarded to the CN via SCCP connection-oriented messages.
+ * Connectionless messages are handled in hnbgw_ranap_rx() instead, not here. */
 static int rua_to_scu(struct hnb_context *hnb,
 		      RUA_CN_DomainIndicator_t cN_DomainIndicator,
 		      enum osmo_scu_prim_type type,
@@ -217,18 +218,14 @@ static int rua_to_scu(struct hnb_context *hnb,
 	prim = (struct osmo_scu_prim *) msgb_put(msg, sizeof(*prim));
 	osmo_prim_init(&prim->oph, SCCP_SAP_USER, type, PRIM_OP_REQUEST, msg);
 
-	switch (type) {
-	case OSMO_SCU_PRIM_N_UNITDATA:
-		LOGHNB(hnb, DRUA, LOGL_DEBUG, "rua_to_scu() %s to %s, rua_ctx_id %u (unitdata, no scu_conn_id)\n",
-			cn_domain_indicator_to_str(cN_DomainIndicator), osmo_sccp_addr_dump(remote_addr), context_id);
-		break;
-	default:
-		map = context_map_alloc_by_hnb(hnb, context_id, is_ps, cn);
-		OSMO_ASSERT(map);
-		LOGHNB(hnb, DRUA, LOGL_DEBUG, "rua_to_scu() %s to %s, rua_ctx_id %u scu_conn_id %u\n",
-		       cn_domain_indicator_to_str(cN_DomainIndicator), osmo_sccp_addr_dump(remote_addr),
-		       map->rua_ctx_id, map->scu_conn_id);
-	}
+	/* Only connection-oriented messages are handled by this function */
+	OSMO_ASSERT(type != OSMO_SCU_PRIM_N_UNITDATA);
+
+	map = context_map_alloc_by_hnb(hnb, context_id, is_ps, cn);
+	OSMO_ASSERT(map);
+	LOGHNB(hnb, DRUA, LOGL_DEBUG, "rua_to_scu() %s to %s, rua_ctx_id %u scu_conn_id %u\n",
+	       cn_domain_indicator_to_str(cN_DomainIndicator), osmo_sccp_addr_dump(remote_addr),
+	       map->rua_ctx_id, map->scu_conn_id);
 
 	/* add primitive header */
 	switch (type) {
@@ -252,15 +249,6 @@ static int rua_to_scu(struct hnb_context *hnb,
 		release_context_map = true;
 		/* Mark SCCP conn as gracefully disconnected */
 		map->scu_conn_active = false;
-		break;
-	case OSMO_SCU_PRIM_N_UNITDATA:
-		prim->u.unitdata.called_addr = *remote_addr;
-		prim->u.unitdata.calling_addr = cn->gw->sccp.local_addr;
-		/* Two separate logs because of osmo_sccp_addr_dump(). */
-		LOGHNB(hnb, DRUA, LOGL_DEBUG, "RUA to SCCP N_UNITDATA: called_addr:%s\n",
-			osmo_sccp_addr_dump(&prim->u.unitdata.called_addr));
-		LOGHNB(hnb, DRUA, LOGL_DEBUG, "RUA to SCCP N_UNITDATA: calling_addr:%s\n",
-			osmo_sccp_addr_dump(&prim->u.unitdata.calling_addr));
 		break;
 	default:
 		return -EINVAL;
