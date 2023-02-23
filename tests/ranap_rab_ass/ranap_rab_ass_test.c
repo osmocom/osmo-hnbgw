@@ -86,7 +86,7 @@ void test_ranap_rab_ass_resp_decode_encode(void)
 	};
 	uint8_t encoded[sizeof(testvec)];
 
-	rc = ranap_cn_rx_co_decode(talloc_asn1_ctx, &message, testvec, sizeof(testvec));
+	rc = ranap_cn_rx_co_decode2(&message, testvec, sizeof(testvec));
 	OSMO_ASSERT(rc == 0);
 
 	rc = ranap_rab_ass_resp_encode(encoded, sizeof(encoded), &message.msg.raB_AssignmentResponseIEs);
@@ -145,7 +145,7 @@ void test_ranap_rab_ass_resp_ies_extract_inet_addr(void)
 		0x00, 0x40, 0x04, 0x0a, 0x00, 0x00
 	};
 
-	rc = ranap_cn_rx_co_decode(talloc_asn1_ctx, &message, testvec, sizeof(testvec));
+	rc = ranap_cn_rx_co_decode2(&message, testvec, sizeof(testvec));
 	OSMO_ASSERT(rc == 0);
 	rc = ranap_rab_ass_resp_ies_extract_inet_addr(&addr, &message.msg.raB_AssignmentResponseIEs, 7);
 	osmo_sockaddr_str_from_sockaddr(&addr_str, &addr.u.sas);
@@ -245,7 +245,7 @@ void test_ranap_rab_ass_resp_ies_replace_inet_addr(void)
 		0x00, 0x40, 0x04, 0xd2, 0x00, 0x00
 	};
 
-	rc = ranap_cn_rx_co_decode(talloc_asn1_ctx, &message, testvec_in, sizeof(testvec_in));
+	rc = ranap_cn_rx_co_decode2(&message, testvec_in, sizeof(testvec_in));
 	OSMO_ASSERT(rc == 0);
 
 	rc = ranap_rab_ass_resp_ies_extract_inet_addr(&addr, &message.msg.raB_AssignmentResponseIEs, 6);
@@ -285,7 +285,7 @@ void test_ranap_rab_ass_resp_ies_check_failure(void)
 		0x40, 0x03, 0x05, 0xd0, 0x00
 	};
 
-	rc = ranap_cn_rx_co_decode(talloc_asn1_ctx, &message, testvec, sizeof(testvec));
+	rc = ranap_cn_rx_co_decode2(&message, testvec, sizeof(testvec));
 	OSMO_ASSERT(rc == 0);
 
 	rab_failed_at_hnb =
