@@ -24,7 +24,7 @@ enum {
 };
 
 #define LOGHNB(HNB_CTX, ss, lvl, fmt, args ...) \
-	LOGP(ss, lvl, "%s " fmt, hnb_context_name(HNB_CTX), ## args)
+	LOGP(ss, lvl, "(%s) " fmt, hnb_context_name(HNB_CTX), ## args)
 
 enum hnb_ctrl_node {
 	CTRL_NODE_HNB = _LAST_CTRL_NODE,
