@@ -39,11 +39,6 @@
 #include <osmocom/rua/rua_ies_defs.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbap/HNBAP_CN-DomainIndicator.h>
-#include <osmocom/hnbgw/mgw_fsm.h>
-#include <osmocom/hnbgw/ps_rab_ass_fsm.h>
-#include <osmocom/ranap/RANAP_ProcedureCode.h>
-#include <osmocom/ranap/ranap_common.h>
-#include <osmocom/ranap/ranap_common_cn.h>
 
 static const char *cn_domain_indicator_to_str(RUA_CN_DomainIndicator_t cN_DomainIndicator)
 {

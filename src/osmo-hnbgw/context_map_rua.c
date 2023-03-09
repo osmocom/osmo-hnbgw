@@ -19,16 +19,23 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include "config.h"
 
 #include <osmocom/core/utils.h>
 #include <osmocom/core/fsm.h>
 
 #include <osmocom/ranap/ranap_common_cn.h>
 
+#if ENABLE_PFCP
+#include <osmocom/pfcp/pfcp_cp_peer.h>
+#endif
+
+#include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/tdefs.h>
 #include <osmocom/hnbgw/hnbgw_rua.h>
 #include <osmocom/hnbgw/mgw_fsm.h>
+#include <osmocom/hnbgw/ps_rab_ass_fsm.h>
 
 enum map_rua_fsm_state {
 	MAP_RUA_ST_INIT,
@@ -142,7 +149,7 @@ static int handle_rx_rua(struct hnbgw_context_map *map, struct msgb *ranap_msg)
 			}
 		}
 #if ENABLE_PFCP
-	} else if (hnb_gw_is_gtp_mapping_enabled(map->hnb_gw)) {
+	} else if (hnb_gw_is_gtp_mapping_enabled(map->gw)) {
 		/* map->is_ps == true and PFCP is enabled in osmo-hnbgw.cfg */
 		ranap_message *message = talloc_zero(OTC_SELECT, ranap_message);
 		rc = ranap_cn_rx_co_decode2(message, msgb_l2(ranap_msg), msgb_l2len(ranap_msg));

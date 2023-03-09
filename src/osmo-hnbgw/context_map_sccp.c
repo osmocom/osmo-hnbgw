@@ -20,6 +20,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include <osmocom/core/utils.h>
 #include <osmocom/core/fsm.h>
 
@@ -27,10 +29,15 @@
 
 #include <osmocom/ranap/ranap_common_ran.h>
 
+#if ENABLE_PFCP
+#include <osmocom/pfcp/pfcp_cp_peer.h>
+#endif
+
 #include <osmocom/hnbgw/hnbgw_cn.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/tdefs.h>
 #include <osmocom/hnbgw/mgw_fsm.h>
+#include <osmocom/hnbgw/ps_rab_ass_fsm.h>
 
 enum map_sccp_fsm_state {
 	MAP_SCCP_ST_INIT,
@@ -198,7 +205,6 @@ static int handle_rx_sccp(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 #if ENABLE_PFCP
 	} else {
 		ranap_message *message;
-		struct hnb_gw *hnb_gw = cnlink->gw;
 		/* Packet-Switched. Set up mapping of GTP ports via UPF */
 		message = talloc_zero(OTC_SELECT, ranap_message);
 		rc = ranap_ran_rx_co_decode(message, message, msgb_l2(ranap_msg), msgb_l2len(ranap_msg));
@@ -211,10 +217,10 @@ static int handle_rx_sccp(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 			case RANAP_ProcedureCode_id_RAB_Assignment:
 				/* If a UPF is configured, handle the RAB Assignment via ps_rab_ass_fsm, and replace the
 				 * GTP F-TEIDs in the RAB Assignment message before passing it on to RUA. */
-				if (hnb_gw_is_gtp_mapping_enabled(hnb_gw)) {
+				if (hnb_gw_is_gtp_mapping_enabled(map->gw)) {
 					LOGP(DMAIN, LOGL_DEBUG,
 					     "RAB Assignment: setting up GTP tunnel mapping via UPF %s\n",
-					     osmo_sockaddr_to_str_c(OTC_SELECT, &hnb_gw->pfcp.cp_peer->remote_addr));
+					     osmo_sockaddr_to_str_c(OTC_SELECT, &map->gw->pfcp.cp_peer->remote_addr));
 					return hnbgw_gtpmap_rx_rab_ass_req(map, ranap_msg, message);
 				}
 				/* If no UPF is configured, directly forward the message as-is (no GTP mapping). */

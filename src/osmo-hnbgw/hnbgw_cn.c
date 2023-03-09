@@ -31,21 +31,11 @@
 #include <osmocom/sigtran/sccp_sap.h>
 #include <osmocom/sigtran/sccp_helpers.h>
 
-#if ENABLE_PFCP
-#include <osmocom/pfcp/pfcp_cp_peer.h>
-#endif
-
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/hnbgw_rua.h>
 #include <osmocom/ranap/ranap_ies_defs.h>
 #include <osmocom/ranap/ranap_msg_factory.h>
 #include <osmocom/hnbgw/context_map.h>
-#include <osmocom/hnbgw/mgw_fsm.h>
-#include <osmocom/hnbgw/ps_rab_ass_fsm.h>
-#include <osmocom/ranap/RANAP_ProcedureCode.h>
-#include <osmocom/ranap/ranap_common.h>
-#include <osmocom/ranap/ranap_common_ran.h>
-#include <osmocom/ranap/RANAP_RANAP-PDU.h>
 
 /***********************************************************************
  * Outbound RANAP RESET to CN
