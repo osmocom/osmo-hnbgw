@@ -191,6 +191,9 @@ static int handle_rx_sccp(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 		if (rc == 0) {
 			talloc_set_destructor(message, destruct_ranap_ran_rx_co_ies);
 
+			LOGPFSML(fi, LOGL_DEBUG, "rx from SCCP: RANAP %s\n",
+				 get_value_string(ranap_procedure_code_vals, message->procedureCode));
+
 			switch (message->procedureCode) {
 			case RANAP_ProcedureCode_id_RAB_Assignment:
 				/* mgw_fsm_alloc_and_handle_rab_ass_req() takes ownership of (ranap) message */
@@ -211,6 +214,9 @@ static int handle_rx_sccp(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 
 		if (rc == 0) {
 			talloc_set_destructor(message, destruct_ranap_ran_rx_co_ies);
+
+			LOGPFSML(fi, LOGL_DEBUG, "rx from SCCP: RANAP %s\n",
+				 get_value_string(ranap_procedure_code_vals, message->procedureCode));
 
 			switch (message->procedureCode) {
 

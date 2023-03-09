@@ -128,8 +128,9 @@ static int destruct_ranap_cn_rx_co_ies(ranap_message *ranap_message_p)
 }
 
 /* Dispatch RANAP message to SCCP, if any. */
-static int handle_rx_rua(struct hnbgw_context_map *map, struct msgb *ranap_msg)
+static int handle_rx_rua(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 {
+	struct hnbgw_context_map *map = fi->priv;
 	int rc;
 	if (!msg_has_l2_data(ranap_msg))
 		return 0;
@@ -141,6 +142,9 @@ static int handle_rx_rua(struct hnbgw_context_map *map, struct msgb *ranap_msg)
 		rc = ranap_cn_rx_co_decode2(message, msgb_l2(ranap_msg), msgb_l2len(ranap_msg));
 		if (rc == 0) {
 			talloc_set_destructor(message, destruct_ranap_cn_rx_co_ies);
+
+			LOGPFSML(fi, LOGL_DEBUG, "rx from RUA: RANAP %s\n",
+				 get_value_string(ranap_procedure_code_vals, message->procedureCode));
 
 			switch (message->procedureCode) {
 			case RANAP_ProcedureCode_id_RAB_Assignment:
@@ -155,6 +159,9 @@ static int handle_rx_rua(struct hnbgw_context_map *map, struct msgb *ranap_msg)
 		rc = ranap_cn_rx_co_decode2(message, msgb_l2(ranap_msg), msgb_l2len(ranap_msg));
 		if (rc == 0) {
 			talloc_set_destructor(message, destruct_ranap_cn_rx_co_ies);
+
+			LOGPFSML(fi, LOGL_DEBUG, "rx from RUA: RANAP %s\n",
+				 get_value_string(ranap_procedure_code_vals, message->procedureCode));
 
 			switch (message->procedureCode) {
 			case RANAP_ProcedureCode_id_RAB_Assignment:
@@ -205,7 +212,7 @@ static void map_rua_init_action(struct osmo_fsm_inst *fi, uint32_t event, void *
 	case MAP_RUA_EV_CN_DISC:
 	case MAP_RUA_EV_HNB_LINK_LOST:
 		/* Unlikely that SCCP is active, but let the SCCP FSM decide about that. */
-		handle_rx_rua(map, ranap_msg);
+		handle_rx_rua(fi, ranap_msg);
 		/* There is a reason to shut down this RUA connection. Super unlikely, we haven't even processed the
 		 * MAP_RUA_EV_RX_CONNECT that created this FSM. Semantically, RUA is not connected, so we can
 		 * directly go to MAP_RUA_ST_DISCONNECTED. */
@@ -246,7 +253,7 @@ static void map_rua_connected_action(struct osmo_fsm_inst *fi, uint32_t event, v
 
 	case MAP_RUA_EV_RX_DIRECT_TRANSFER:
 		/* received DirectTransfer from RUA, forward to SCCP */
-		handle_rx_rua(map, ranap_msg);
+		handle_rx_rua(fi, ranap_msg);
 		return;
 
 	case MAP_RUA_EV_TX_DIRECT_TRANSFER:
@@ -263,7 +270,7 @@ static void map_rua_connected_action(struct osmo_fsm_inst *fi, uint32_t event, v
 			return;
 		}
 		map_rua_fsm_state_chg(MAP_RUA_ST_DISCONNECTED);
-		handle_rx_rua(map, ranap_msg);
+		handle_rx_rua(fi, ranap_msg);
 		return;
 
 	case MAP_RUA_EV_HNB_LINK_LOST:
