@@ -680,7 +680,7 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct msgb *ranap_msg, ra
 	}
 
 	/* The RTP stream negotiation usually begins with a RAB-AssignmentRequest and ends with an IU-Release, however
-	 * it may also be thet the MSC decides to release the RAB with a dedicated RAB-AssignmentRequest that contains
+	 * it may also be that the MSC decides to release the RAB with a dedicated RAB-AssignmentRequest that contains
 	 * a ReleaseList. In this case an FSM will already be present. */
 	if (map->mgw_fi) {
 		/* A RAB Release might be in progress, handle it */
