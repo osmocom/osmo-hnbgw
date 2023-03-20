@@ -699,8 +699,8 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct msgb *ranap_msg, ra
 	 * will block all incoming RAB assignments that try to assign more (or less) than one RAB. */
 	if (ranap_rab_ass_req_ies_get_count(&message->msg.raB_AssignmentRequestIEs) != 1) {
 		LOGP(DMGW, LOGL_ERROR,
-		     "mgw_fsm_alloc_and_handle_rab_ass_req() rua_ctx_id=%d, RAB-AssignmentRequest with more than one RAB assignment -- abort!\n",
-		     map->rua_ctx_id);
+		     "%s() rua_ctx_id=%d, RAB-AssignmentRequest with more than one RAB assignment -- abort!\n",
+		     __func__, map->rua_ctx_id);
 		tx_release_req(map);
 		return -1;
 	}
