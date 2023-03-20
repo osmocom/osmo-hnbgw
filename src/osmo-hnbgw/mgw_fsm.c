@@ -633,30 +633,42 @@ static struct osmo_fsm mgw_fsm = {
 };
 
 /* The MSC may ask to release a specific RAB within a RAB-AssignmentRequest */
-static int handle_rab_release(struct hnbgw_context_map *map, struct msgb *ranap_msg, ranap_message *message)
+static int release_mgw_fsm(struct hnbgw_context_map *map, struct msgb *ranap_msg)
 {
-	bool rab_release_req;
 	struct osmo_fsm_inst *fi = map->mgw_fi;
-	struct mgw_fsm_priv *mgw_fsm_priv = fi->priv;
 	int rc;
-
-	/* Check if the RAB that is handled by this FSM is addressed by the release request */
-	rab_release_req = ranap_rab_ass_req_ies_check_release(&message->msg.raB_AssignmentRequestIEs,
-							      mgw_fsm_priv->rab_id);
-	if (!rab_release_req)
-		return -EINVAL;
-
-	LOGPFSML(map->mgw_fi, LOGL_NOTICE, "MSC asked to release RAB-ID %u\n", mgw_fsm_priv->rab_id);
 
 	/* Forward the unmodifed RAB-AssignmentRequest to HNB, so that the HNB is informed about the RAB release as
 	 * well */
 	LOGPFSML(fi, LOGL_DEBUG, "forwarding unmodified RAB-AssignmentRequest to HNB\n");
 	rc = map_rua_dispatch(map, MAP_RUA_EV_TX_DIRECT_TRANSFER, ranap_msg);
+	if (rc < 0) {
+		LOGPFSML(fi, LOGL_DEBUG, "cannot forward RAB-AssignmentRequest to HNB\n");
+		return -EINVAL;
+	}
 
 	/* Release the FSM normally */
 	osmo_fsm_inst_state_chg(fi, MGW_ST_RELEASE, 0, 0);
+	return 0;
+}
 
-	return rc;
+/* Check if the message contains a RAB-ReleaseItem that matches the RAB-ID that is managed by the given context map */
+static bool is_our_rab_release(struct hnbgw_context_map *map, ranap_message *message)
+{
+	bool rab_release_req;
+	struct osmo_fsm_inst *fi = map->mgw_fi;
+	struct mgw_fsm_priv *mgw_fsm_priv = fi->priv;
+
+	/* Check if the RAB that is handled by this FSM is addressed by the release request */
+	rab_release_req = ranap_rab_ass_req_ies_check_release(&message->msg.raB_AssignmentRequestIEs,
+							      mgw_fsm_priv->rab_id);
+	if (!rab_release_req) {
+		LOGPFSML(map->mgw_fi, LOGL_ERROR, "RAB-AssignmentRequest does not contain any RAB-RelaseItem with RAB-ID %u\n", mgw_fsm_priv->rab_id);
+		return false;
+	}
+	LOGPFSML(map->mgw_fi, LOGL_NOTICE, "MSC asked to release RAB-ID %u\n", mgw_fsm_priv->rab_id);
+
+	return true;
 }
 
 /*! Allocate MGW FSM and handle RANAP RAB AssignmentRequest.
@@ -671,7 +683,6 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct msgb *ranap_msg, ra
 	static bool initialized = false;
 	struct mgw_fsm_priv *mgw_fsm_priv;
 	char fsm_name[255];
-	int rc;
 
 	/* Initialize FSM if not done yet */
 	if (!initialized) {
@@ -683,13 +694,16 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct msgb *ranap_msg, ra
 	 * it may also be that the MSC decides to release the RAB with a dedicated RAB-AssignmentRequest that contains
 	 * a ReleaseList. In this case an FSM will already be present. */
 	if (map->mgw_fi) {
-		/* A RAB Release might be in progress, handle it */
-		rc = handle_rab_release(map, ranap_msg, message);
-		if (rc >= 0)
-			return rc;
+		/* Check if the RAB-AssignmentRequest contains a RAB-ReleaseItem that matches the RAB-ID we are
+		 * managing in this HNBGW context map. */
+		if (is_our_rab_release(map, message))
+			return release_mgw_fsm(map, ranap_msg);
 
-		LOGPFSML(map->mgw_fi, LOGL_ERROR,
-			 "mgw_fsm_alloc_and_handle_rab_ass_req() unable to handle RAB-AssignmentRequest!\n");
+		/* The RAB-ReleaseItem in the incoming message should match the RAB ID we are managing. A mismatch may
+		 * mean that there is an inconsistency between the HNBGW and the MSC state and the MGW FSM on the HNBGW
+		 * side may serve an abandonned connection, which we will now close. However we must also assume that
+		 * the incoming message may still contain a RAB-Assignment for a new RTP stream, so we still must
+		 * continue with the message evaluation. */
 		osmo_fsm_inst_state_chg(map->mgw_fi, MGW_ST_FAILURE, 0, 0);
 		OSMO_ASSERT(map->mgw_fi == NULL);
 	}
