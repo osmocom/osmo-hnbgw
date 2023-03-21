@@ -738,8 +738,8 @@ int mgw_fsm_handle_rab_ass_resp(struct hnbgw_context_map *map, struct msgb *rana
 		 * on the way between RANAP RAB Assignment Request and RANAP RAB Assignment Response. */
 
 		LOGP(DMGW, LOGL_ERROR,
-		     "mgw_fsm_handle_rab_ass_resp() rua_ctx_id=%d, no MGW fsm -- sending Iu-Release-Request!\n",
-		     map->rua_ctx_id);
+		     "%s() rua_ctx_id=%d, no MGW fsm -- sending Iu-Release-Request!\n",
+		     __func__, map->rua_ctx_id);
 
 		/* Send a release request, to make sure that the MSC is aware of the problem. */
 		tx_release_req(map);
