@@ -242,7 +242,7 @@ int main(int argc, char **argv)
 		log_parse_category_mask(osmo_stderr_target,
 					hnbgw_cmdline_config.log_category_mask);
 	if (hnbgw_cmdline_config.log_enable_timestamp)
-		log_set_print_timestamp(osmo_stderr_target, 1);
+		log_set_print_timestamp2(osmo_stderr_target, LOG_TIMESTAMP_DATE);
 	if (hnbgw_cmdline_config.log_level)
 		log_set_log_level(osmo_stderr_target,
 				  hnbgw_cmdline_config.log_level);
