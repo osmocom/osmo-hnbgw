@@ -217,7 +217,8 @@ static void vty_dump_hnb_info(struct vty *vty, struct hnb_context *hnb)
 
 static void vty_dump_ue_info(struct vty *vty, struct ue_context *ue)
 {
-	vty_out(vty, "UE IMSI \"%s\" context ID %u%s", ue->imsi, ue->context_id, VTY_NEWLINE);
+	vty_out(vty, "UE IMSI \"%s\" context ID %u HNB %s%s", ue->imsi, ue->context_id,
+		hnb_context_name(ue->hnb), VTY_NEWLINE);
 }
 
 DEFUN(show_hnb, show_hnb_cmd, "show hnb all", SHOW_STR "Display information about all HNB")
