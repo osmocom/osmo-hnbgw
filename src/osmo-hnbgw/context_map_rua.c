@@ -72,7 +72,8 @@ void map_rua_fsm_alloc(struct hnbgw_context_map *map)
 {
 	struct osmo_fsm_inst *fi = osmo_fsm_inst_alloc(&map_rua_fsm, map, map, LOGL_DEBUG, NULL);
 	OSMO_ASSERT(fi);
-	osmo_fsm_inst_update_id_f_sanitize(fi, '-', "%s-RUA-%u", hnb_context_name(map->hnb_ctx), map->rua_ctx_id);
+	osmo_fsm_inst_update_id_f_sanitize(fi, '-', "%s-%s-RUA-%u", hnb_context_name(map->hnb_ctx),
+					   map->is_ps ? "PS" : "CS", map->rua_ctx_id);
 
 	OSMO_ASSERT(map->rua_fi == NULL);
 	map->rua_fi = fi;
