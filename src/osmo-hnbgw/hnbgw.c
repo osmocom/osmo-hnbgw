@@ -264,6 +264,7 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 			case SCTP_RESTART:
 				LOGHNB(hnb, DMAIN, LOGL_NOTICE, "HNB SCTP conn RESTARTed, marking as HNBAP-unregistered\n");
 				hnb->hnb_registered = false;
+				hnb_context_release_ue_state(hnb);
 				/* The tx queue may be quite full after an SCTP RESTART: (SYS#6113)
 				 * The link may have been flaky (a possible reason for the peer restarting the conn) and
 				 * hence the kernel socket Tx queue may be full (no ACKs coming back) and our own userspace
