@@ -442,11 +442,13 @@ static int map_sccp_fsm_timer_cb(struct osmo_fsm_inst *fi)
 	/* Return 1 to terminate FSM instance, 0 to keep running */
 	switch (fi->state) {
 	case MAP_SCCP_ST_INIT:
-	case MAP_SCCP_ST_WAIT_CC:
-		/* cannot sent SCCP RLSD, because the other side hasn't responded with the remote reference. */
+		/* cannot sent SCCP RLSD, because we haven't set up an SCCP link */
 		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
 		return 0;
 
+	case MAP_SCCP_ST_WAIT_CC:
+		/* send N-DISCONNECT. libosmo-sigtran/sccp_scoc.c will do the SCCP connection cleanup, like waiting a
+		 * bit whether the SCCP CC might still arrive, and cleanup the conn if not. */
 	case MAP_SCCP_ST_CONNECTED:
 	case MAP_SCCP_ST_WAIT_RLSD:
 		/* send SCCP RLSD. libosmo-sigtran/sccp_scoc.c will do the SCCP connection cleanup.
