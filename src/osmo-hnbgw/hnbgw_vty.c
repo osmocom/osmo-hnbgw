@@ -229,12 +229,6 @@ static void vty_dump_hnb_info(struct vty *vty, struct hnb_context *hnb)
 	}
 }
 
-static void vty_dump_ue_info(struct vty *vty, struct ue_context *ue)
-{
-	vty_out(vty, "UE IMSI \"%s\" context ID %u HNB %s%s", ue->imsi, ue->context_id,
-		hnb_context_name(ue->hnb), VTY_NEWLINE);
-}
-
 #define SHOW_HNB_STR SHOW_STR "Display information about HNB\n"
 
 DEFUN(show_hnb, show_hnb_cmd, "show hnb all",
@@ -276,18 +270,6 @@ DEFUN(show_one_hnb, show_one_hnb_cmd, "show hnb NAME ",
 	}
 
 	vty_dump_hnb_info(vty, hnb);
-	return CMD_SUCCESS;
-}
-
-DEFUN(show_ue, show_ue_cmd, "show ue all",
-      SHOW_STR "Display HNBAP information about UE\n" "All UE\n")
-{
-	struct ue_context *ue;
-
-	llist_for_each_entry(ue, &g_hnbgw->ue_list, list) {
-		vty_dump_ue_info(vty, ue);
-	}
-
 	return CMD_SUCCESS;
 }
 
@@ -1169,7 +1151,6 @@ void hnbgw_vty_init(void)
 	install_element_ve(&show_cnlink_cmd);
 	install_element_ve(&show_hnb_cmd);
 	install_element_ve(&show_one_hnb_cmd);
-	install_element_ve(&show_ue_cmd);
 	install_element_ve(&show_talloc_cmd);
 
 	install_element(HNBGW_NODE, &cfg_hnbgw_mgcp_cmd);

@@ -470,8 +470,6 @@ struct hnbgw {
 	DECLARE_HASHTABLE(hnb_persistent_by_id, 5);
 
 	struct osmo_timer_list store_uptime_timer;
-	/* list of struct ue_context */
-	struct llist_head ue_list;
 	/* next availble UE Context ID */
 	uint32_t next_ue_ctx_id;
 	struct ctrl_handle *ctrl;
@@ -516,13 +514,6 @@ int hnbgw_mgw_setup(void);
 struct hnb_context *hnb_context_by_identity_info(const char *identity_info);
 const char *hnb_context_name(struct hnb_context *ctx);
 
-struct ue_context *ue_context_by_id(uint32_t id);
-struct ue_context *ue_context_by_imsi(const char *imsi);
-struct ue_context *ue_context_by_tmsi(uint32_t tmsi);
-struct ue_context *ue_context_alloc(struct hnb_context *hnb, const char *imsi,
-				    uint32_t tmsi);
-void ue_context_free(struct ue_context *ue);
-
 void hnb_context_release(struct hnb_context *ctx);
 void hnb_context_release_ue_state(struct hnb_context *ctx);
 
@@ -550,3 +541,5 @@ struct msgb *hnbgw_ranap_msg_alloc(const char *name);
 int hnbgw_peek_l3_ul(struct hnbgw_context_map *map, struct msgb *ranap_msg);
 
 unsigned long long hnb_get_updowntime(const struct hnb_context *ctx);
+
+uint32_t get_next_ue_ctx_id(void);

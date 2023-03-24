@@ -94,90 +94,10 @@ static void hnbgw_store_hnb_rab_durations(void *data)
  * UE Context
  ***********************************************************************/
 
-struct ue_context *ue_context_by_id(uint32_t id)
+uint32_t get_next_ue_ctx_id(void)
 {
-	struct ue_context *ue;
-
-	llist_for_each_entry(ue, &g_hnbgw->ue_list, list) {
-		if (ue->context_id == id)
-			return ue;
-	}
-	return NULL;
-
+	return g_hnbgw->next_ue_ctx_id++;
 }
-
-struct ue_context *ue_context_by_imsi(const char *imsi)
-{
-	struct ue_context *ue;
-
-	llist_for_each_entry(ue, &g_hnbgw->ue_list, list) {
-		if (!strcmp(ue->imsi, imsi))
-			return ue;
-	}
-	return NULL;
-}
-
-struct ue_context *ue_context_by_tmsi(uint32_t tmsi)
-{
-	struct ue_context *ue;
-
-	llist_for_each_entry(ue, &g_hnbgw->ue_list, list) {
-		if (ue->tmsi == tmsi)
-			return ue;
-	}
-	return NULL;
-}
-
-static void ue_context_free_by_hnb(const struct hnb_context *hnb)
-{
-	struct ue_context *ue, *tmp;
-
-	llist_for_each_entry_safe(ue, tmp, &g_hnbgw->ue_list, list) {
-		if (ue->hnb == hnb)
-			ue_context_free(ue);
-	}
-}
-
-static uint32_t get_next_ue_ctx_id(void)
-{
-	uint32_t id;
-
-	do {
-		id = g_hnbgw->next_ue_ctx_id++;
-	} while (ue_context_by_id(id));
-
-	return id;
-}
-
-struct ue_context *ue_context_alloc(struct hnb_context *hnb, const char *imsi,
-				    uint32_t tmsi)
-{
-	struct ue_context *ue;
-
-	ue = talloc_zero(g_hnbgw, struct ue_context);
-	OSMO_ASSERT(ue);
-
-	ue->hnb = hnb;
-	if (imsi)
-		OSMO_STRLCPY_ARRAY(ue->imsi, imsi);
-	else
-		ue->imsi[0] = '\0';
-	ue->tmsi = tmsi;
-	ue->context_id = get_next_ue_ctx_id();
-	llist_add_tail(&ue->list, &g_hnbgw->ue_list);
-
-	LOGP(DHNBAP, LOGL_INFO, "created UE context: id 0x%x, imsi %s, tmsi 0x%x\n",
-	     ue->context_id, imsi? imsi : "-", tmsi);
-
-	return ue;
-}
-
-void ue_context_free(struct ue_context *ue)
-{
-	llist_del(&ue->list);
-	talloc_free(ue);
-}
-
 
 /***********************************************************************
  * HNB Context
@@ -340,7 +260,6 @@ void hnb_context_release_ue_state(struct hnb_context *ctx)
 		context_map_hnb_released(map);
 		/* hnbgw_context_map will remove itself from lists when it is ready. */
 	}
-	ue_context_free_by_hnb(ctx);
 }
 
 void hnb_context_release(struct hnb_context *ctx)
@@ -1068,7 +987,6 @@ void g_hnbgw_alloc(void *ctx)
 	INIT_LLIST_HEAD(&g_hnbgw->hnb_persistent_list);
 	hash_init(g_hnbgw->hnb_persistent_by_id);
 
-	INIT_LLIST_HEAD(&g_hnbgw->ue_list);
 	INIT_LLIST_HEAD(&g_hnbgw->sccp.users);
 
 	g_hnbgw->mgw_pool = mgcp_client_pool_alloc(g_hnbgw);
