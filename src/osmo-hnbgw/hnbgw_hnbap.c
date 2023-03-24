@@ -125,7 +125,7 @@ static int hnbgw_tx_hnb_register_acc(struct hnb_context *ctx)
 }
 
 
-static int hnbgw_tx_ue_register_acc(struct ue_context *ue)
+static int hnbgw_tx_ue_register_acc(struct hnb_context *hnb, const char *imsi, uint32_t context_id)
 {
 	HNBAP_UERegisterAccept_t accept_out;
 	HNBAP_UERegisterAcceptIEs_t accept;
@@ -136,13 +136,13 @@ static int hnbgw_tx_ue_register_acc(struct ue_context *ue)
 	int rc;
 
 	encoded_imsi_len = ranap_imsi_encode(encoded_imsi,
-					  sizeof(encoded_imsi), ue->imsi);
+					  sizeof(encoded_imsi), imsi);
 
 	memset(&accept, 0, sizeof(accept));
 	accept.uE_Identity.present = HNBAP_UE_Identity_PR_iMSI;
 	OCTET_STRING_fromBuf(&accept.uE_Identity.choice.iMSI,
 			     (const char *)encoded_imsi, encoded_imsi_len);
-	asn1_u24_to_bitstring(&accept.context_ID, &ctx_id, ue->context_id);
+	asn1_u24_to_bitstring(&accept.context_ID, &ctx_id, context_id);
 
 	memset(&accept_out, 0, sizeof(accept_out));
 	rc = hnbap_encode_ueregisteraccepties(&accept_out, &accept);
@@ -158,7 +158,7 @@ static int hnbgw_tx_ue_register_acc(struct ue_context *ue)
 	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_OCTET_STRING, &accept.uE_Identity.choice.iMSI);
 	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_HNBAP_UERegisterAccept, &accept_out);
 
-	return hnbgw_hnbap_tx(ue->hnb, msg);
+	return hnbgw_hnbap_tx(hnb, msg);
 }
 
 static int hnbgw_tx_ue_register_rej_tmsi(struct hnb_context *hnb, HNBAP_UE_Identity_t *ue_id)
@@ -283,8 +283,6 @@ static int hnbgw_tx_ue_register_acc_tmsi(struct hnb_context *hnb, HNBAP_UE_Ident
 	struct msgb *msg;
 	uint32_t ctx_id;
 	uint32_t tmsi = 0;
-	struct ue_context *ue;
-	struct ue_context *ue_allocated = NULL;
 	int rc;
 
 	memset(&accept, 0, sizeof(accept));
@@ -330,21 +328,12 @@ static int hnbgw_tx_ue_register_acc_tmsi(struct hnb_context *hnb, HNBAP_UE_Ident
 	tmsi = ntohl(tmsi);
 	LOGHNB(hnb, DHNBAP, LOGL_DEBUG, "HNBAP register with TMSI %x\n", tmsi);
 
-	ue = ue_context_by_tmsi(hnb->gw, tmsi);
-	if (!ue)
-		ue = ue_allocated = ue_context_alloc(hnb, NULL, tmsi);
-
-	asn1_u24_to_bitstring(&accept.context_ID, &ctx_id, ue->context_id);
+	asn1_u24_to_bitstring(&accept.context_ID, &ctx_id, get_next_ue_ctx_id(hnb->gw));
 
 	memset(&accept_out, 0, sizeof(accept_out));
 	rc = hnbap_encode_ueregisteraccepties(&accept_out, &accept);
-	if (rc < 0) {
-		/* If we allocated the UE context but the UE REGISTER fails, get rid of it again: there will likely
-		 * never be a UE DE-REGISTER for this UE from the HNB, and the ue_context would linger forever. */
-		if (ue_allocated)
-			ue_context_free(ue_allocated);
+	if (rc < 0)
 		return rc;
-	}
 
 	msg = hnbap_generate_successful_outcome(HNBAP_ProcedureCode_id_UERegister,
 						HNBAP_Criticality_reject,
@@ -486,8 +475,6 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 {
 	HNBAP_UERegisterRequestIEs_t ies;
-	struct ue_context *ue;
-	struct ue_context *ue_allocated = NULL;
 	char imsi[16];
 	int rc;
 
@@ -527,26 +514,15 @@ static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 	LOGHNB(ctx, DHNBAP, LOGL_DEBUG, "UE-REGISTER-REQ ID_type=%d imsi=%s cause=%ld\n",
 		ies.uE_Identity.present, imsi, ies.registration_Cause);
 
-	ue = ue_context_by_imsi(ctx->gw, imsi);
-	if (!ue)
-		ue = ue_allocated = ue_context_alloc(ctx, imsi, 0);
-
 	hnbap_free_ueregisterrequesties(&ies);
 	/* Send UERegisterAccept */
-	rc = hnbgw_tx_ue_register_acc(ue);
-	if (rc < 0) {
-		/* If we allocated the UE context but the UE REGISTER fails, get rid of it again: there will likely
-		 * never be a UE DE-REGISTER for this UE from the HNB, and the ue_context would linger forever. */
-		if (ue_allocated)
-			ue_context_free(ue_allocated);
-	}
+	rc = hnbgw_tx_ue_register_acc(ctx, imsi, get_next_ue_ctx_id(ctx->gw));
 	return rc;
 }
 
 static int hnbgw_rx_ue_deregister(struct hnb_context *ctx, ANY_t *in)
 {
 	HNBAP_UEDe_RegisterIEs_t ies;
-	struct ue_context *ue;
 	int rc;
 	uint32_t ctxid;
 
@@ -557,10 +533,6 @@ static int hnbgw_rx_ue_deregister(struct hnb_context *ctx, ANY_t *in)
 	ctxid = asn1bitstr_to_u24(&ies.context_ID);
 
 	LOGHNB(ctx, DHNBAP, LOGL_DEBUG, "UE-DE-REGISTER context=%u cause=%s\n", ctxid, hnbap_cause_str(&ies.cause));
-
-	ue = ue_context_by_id(ctx->gw, ctxid);
-	if (ue)
-		ue_context_free(ue);
 
 	hnbap_free_uede_registeries(&ies);
 	return 0;
