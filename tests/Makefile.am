@@ -53,10 +53,11 @@ VTY_TEST ?= *.vty
 # To update the VTY script from current application behavior,
 # pass -u to vty_script_runner.py by doing:
 #   make vty-test U=-u
-vty-test:
+vty-test: $(top_builddir)/src/osmo-hnbgw/osmo-hnbgw
 	osmo_verify_transcript_vty.py -v \
 		-n OsmoHNBGW -p 4261 \
-		-r "$(top_builddir)/src/osmo-hnbgw/osmo-hnbgw -c $(top_srcdir)/doc/examples/osmo-hnbgw/osmo-hnbgw.cfg" \
+		-r "$(top_builddir)/src/osmo-hnbgw/osmo-hnbgw \
+		-c $(top_srcdir)/doc/examples/osmo-hnbgw/osmo-hnbgw.cfg" \
 		$(U) $(srcdir)/$(VTY_TEST)
 
 check-local: atconfig $(TESTSUITE)
