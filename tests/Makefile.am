@@ -35,7 +35,7 @@ DISTCLEANFILES = \
 	$(NULL)
 
 if ENABLE_EXT_TESTS
-python-tests: $(BUILT_SOURCES)
+python-tests:
 	echo ""
 #	TODO: Enable once we have a VTY/CTRL interface:
 #	$(MAKE) vty-test
@@ -43,7 +43,7 @@ python-tests: $(BUILT_SOURCES)
 #	osmotestconfig.py -p $(abs_top_srcdir) -w $(abs_top_builddir) -v
 #	$(srcdir)/ctrl_test_runner.py -w $(abs_top_builddir) -v
 else
-python-tests: $(BUILT_SOURCES)
+python-tests:
 	echo "Not running python-based tests (determined at configure-time)"
 endif
 
