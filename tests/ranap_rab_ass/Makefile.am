@@ -19,7 +19,7 @@ EXTRA_DIST = \
 	ranap_rab_ass_test.ok \
 	$(NULL)
 
-noinst_PROGRAMS = \
+check_PROGRAMS = \
 	ranap_rab_ass_test \
 	$(NULL)
 
