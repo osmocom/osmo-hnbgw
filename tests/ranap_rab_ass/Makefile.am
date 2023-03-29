@@ -15,6 +15,8 @@ AM_CFLAGS = \
 	$(COVERAGE_CFLAGS) \
 	$(NULL)
 
+AM_LDFLAGS = -no-install
+
 EXTRA_DIST = \
 	ranap_rab_ass_test.ok \
 	$(NULL)
