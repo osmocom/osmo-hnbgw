@@ -10,3 +10,4 @@
 osmo-hnbgw	cfg		config deprecated: 'sccp cr max-payload-len <0-999999>'
 libosmo-sigtran	>=1.7.0		Ensure SCCP CR max payload length of 130 bytes is enforced.
 				Uses osmo_scu_prim_hdr_name_c()
+libosmo-mgcp-client > 1.11.0	mgcp_client_pool_empty()
