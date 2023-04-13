@@ -60,7 +60,7 @@ static int transmit_rst(struct hnbgw_cnlink *cnlink)
 		   cnlink_is_cs(cnlink) ? "IuCS" : "IuPS",
 		   osmo_sccp_inst_addr_name(cnlink->hnbgw_sccp_user->sccp, &cnlink->remote_addr));
 
-	msg = ranap_new_msg_reset(cnlink->domain, &cause);
+	msg = ranap_new_msg_reset(cnlink->pool->domain, &cause);
 
 	return osmo_sccp_tx_unitdata_msg(cnlink->hnbgw_sccp_user->sccp_user,
 					 &cnlink->local_addr,
@@ -84,7 +84,7 @@ static int transmit_reset_ack(struct hnbgw_cnlink *cnlink)
 		   cnlink_sccp_addr_to_str(cnlink, &cnlink->hnbgw_sccp_user->local_addr),
 		   cnlink_sccp_addr_to_str(cnlink, &cnlink->remote_addr));
 
-	msg = ranap_new_msg_reset_ack(cnlink->domain, NULL);
+	msg = ranap_new_msg_reset_ack(cnlink->pool->domain, NULL);
 
 	return osmo_sccp_tx_unitdata_msg(cnlink->hnbgw_sccp_user->sccp_user,
 					 &cnlink->hnbgw_sccp_user->local_addr,
@@ -422,35 +422,83 @@ static int resolve_addr_name(struct osmo_sccp_addr *dest, struct osmo_ss7_instan
 {
 	if (!addr_name) {
 		osmo_sccp_make_addr_pc_ssn(dest, default_pc, OSMO_SCCP_SSN_RANAP);
-		LOGP(DMAIN, LOGL_INFO, "%s remote addr not configured, using default: %s\n", label,
-		     osmo_sccp_addr_name(*ss7, dest));
+		if (label)
+			LOGP(DMAIN, LOGL_INFO, "%s remote addr not configured, using default: %s\n", label,
+			     osmo_sccp_addr_name(*ss7, dest));
 		return 0;
 	}
 
 	*ss7 = osmo_sccp_addr_by_name(dest, addr_name);
 	if (!*ss7) {
-		LOGP(DMAIN, LOGL_ERROR, "%s remote addr: no such SCCP address book entry: '%s'\n",
-		     label, addr_name);
+		if (label)
+			LOGP(DMAIN, LOGL_ERROR, "%s remote addr: no such SCCP address book entry: '%s'\n",
+			     label, addr_name);
 		return -1;
 	}
 
 	osmo_sccp_addr_set_ssn(dest, OSMO_SCCP_SSN_RANAP);
 
 	if (!addr_has_pc_and_ssn(dest)) {
-		LOGP(DMAIN, LOGL_ERROR, "Invalid/incomplete %s remote-addr: %s\n",
-		     label, osmo_sccp_addr_name(*ss7, dest));
+		if (label)
+			LOGP(DMAIN, LOGL_ERROR, "Invalid/incomplete %s remote-addr: %s\n",
+			     label, osmo_sccp_addr_name(*ss7, dest));
 		return -1;
 	}
 
-	LOGP(DRANAP, LOGL_NOTICE, "Remote %s SCCP addr: %s\n",
-	     label, osmo_sccp_addr_name(*ss7, dest));
+	if (label)
+		LOGP(DRANAP, LOGL_NOTICE, "Remote %s SCCP addr: %s\n",
+		     label, osmo_sccp_addr_name(*ss7, dest));
 	return 0;
+}
+
+void hnbgw_cnpool_apply_cfg(struct hnbgw_cnpool *cnpool)
+{
+	cnpool->use = cnpool->vty;
+}
+
+static void hnbgw_cnlink_cfg_copy(struct hnbgw_cnlink *cnlink)
+{
+	osmo_talloc_replace_string(cnlink, &cnlink->use.remote_addr_name, cnlink->vty.remote_addr_name);
+}
+
+static bool hnbgw_cnlink_sccp_cfg_changed(struct hnbgw_cnlink *cnlink)
+{
+	bool changed = false;
+
+	if (cnlink->vty.remote_addr_name && cnlink->use.remote_addr_name) {
+		struct osmo_ss7_instance *ss7;
+		struct osmo_sccp_addr remote_addr = {};
+
+		/* Instead of comparing whether the address book entry names are different, actually resolve the
+		 * resulting SCCP address, and only restart the cnlink if the resulting address changed. */
+		resolve_addr_name(&remote_addr, &ss7, cnlink->vty.remote_addr_name, NULL, DEFAULT_PC_HNBGW);
+		if (osmo_sccp_addr_cmp(&remote_addr, &cnlink->remote_addr, OSMO_SCCP_ADDR_T_PC | OSMO_SCCP_ADDR_T_SSN))
+			changed = true;
+	} else if (cnlink->vty.remote_addr_name != cnlink->use.remote_addr_name) {
+		/* One of them is NULL, the other is not. */
+		changed = true;
+	}
+
+	/* if more cnlink configuration is added in the future, it needs to be compared here. */
+
+	return changed;
+}
+
+static void hnbgw_cnlink_drop_sccp(struct hnbgw_cnlink *cnlink)
+{
+	struct hnbgw_context_map *map, *map2;
+
+	llist_for_each_entry_safe(map, map2, &cnlink->map_list, hnbgw_cnlink_entry) {
+		map_sccp_dispatch(map, MAP_SCCP_EV_USER_ABORT, NULL);
+	}
+
+	cnlink->hnbgw_sccp_user = NULL;
 }
 
 /* If not present yet, set up all of osmo_ss7_instance, osmo_sccp_instance and hnbgw_sccp_user for the given cnlink.
  * The cs7 instance nr to use is determined by cnlink->remote_addr_name, or cs7 instance 0 if that is not present.
  * Set cnlink->hnbgw_sccp_user to the new SCCP instance. Return 0 on success, negative on error. */
-int cnlink_ensure_sccp(struct hnbgw_cnlink *cnlink)
+int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink)
 {
 	struct osmo_ss7_instance *ss7 = NULL;
 	struct osmo_sccp_instance *sccp;
@@ -460,39 +508,36 @@ int cnlink_ensure_sccp(struct hnbgw_cnlink *cnlink)
 
 	/* If a hnbgw_sccp_user has already been set up, use that. */
 	if (cnlink->hnbgw_sccp_user) {
-		LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "SCCP instance already set up, using %s\n",
-			   cnlink->hnbgw_sccp_user->name);
-		return 0;
+		if (hnbgw_cnlink_sccp_cfg_changed(cnlink)) {
+			LOG_CNLINK(cnlink, DCN, LOGL_NOTICE, "config changed, restarting SCCP\n");
+			hnbgw_cnlink_drop_sccp(cnlink);
+		} else {
+			LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "SCCP instance already set up, using %s\n",
+				   cnlink->hnbgw_sccp_user->name);
+			return 0;
+		}
+	} else {
+		LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "no SCCP instance selected yet\n");
 	}
-	LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "no SCCP instance selected yet\n");
+
+	/* Copy the current configuration: cnlink->use = cnlink->vty */
+	hnbgw_cnlink_cfg_copy(cnlink);
 
 	/* Figure out which cs7 instance to use. If cnlink->remote_addr_name is set, it points to an address book entry
 	 * in a specific cs7 instance. If it is not set, leave ss7 == NULL to use cs7 instance 0. */
-	if (cnlink->remote_addr_name) {
-		LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "resolving 'remote-addr %s'\n", cnlink->remote_addr_name);
-		if (resolve_addr_name(&cnlink->remote_addr, &ss7, cnlink->remote_addr_name, cnlink->name,
+	if (cnlink->use.remote_addr_name) {
+		if (resolve_addr_name(&cnlink->remote_addr, &ss7, cnlink->use.remote_addr_name, cnlink->name,
 				      DEFAULT_PC_HNBGW)) {
 			LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "cannot initialize SCCP: there is no SCCP address named '%s'\n",
-				   cnlink->remote_addr_name);
+				   cnlink->use.remote_addr_name);
 			return -ENOENT;
 		}
 
 		LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "remote-addr is '%s', using cs7 instance %u\n",
-			   cnlink->remote_addr_name, ss7->cfg.id);
+			   cnlink->use.remote_addr_name, ss7->cfg.id);
 	} else {
 		/* If no address is configured, use the default remote CN address, according to legacy behavior. */
-		uint32_t remote_pc;
-		switch (cnlink->domain) {
-		case DOMAIN_CS:
-			remote_pc = DEFAULT_PC_MSC;
-			break;
-		case DOMAIN_PS:
-			remote_pc = DEFAULT_PC_SGSN;
-			break;
-		default:
-			return -EINVAL;
-		}
-		osmo_sccp_make_addr_pc_ssn(&cnlink->remote_addr, remote_pc, OSMO_SCCP_SSN_RANAP);
+		osmo_sccp_make_addr_pc_ssn(&cnlink->remote_addr, cnlink->pool->default_remote_pc, OSMO_SCCP_SSN_RANAP);
 	}
 
 	/* If no 'cs7 instance' has been selected by the address, see if there already is a cs7 0 we can use by default.
@@ -563,47 +608,54 @@ int cnlink_ensure_sccp(struct hnbgw_cnlink *cnlink)
 	return 0;
 }
 
-struct hnbgw_cnlink *hnbgw_cnlink_alloc(const char *remote_addr_name, RANAP_CN_DomainIndicator_t domain)
+void hnbgw_cnpool_cnlinks_start_or_restart(struct hnbgw_cnpool *cnpool)
 {
 	struct hnbgw_cnlink *cnlink;
+	hnbgw_cnpool_apply_cfg(cnpool);
+	llist_for_each_entry(cnlink, &cnpool->cnlinks, entry) {
+		hnbgw_cnlink_start_or_restart(cnlink);
+	}
+}
 
+void hnbgw_cnpool_start(struct hnbgw_cnpool *cnpool)
+{
+	/* Legacy compat: when there is no 'msc N' at all in the config file, set up 'msc 0' with default values (or
+	 * 'sgsn' depending on cnpool). */
+	if (llist_empty(&cnpool->cnlinks))
+		cnlink_get_nr(cnpool, 0, true);
+	hnbgw_cnpool_cnlinks_start_or_restart(cnpool);
+}
+
+static struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
+{
+	struct hnbgw_cnlink *cnlink;
 	cnlink = talloc_zero(g_hnbgw, struct hnbgw_cnlink);
 	*cnlink = (struct hnbgw_cnlink){
-		.name = (domain == DOMAIN_CS ? "msc-0" : "sgsn-0"),
-		.domain = domain,
-		.remote_addr_name = talloc_strdup(cnlink, remote_addr_name),
+		.name = talloc_asprintf(cnlink, "%s-%d", cnpool->peer_name, nr),
+		.pool = cnpool,
+		.nr = nr,
+		.vty = {
+			/* VTY config defaults for the new cnlink */
+		},
 	};
-
 	INIT_LLIST_HEAD(&cnlink->map_list);
 
-	if (cnlink_ensure_sccp(cnlink)) {
-		/* error logging already in cnlink_ensure_sccp() */
-		talloc_free(cnlink);
-		return NULL;
-	}
-
-	switch (domain) {
-	case DOMAIN_CS:
-		OSMO_ASSERT(!g_hnbgw->sccp.cnlink_iucs);
-		g_hnbgw->sccp.cnlink_iucs = cnlink;
-		break;
-	case DOMAIN_PS:
-		OSMO_ASSERT(!g_hnbgw->sccp.cnlink_iups);
-		g_hnbgw->sccp.cnlink_iups = cnlink;
-		break;
-	default:
-		OSMO_ASSERT(false);
-	}
-
+	llist_add_tail(&cnlink->entry, &cnpool->cnlinks);
 	return cnlink;
 }
 
-const struct osmo_sccp_addr *hnbgw_cn_get_remote_addr(bool is_ps)
+struct hnbgw_cnlink *cnlink_get_nr(struct hnbgw_cnpool *cnpool, int nr, bool create_if_missing)
 {
-	struct hnbgw_cnlink *cnlink = is_ps ? g_hnbgw->sccp.cnlink_iups : g_hnbgw->sccp.cnlink_iucs;
-	if (!cnlink)
+	struct hnbgw_cnlink *cnlink;
+	llist_for_each_entry(cnlink, &cnpool->cnlinks, entry) {
+		if (cnlink->nr == nr)
+			return cnlink;
+	}
+
+	if (!create_if_missing)
 		return NULL;
-	return &cnlink->remote_addr;
+
+	return cnlink_alloc(cnpool, nr);
 }
 
 static bool cnlink_matches(const struct hnbgw_cnlink *cnlink, const struct hnbgw_sccp_user *hsu, const struct osmo_sccp_addr *remote_addr)
@@ -614,24 +666,37 @@ static bool cnlink_matches(const struct hnbgw_cnlink *cnlink, const struct hnbgw
 		return false;
 	return true;
 }
+
 struct hnbgw_cnlink *hnbgw_cnlink_find_by_addr(const struct hnbgw_sccp_user *hsu,
 					       const struct osmo_sccp_addr *remote_addr)
 {
-	/* FUTURE: loop over llist g_hnb_gw->sccp.cnpool */
-	if (cnlink_matches(g_hnbgw->sccp.cnlink_iucs, hsu, remote_addr))
-		return g_hnbgw->sccp.cnlink_iucs;
-	if (cnlink_matches(g_hnbgw->sccp.cnlink_iups, hsu, remote_addr))
-		return g_hnbgw->sccp.cnlink_iups;
+	struct hnbgw_cnlink *cnlink;
+	llist_for_each_entry(cnlink, &g_hnbgw->sccp.cnpool_iucs.cnlinks, entry) {
+		if (cnlink_matches(cnlink, hsu, remote_addr))
+			return cnlink;
+	}
+	llist_for_each_entry(cnlink, &g_hnbgw->sccp.cnpool_iups.cnlinks, entry) {
+		if (cnlink_matches(cnlink, hsu, remote_addr))
+			return cnlink;
+	}
 	return NULL;
 }
 
-struct hnbgw_cnlink *hnbgw_cnlink_select(bool is_ps)
+struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 {
+	struct hnbgw_cnpool *cnpool = map->is_ps ? &g_hnbgw->sccp.cnpool_iups : &g_hnbgw->sccp.cnpool_iucs;
+	struct hnbgw_cnlink *cnlink;
 	/* FUTURE: soon we will pick one of many configurable CN peers from a pool. There will be more input arguments
 	 * (MI, or TMSI, or NRI decoded from RANAP) and this function will do round robin for new subscribers. */
-	if (is_ps)
-		return g_hnbgw->sccp.cnlink_iups;
-	return g_hnbgw->sccp.cnlink_iucs;
+	llist_for_each_entry(cnlink, &cnpool->cnlinks, entry) {
+		if (!cnlink->hnbgw_sccp_user || !cnlink->hnbgw_sccp_user->sccp_user)
+			continue;
+		LOG_MAP(map, DCN, LOGL_INFO, "Selected %s / %s\n",
+			cnlink->name,
+			cnlink->hnbgw_sccp_user->name);
+		return cnlink;
+	}
+	return NULL;
 }
 
 char *cnlink_sccp_addr_to_str(struct hnbgw_cnlink *cnlink, const struct osmo_sccp_addr *addr)

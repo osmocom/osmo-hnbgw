@@ -137,7 +137,7 @@ static int tx_sccp_cr(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 
 	prim = (struct osmo_scu_prim *)msgb_push(ranap_msg, sizeof(*prim));
 	osmo_prim_init(&prim->oph, SCCP_SAP_USER, OSMO_SCU_PRIM_N_CONNECT, PRIM_OP_REQUEST, ranap_msg);
-	prim->u.connect.called_addr = *hnbgw_cn_get_remote_addr(map->is_ps);
+	prim->u.connect.called_addr = map->cnlink->remote_addr;
 	prim->u.connect.calling_addr = map->cnlink->hnbgw_sccp_user->local_addr;
 	prim->u.connect.sccp_class = 2;
 	prim->u.connect.conn_id = map->scu_conn_id;

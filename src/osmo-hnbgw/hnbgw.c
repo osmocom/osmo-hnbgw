@@ -60,6 +60,32 @@ void g_hnbgw_alloc(void *ctx)
 #if ENABLE_PFCP
 	g_hnbgw->config.pfcp.remote_port = OSMO_PFCP_PORT;
 #endif
+
+	g_hnbgw->sccp.cnpool_iucs = (struct hnbgw_cnpool){
+		.domain = DOMAIN_CS,
+		.pool_name = "iucs",
+		.peer_name = "msc",
+		.default_remote_pc = DEFAULT_PC_MSC,
+		.vty = {
+			/* FUTURE: This will be added here shortly:
+			 * - defaults for global NRI config: bitlen and NULL-NRI.
+			 */
+		},
+	};
+	INIT_LLIST_HEAD(&g_hnbgw->sccp.cnpool_iucs.cnlinks);
+
+	g_hnbgw->sccp.cnpool_iups = (struct hnbgw_cnpool){
+		.domain = DOMAIN_PS,
+		.pool_name = "iups",
+		.peer_name = "sgsn",
+		.default_remote_pc = DEFAULT_PC_SGSN,
+		.vty = {
+			/* FUTURE: This will be added here shortly:
+			 * - defaults for global NRI config: bitlen and NULL-NRI.
+			 */
+		},
+	};
+	INIT_LLIST_HEAD(&g_hnbgw->sccp.cnpool_iups.cnlinks);
 }
 
 static struct hnb_context *hnb_context_by_id(uint32_t cid)

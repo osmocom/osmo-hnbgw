@@ -50,8 +50,9 @@ hnbgw
  rnc-id 23
  log-prefix hnb-id
  iuh
- iucs
-  remote-addr my-msc
- iups
-  remote-addr my-sgsn
+...
+msc 0
+ remote-addr my-msc
+sgsn 0
+ remote-addr my-sgsn
 ...

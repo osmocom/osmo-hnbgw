@@ -71,6 +71,8 @@ struct umts_cell_id {
 	uint32_t cid;	/*!< Cell ID */
 };
 
+struct hnbgw_context_map;
+
 /* osmo-hnbgw keeps a single hnbgw_sccp_user per osmo_sccp_instance, for the local point-code and SSN == RANAP.
  * This relates the (opaque) osmo_sccp_user to osmo-hnbgw's per-ss7 state. */
 struct hnbgw_sccp_user {
@@ -97,19 +99,62 @@ struct hnbgw_sccp_user {
 #define LOG_HSI(HNBGW_SCCP_INST, SUBSYS, LEVEL, FMT, ARGS...) \
 	LOGP(SUBSYS, LEVEL, "(%s) " FMT, (HNBGW_SCCP_INST) ? (HNBGW_SCCP_INST)->name : "null", ##ARGS)
 
-/* A CN peer, like MSC or SGSN. */
+/* User provided configuration for struct hnbgw_cnpool. */
+struct hnbgw_cnpool_cfg {
+	/* FUTURE: This will be added here shortly:
+	 * - global NRI config: bitlen and NULL-NRI.
+	 */
+};
+
+/* User provided configuration for struct hnbgw_cnlink. */
+struct hnbgw_cnlink_cfg {
+	/* cs7 address book entry to indicate both the remote point-code of the peer, as well as which cs7 instance to
+	 * use. */
+	char *remote_addr_name;
+
+	/* FUTURE: This will be added here shortly:
+	 * - per peer NRI config: NRI ranges assigned to this peer.
+	 */
+};
+
+/* Collection of CN peers to distribute UE connections across. MSCs for DOMAIN_CS, SGSNs for DOMAIN_PS. */
+struct hnbgw_cnpool {
+	RANAP_CN_DomainIndicator_t domain;
+
+	/* CN pool string used in VTY config and logging, "iucs" or "iups". */
+	const char *pool_name;
+	/* CN peer string used in VTY config and logging, "msc" or "sgsn". */
+	const char *peer_name;
+	/* What we use as the remote MSC/SGSN point-code if the user does not configure any address. */
+	uint32_t default_remote_pc;
+
+	struct hnbgw_cnpool_cfg vty;
+	struct hnbgw_cnpool_cfg use;
+
+	/* List of struct hnbgw_cnlink */
+	struct llist_head cnlinks;
+
+	/* FUTURE: This will be added here shortly:
+	 * - round robin state for new conns
+	 */
+};
+
+/* A CN peer, like 'msc 0' or 'sgsn 23' */
 struct hnbgw_cnlink {
+	struct llist_head entry;
+
+	/* backpointer to CS or PS CN pool. */
+	struct hnbgw_cnpool *pool;
+
+	int nr;
+
+	struct hnbgw_cnlink_cfg vty;
+	struct hnbgw_cnlink_cfg use;
+
 	/* To print in logging/VTY */
 	char *name;
 
-	/* IuCS or IuPS? */
-	RANAP_CN_DomainIndicator_t domain;
-
-	/* cs7 address book entry to indicate both the remote point-code of the peer, as well as which cs7 instance to
-	 * use. */
-	const char *remote_addr_name;
-
-	/* Copy of the address pointed at by remote_addr_name. */
+	/* Copy of the address book entry use.remote_addr_name. */
 	struct osmo_sccp_addr remote_addr;
 
 	/* The SCCP instance for the cs7 instance indicated by remote_addr_name. (Multiple hnbgw_cnlinks may use the
@@ -123,14 +168,16 @@ struct hnbgw_cnlink {
 #define LOG_CNLINK(CNLINK, SUBSYS, LEVEL, FMT, ARGS...) \
 	LOGP(SUBSYS, LEVEL, "(%s) " FMT, (CNLINK) ? (CNLINK)->name : "null", ##ARGS)
 
+struct hnbgw_cnlink *cnlink_get_nr(struct hnbgw_cnpool *cnpool, int nr, bool create_if_missing);
+
 static inline bool cnlink_is_cs(const struct hnbgw_cnlink *cnlink)
 {
-	return cnlink && cnlink->domain == DOMAIN_CS;
+	return cnlink && cnlink->pool->domain == DOMAIN_CS;
 }
 
 static inline bool cnlink_is_ps(const struct hnbgw_cnlink *cnlink)
 {
-	return cnlink && cnlink->domain == DOMAIN_PS;
+	return cnlink && cnlink->pool->domain == DOMAIN_PS;
 }
 
 static inline struct osmo_sccp_instance *cnlink_sccp(const struct hnbgw_cnlink *cnlink)
@@ -186,8 +233,6 @@ struct hnbgw {
 		/*! The UDP port where we receive multiplexed CS user
 		 * plane traffic from HNBs */
 		uint16_t iuh_cs_mux_port;
-		const char *iucs_remote_addr_name;
-		const char *iups_remote_addr_name;
 		uint16_t rnc_id;
 		bool hnbap_allow_tmsi;
 		/*! print hnb-id (true) or MCC-MNC-LAC-RAC-SAC (false) in logs */
@@ -213,9 +258,11 @@ struct hnbgw {
 	struct {
 		/* List of hnbgw_sccp_user */
 		struct llist_head users;
-		/* FUTURE: cnlink_iucs, cnlink_iups will be replaced with llist cnpool. */
-		struct hnbgw_cnlink *cnlink_iucs;
-		struct hnbgw_cnlink *cnlink_iups;
+
+		/* Pool of core network peers: MSCs for IuCS */
+		struct hnbgw_cnpool cnpool_iucs;
+		/* Pool of core network peers: SGSNs for IuPS */
+		struct hnbgw_cnpool cnpool_iups;
 	} sccp;
 	/* MGW pool, also includes the single MGCP client as fallback if no
 	 * pool is configured. */
