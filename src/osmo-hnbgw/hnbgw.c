@@ -51,6 +51,7 @@ void g_hnbgw_alloc(void *ctx)
 	g_hnbgw->next_ue_ctx_id = 23;
 	INIT_LLIST_HEAD(&g_hnbgw->hnb_list);
 	INIT_LLIST_HEAD(&g_hnbgw->ue_list);
+	INIT_LLIST_HEAD(&g_hnbgw->sccp.instances);
 
 	g_hnbgw->mgw_pool = mgcp_client_pool_alloc(g_hnbgw);
 	g_hnbgw->config.mgcp_client = talloc_zero(g_hnbgw, struct mgcp_client_conf);
@@ -489,6 +490,15 @@ struct msgb *hnbgw_ranap_msg_alloc(const char *name)
 	msgb_reserve(ranap_msg, sizeof(struct osmo_scu_prim));
 	ranap_msg->l2h = ranap_msg->data;
 	return ranap_msg;
+}
+
+struct hnbgw_cnlink *hnbgw_cnlink_select(bool is_ps)
+{
+	/* FUTURE: soon we will pick one of many configurable CN peers from a pool. There will be more input arguments
+	 * (MI, or TMSI, or NRI decoded from RANAP) and this function will do round robin for new subscribers. */
+	if (is_ps)
+		return g_hnbgw->sccp.cnlink_iups;
+	return g_hnbgw->sccp.cnlink_iucs;
 }
 
 static const char * const hnbgw_copyright =

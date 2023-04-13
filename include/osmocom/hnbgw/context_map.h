@@ -72,10 +72,13 @@ struct hnbgw_cnlink;
 
 struct hnbgw_context_map {
 	/* entry in the per-CN list of mappings */
-	struct llist_head cn_list;
+	struct llist_head hnbgw_cnlink_entry;
 	/* entry in the per-HNB list of mappings. If hnb_ctx == NULL, then this llist entry has been llist_del()eted and
 	 * must not be used. */
 	struct llist_head hnb_list;
+
+	/* entry in the per-SCCP-conn-id hashtable */
+	struct hlist_node hnbgw_sccp_inst_entry;
 
 	/* Pointer to HNB for this map, to transceive RUA. If the HNB has disconnected without releasing the RUA
 	 * context, this is NULL. */
@@ -86,7 +89,7 @@ struct hnbgw_context_map {
 	struct osmo_fsm_inst *rua_fi;
 
 	/* Pointer to CN, to transceive SCCP. */
-	struct hnbgw_cnlink *cn_link;
+	struct hnbgw_cnlink *cnlink;
 	/* SCCP User SAP connection ID used in SCCP messages to/from the cn_link. */
 	uint32_t scu_conn_id;
 	/* FSM handling the SCCP state for scu_conn_id. */
@@ -131,16 +134,11 @@ enum hnbgw_context_map_state context_map_get_state(struct hnbgw_context_map *map
 enum hnbgw_context_map_state map_rua_get_state(struct hnbgw_context_map *map);
 enum hnbgw_context_map_state map_sccp_get_state(struct hnbgw_context_map *map);
 
-struct hnbgw_context_map *
-context_map_alloc_by_hnb(struct hnb_context *hnb, uint32_t rua_ctx_id,
-			 bool is_ps,
-			 struct hnbgw_cnlink *cn_if_new);
+struct hnbgw_context_map *context_map_find_or_create_by_rua_ctx_id(struct hnb_context *hnb, uint32_t rua_ctx_id,
+								   bool is_ps);
 
 void map_rua_fsm_alloc(struct hnbgw_context_map *map);
 void map_sccp_fsm_alloc(struct hnbgw_context_map *map);
-
-struct hnbgw_context_map *
-context_map_by_cn(struct hnbgw_cnlink *cn, uint32_t scu_conn_id);
 
 void context_map_hnb_released(struct hnbgw_context_map *map);
 

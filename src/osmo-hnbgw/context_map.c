@@ -53,22 +53,26 @@ enum hnbgw_context_map_state context_map_get_state(struct hnbgw_context_map *map
 }
 
 /* is a given SCCP USER SAP Connection ID in use for a given CN link? */
-static int cn_id_in_use(struct hnbgw_cnlink *cn, uint32_t id)
+static int sccp_id_in_use(struct hnbgw_sccp_inst *hsi, uint32_t id)
 {
 	struct hnbgw_context_map *map;
 
-	llist_for_each_entry(map, &cn->map_list, cn_list) {
+	/* Iterate only those maps that use this SCCP instance. */
+	hash_for_each_possible(hsi->hnbgw_context_map_by_conn_id, map, hnbgw_sccp_inst_entry, id) {
 		if (map->scu_conn_id == id)
 			return 1;
 	}
 	return 0;
 }
 
-/* try to allocate a new SCCP User SAP Connection ID */
-static int alloc_cn_conn_id(struct hnbgw_cnlink *cn, uint32_t *id_out)
+/* try to allocate a new SCCP User SAP Connection ID. Return 0 on success, negative on error. */
+static int sccp_alloc_conn_id(struct hnbgw_sccp_inst *hsi, uint32_t *id_out)
 {
 	uint32_t i;
 	uint32_t id;
+
+	if (!hsi)
+		return -ENOENT;
 
 	/* SUA: RFC3868 sec 3.10.4:
 	 *    The source reference number is a 4 octet long integer.
@@ -82,28 +86,28 @@ static int alloc_cn_conn_id(struct hnbgw_cnlink *cn, uint32_t *id_out)
 	 */
 
 	for (i = 0; i < 0x00ffffff; i++) {
-		id = cn->next_conn_id++;
-		if (cn->next_conn_id == 0x00ffffff)
-			cn->next_conn_id = 0;
-		if (!cn_id_in_use(cn, id)) {
+		id = hsi->next_conn_id++;
+		if (hsi->next_conn_id == 0x00ffffff)
+			hsi->next_conn_id = 0;
+		if (!sccp_id_in_use(hsi, id)) {
 			*id_out = id;
-			return 1;
+			return 0;
 		}
 	}
-	return -1;
+	return -EADDRNOTAVAIL;
 }
 
 /* Map from a HNB + ContextID to the SCCP-side Connection ID */
-struct hnbgw_context_map *
-context_map_alloc_by_hnb(struct hnb_context *hnb, uint32_t rua_ctx_id,
-			 bool is_ps,
-			 struct hnbgw_cnlink *cn_if_new)
+struct hnbgw_context_map *context_map_find_or_create_by_rua_ctx_id(struct hnb_context *hnb, uint32_t rua_ctx_id,
+								   bool is_ps)
 {
 	struct hnbgw_context_map *map;
 	uint32_t new_scu_conn_id;
+	struct hnbgw_cnlink *cnlink;
+	struct hnbgw_sccp_inst *hsi;
 
 	llist_for_each_entry(map, &hnb->map_list, hnb_list) {
-		if (map->cn_link != cn_if_new)
+		if (map->is_ps != is_ps)
 			continue;
 
 		/* Matching on RUA context id -- only match for RUA context that has not been disconnected yet. If an
@@ -112,23 +116,38 @@ context_map_alloc_by_hnb(struct hnb_context *hnb, uint32_t rua_ctx_id,
 		if (!map_rua_is_active(map))
 			continue;
 
-		if (map->rua_ctx_id == rua_ctx_id
-		    && map->is_ps == is_ps) {
-			return map;
-		}
+		if (map->rua_ctx_id != rua_ctx_id)
+			continue;
+
+		/* Already exists */
+		return map;
 	}
 
-	if (alloc_cn_conn_id(cn_if_new, &new_scu_conn_id) < 0) {
-		LOGHNB(hnb, DMAIN, LOGL_ERROR, "Unable to allocate CN connection ID\n");
+	/* Does not exist yet, create a new hnbgw_context_map. */
+
+	/* From the RANAP/RUA input, determine which cnlink to use */
+	cnlink = hnbgw_cnlink_select(is_ps);
+	if (!cnlink) {
+		LOGHNB(hnb, DMAIN, LOGL_ERROR, "Failed to select CN link\n");
 		return NULL;
 	}
 
-	LOGHNB(hnb, DMAIN, LOGL_INFO, "Creating new Mapping RUA CTX %p/%u <-> SCU Conn ID %p/%u\n",
-		hnb, rua_ctx_id, cn_if_new, new_scu_conn_id);
+	/* Allocate new SCCP conn id on the SCCP instance the cnlink is on. */
+	hsi = cnlink->hnbgw_sccp_inst;
+	if (!hsi) {
+		LOGHNB(hnb, DMAIN, LOGL_ERROR, "Cannot allocate context map: No SCCP instance for CN link %s\n",
+		       cnlink->name);
+		return NULL;
+	}
+
+	if (sccp_alloc_conn_id(hsi, &new_scu_conn_id)) {
+		LOGHNB(hnb, DMAIN, LOGL_ERROR, "Unable to allocate SCCP conn ID on %s\n", hsi->name);
+		return NULL;
+	}
 
 	/* allocate a new map entry. */
 	map = talloc_zero(hnb, struct hnbgw_context_map);
-	map->cn_link = cn_if_new;
+	map->cnlink = cnlink;
 	map->hnb_ctx = hnb;
 	map->rua_ctx_id = rua_ctx_id;
 	map->is_ps = is_ps;
@@ -139,9 +158,12 @@ context_map_alloc_by_hnb(struct hnb_context *hnb, uint32_t rua_ctx_id,
 	map_rua_fsm_alloc(map);
 	map_sccp_fsm_alloc(map);
 
-	/* put it into both lists */
 	llist_add_tail(&map->hnb_list, &hnb->map_list);
-	llist_add_tail(&map->cn_list, &cn_if_new->map_list);
+	llist_add_tail(&map->hnbgw_cnlink_entry, &cnlink->map_list);
+	hash_add(hsi->hnbgw_context_map_by_conn_id, &map->hnbgw_sccp_inst_entry, new_scu_conn_id);
+
+	LOG_MAP(map, DMAIN, LOGL_INFO, "Creating new Mapping RUA CTX %u <-> SCU Conn ID %s/%u\n",
+		rua_ctx_id, hsi->name, new_scu_conn_id);
 
 	return map;
 }
@@ -171,30 +193,6 @@ int _map_sccp_dispatch(struct hnbgw_context_map *map, uint32_t event, struct msg
 unsigned int msg_has_l2_data(const struct msgb *msg)
 {
 	return msg && msgb_l2(msg) ? msgb_l2len(msg) : 0;
-}
-
-/* Map from a CN + Connection ID to HNB + Context ID */
-struct hnbgw_context_map *
-context_map_by_cn(struct hnbgw_cnlink *cn, uint32_t scu_conn_id)
-{
-	struct hnbgw_context_map *map;
-
-	llist_for_each_entry(map, &cn->map_list, cn_list) {
-		/* Matching on SCCP conn id -- only match for SCCP conn that has not been disconnected yet. If an
-		 * inactive context map for an scu_conn_id is still around, we may have two entries for the same
-		 * scu_conn_id around at the same time. That should only stay until its RUA side is done releasing. */
-		if (!map_sccp_is_active(map))
-			continue;
-
-		if (map->scu_conn_id == scu_conn_id) {
-			return map;
-		}
-	}
-	/* we don't allocate new mappings in the CN->HNB
-	 * direction, as the RUA=SCCP=SUA connections are always
-	 * established from HNB towards CN. */
-	LOGP(DMAIN, LOGL_NOTICE, "Unable to resolve map for CN " "connection ID %p/%u\n", cn, scu_conn_id);
-	return NULL;
 }
 
 void context_map_hnb_released(struct hnbgw_context_map *map)
@@ -239,8 +237,10 @@ void context_map_free(struct hnbgw_context_map *map)
 	hnbgw_gtpmap_release(map);
 #endif
 
-	if (map->cn_link)
-		llist_del(&map->cn_list);
+	if (map->cnlink) {
+		llist_del(&map->hnbgw_cnlink_entry);
+		hash_del(&map->hnbgw_sccp_inst_entry);
+	}
 	if (map->hnb_ctx)
 		llist_del(&map->hnb_list);
 

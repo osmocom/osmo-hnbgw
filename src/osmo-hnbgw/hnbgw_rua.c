@@ -200,7 +200,6 @@ static int rua_to_scu(struct hnb_context *hnb,
 {
 	struct msgb *ranap_msg = NULL;
 	struct hnbgw_context_map *map = NULL;
-	struct hnbgw_cnlink *cn = g_hnbgw->sccp.cnlink;
 	bool is_ps;
 
 	switch (cN_DomainIndicator) {
@@ -215,11 +214,6 @@ static int rua_to_scu(struct hnb_context *hnb,
 		return -1;
 	}
 
-	if (!cn) {
-		LOGHNB(hnb, DRUA, LOGL_NOTICE, "CN=NULL, discarding message\n");
-		return 0;
-	}
-
 	/* If there is RANAP data, include it in the msgb. In RUA there is always data in practice, but theoretically it
 	 * could be an empty Connect or Disconnect. */
 	if (data && len) {
@@ -230,8 +224,13 @@ static int rua_to_scu(struct hnb_context *hnb,
 		memcpy(ranap_msg->l2h, data, len);
 	}
 
-	map = context_map_alloc_by_hnb(hnb, context_id, is_ps, cn);
-	OSMO_ASSERT(map);
+	map = context_map_find_or_create_by_rua_ctx_id(hnb, context_id, is_ps);
+	if (!map) {
+		LOGHNB(hnb, DRUA, LOGL_ERROR,
+		       "Failed to create context map for %s: rx RUA %s with %u bytes RANAP data\n",
+		       is_ps ? "IuPS" : "IuCS", rua_procedure_code_name(rua_procedure), data ? len : 0);
+		return -1;
+	}
 
 	LOG_MAP(map, DRUA, LOGL_DEBUG, "rx RUA %s with %u bytes RANAP data\n",
 		rua_procedure_code_name(rua_procedure), data ? len : 0);

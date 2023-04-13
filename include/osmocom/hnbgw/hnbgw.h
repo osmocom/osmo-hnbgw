@@ -2,11 +2,14 @@
 
 #include <osmocom/core/select.h>
 #include <osmocom/core/linuxlist.h>
+#include <osmocom/core/hashtable.h>
 #include <osmocom/core/write_queue.h>
 #include <osmocom/core/timer.h>
 #include <osmocom/sigtran/sccp_sap.h>
 #include <osmocom/sigtran/osmo_ss7.h>
 #include <osmocom/ctrl/control_if.h>
+#include <osmocom/ranap/RANAP_CN-DomainIndicator.h>
+
 #define DEBUG
 #include <osmocom/core/logging.h>
 
@@ -29,6 +32,9 @@ extern struct vty_app_info hnbgw_vty_info;
 #define LOGHNB(HNB_CTX, ss, lvl, fmt, args ...) \
 	LOGP(ss, lvl, "(%s) " fmt, hnb_context_name(HNB_CTX), ## args)
 
+#define DOMAIN_CS RANAP_CN_DomainIndicator_cs_domain
+#define DOMAIN_PS RANAP_CN_DomainIndicator_ps_domain
+
 enum hnb_ctrl_node {
 	CTRL_NODE_HNB = _LAST_CTRL_NODE,
 	_LAST_CTRL_NODE_HNB
@@ -39,6 +45,10 @@ enum hnb_ctrl_node {
  * duplicity. */
 #define HNBGW_IUCS_REMOTE_IP_DEFAULT "127.0.0.1"
 #define HNBGW_IUPS_REMOTE_IP_DEFAULT "127.0.0.1"
+
+#define DEFAULT_PC_HNBGW ((23 << 3) + 5)
+#define DEFAULT_PC_MSC ((23 << 3) + 1)
+#define DEFAULT_PC_SGSN ((23 << 3) + 4)
 
 /* 25.467 Section 7.1 */
 #define IUH_DEFAULT_SCTP_PORT	29169
@@ -61,6 +71,26 @@ struct umts_cell_id {
 	uint32_t cid;	/*!< Cell ID */
 };
 
+struct hnbgw_sccp_inst {
+	struct llist_head entry;
+
+	char *name;
+
+	/* There is one osmo_sccp_instance per cs7_instance.
+	 * Below osmo_sccp_instance is running on this cs7 instance: */
+	uint32_t cs7_instance;
+	struct osmo_sccp_instance *sccp;
+	/* for SSN = RANAP */
+	struct osmo_sccp_user *sccp_user;
+
+	uint32_t next_conn_id;
+
+	DECLARE_HASHTABLE(hnbgw_context_map_by_conn_id, 6);
+};
+
+#define LOG_HSI(HNBGW_SCCP_INST, SUBSYS, LEVEL, FMT, ARGS...) \
+	LOGP(SUBSYS, LEVEL, "(%s) " FMT, (HNBGW_SCCP_INST) ? (HNBGW_SCCP_INST)->name : "null", ##ARGS)
+
 enum hnbgw_cnlink_state {
 	/* we have just been initialized or were disconnected */
 	CNLINK_S_NULL,
@@ -74,19 +104,59 @@ enum hnbgw_cnlink_state {
 	CNLINK_S_EST_ACTIVE,
 };
 
+/* A CN peer, like MSC or SGSN. */
 struct hnbgw_cnlink {
-	struct llist_head list;
+	/* To print in logging/VTY */
+	char *name;
+
+	/* IuCS or IuPS? */
+	RANAP_CN_DomainIndicator_t domain;
+
+	/* FUTURE: In principle, there may be different local point-codes for separate CN links on the same SCCP
+	 * instance. So far, each hnbgw_cnlink->local_addr just contains SSN = RANAP, so that the cs7 instance fills in
+	 * its primary point code. */
+	struct osmo_sccp_addr local_addr;
+
+	/* cs7 address book entry to indicate both the remote point-code of the peer, as well as which cs7 instance to
+	 * use. */
+	const char *remote_addr_name;
+
+	/* Copy of the address pointed at by remote_addr_name. */
+	struct osmo_sccp_addr remote_addr;
+
+	/* The SCCP instance for the cs7 instance indicated by remote_addr_name. (Multiple hnbgw_cnlinks may use the
+	 * same hnbgw_sccp_inst -- there is exactly one hnbgw_sccp_inst per configured cs7 instance.) */
+	struct hnbgw_sccp_inst *hnbgw_sccp_inst;
+
 	enum hnbgw_cnlink_state state;
 	/* timer for re-transmitting the RANAP Reset */
 	struct osmo_timer_list T_RafC;
-	/* reference to the SCCP User SAP by which we communicate */
-	struct osmo_sccp_instance *sccp;
-	struct osmo_sccp_user *sccp_user;
-	uint32_t next_conn_id;
 
 	/* linked list of hnbgw_context_map */
 	struct llist_head map_list;
 };
+
+#define LOG_CNLINK(CNLINK, SUBSYS, LEVEL, FMT, ARGS...) \
+	LOGP(SUBSYS, LEVEL, "(%s) " FMT, (CNLINK) ? (CNLINK)->name : "null", ##ARGS)
+
+static inline bool cnlink_is_cs(const struct hnbgw_cnlink *cnlink)
+{
+	return cnlink && cnlink->domain == DOMAIN_CS;
+}
+
+static inline bool cnlink_is_ps(const struct hnbgw_cnlink *cnlink)
+{
+	return cnlink && cnlink->domain == DOMAIN_PS;
+}
+
+static inline struct osmo_sccp_instance *cnlink_sccp(const struct hnbgw_cnlink *cnlink)
+{
+	if (!cnlink)
+		return NULL;
+	if (!cnlink->hnbgw_sccp_inst)
+		return NULL;
+	return cnlink->hnbgw_sccp_inst->sccp;
+}
 
 /* The lifecycle of the hnb_context object is the same as its conn */
 struct hnb_context {
@@ -155,11 +225,11 @@ struct hnbgw {
 	struct ctrl_handle *ctrl;
 	/* currently active CN links for CS and PS */
 	struct {
-		struct osmo_sccp_instance *client;
-		struct hnbgw_cnlink *cnlink;
-		struct osmo_sccp_addr local_addr;
-		struct osmo_sccp_addr iucs_remote_addr;
-		struct osmo_sccp_addr iups_remote_addr;
+		/* List of hnbgw_sccp_inst */
+		struct llist_head instances;
+		/* FUTURE: cnlink_iucs, cnlink_iups will be replaced with llist cnpool. */
+		struct hnbgw_cnlink *cnlink_iucs;
+		struct hnbgw_cnlink *cnlink_iups;
 	} sccp;
 	/* MGW pool, also includes the single MGCP client as fallback if no
 	 * pool is configured. */
@@ -208,3 +278,5 @@ static inline bool hnb_gw_is_gtp_mapping_enabled(void)
 }
 
 struct msgb *hnbgw_ranap_msg_alloc(const char *name);
+
+struct hnbgw_cnlink *hnbgw_cnlink_select(bool is_ps);

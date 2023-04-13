@@ -259,11 +259,13 @@ int main(int argc, char **argv)
 
 	ranap_set_log_area(DRANAP);
 
-	rc = hnbgw_cnlink_init("localhost", M3UA_PORT, "localhost");
-	if (rc < 0) {
+	if (!hnbgw_cnlink_alloc(g_hnbgw->config.iucs_remote_addr_name, DOMAIN_CS)
+	    || !hnbgw_cnlink_alloc(g_hnbgw->config.iups_remote_addr_name, DOMAIN_PS)) {
 		LOGP(DMAIN, LOGL_ERROR, "Failed to initialize SCCP link to CN\n");
 		exit(1);
 	}
+	OSMO_ASSERT(g_hnbgw->sccp.cnlink_iucs);
+	OSMO_ASSERT(g_hnbgw->sccp.cnlink_iups);
 
 	LOGP(DHNBAP, LOGL_NOTICE, "Using RNC-Id %u\n", g_hnbgw->config.rnc_id);
 

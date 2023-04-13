@@ -131,36 +131,51 @@ int hnbgw_vty_go_parent(struct vty *vty)
 	return vty->node;
 }
 
-DEFUN(show_cnlink, show_cnlink_cmd, "show cnlink",
-      SHOW_STR "Display information on core network link\n")
+static void _show_cnlink(struct vty *vty, struct hnbgw_cnlink *cnlink)
 {
 	struct osmo_ss7_route *rt;
-	struct osmo_ss7_instance *ss7 = osmo_sccp_get_ss7(g_hnbgw->sccp.client);
+	struct osmo_ss7_instance *ss7;
+
+	if (!cnlink) {
+		vty_out(vty, "NULL%s", VTY_NEWLINE);
+		return;
+	}
+
+	if (!cnlink->hnbgw_sccp_inst) {
+		vty_out(vty, "no SCCP instance%s", VTY_NEWLINE);
+		return;
+	}
+
+	if (!cnlink->hnbgw_sccp_inst->sccp_user) {
+		vty_out(vty, "no SCCP user%s", VTY_NEWLINE);
+		return;
+	}
+
+	ss7 = osmo_sccp_get_ss7(cnlink->hnbgw_sccp_inst->sccp);
 #define GUARD(STR) \
 	STR ? STR : "", \
 	STR ? ":" : ""
 
-	vty_out(vty, "IuCS: %s <->",
-		osmo_sccp_user_name(g_hnbgw->sccp.cnlink->sccp_user));
+	vty_out(vty, "%s <->",
+		osmo_sccp_user_name(cnlink->hnbgw_sccp_inst->sccp_user));
 	vty_out(vty, " %s%s%s%s",
-		GUARD(g_hnbgw->config.iucs_remote_addr_name),
-		osmo_sccp_inst_addr_name(g_hnbgw->sccp.client, &g_hnbgw->sccp.iucs_remote_addr),
+		GUARD(cnlink->remote_addr_name),
+		osmo_sccp_inst_addr_name(cnlink->hnbgw_sccp_inst->sccp, &cnlink->remote_addr),
 		VTY_NEWLINE);
 
-	rt = osmo_ss7_route_lookup(ss7, g_hnbgw->sccp.iucs_remote_addr.pc);
-	vty_out(vty, "      SS7 route: %s%s", osmo_ss7_route_name(rt, true), VTY_NEWLINE);
-
-	vty_out(vty, "IuPS: %s <->",
-		osmo_sccp_user_name(g_hnbgw->sccp.cnlink->sccp_user));
-	vty_out(vty, " %s%s%s%s",
-		GUARD(g_hnbgw->config.iups_remote_addr_name),
-		osmo_sccp_inst_addr_name(g_hnbgw->sccp.client, &g_hnbgw->sccp.iups_remote_addr),
-		VTY_NEWLINE);
-
-	rt = osmo_ss7_route_lookup(ss7, g_hnbgw->sccp.iups_remote_addr.pc);
+	rt = osmo_ss7_route_lookup(ss7, cnlink->remote_addr.pc);
 	vty_out(vty, "      SS7 route: %s%s", osmo_ss7_route_name(rt, true), VTY_NEWLINE);
 
 #undef GUARD
+}
+
+DEFUN(show_cnlink, show_cnlink_cmd, "show cnlink",
+      SHOW_STR "Display information on core network link\n")
+{
+	vty_out(vty, "IuCS: ");
+	_show_cnlink(vty, g_hnbgw->sccp.cnlink_iucs);
+	vty_out(vty, "IuPS: ");
+	_show_cnlink(vty, g_hnbgw->sccp.cnlink_iups);
 	return CMD_SUCCESS;
 }
 

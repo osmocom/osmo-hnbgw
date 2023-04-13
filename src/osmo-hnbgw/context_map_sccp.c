@@ -123,6 +123,11 @@ static int tx_sccp_cr(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 	struct osmo_scu_prim *prim;
 	int rc;
 
+	if (!map->cnlink || !map->cnlink->hnbgw_sccp_inst) {
+		LOGPFSML(fi, LOGL_ERROR, "Failed to send SCCP Connection Request: no CN link\n");
+		return -1;
+	}
+
 	if (!ranap_msg) {
 		/* prepare a msgb to send an empty N-Connect prim (but this should never happen in practice) */
 		ranap_msg = hnbgw_ranap_msg_alloc("SCCP-CR-empty");
@@ -131,13 +136,13 @@ static int tx_sccp_cr(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 	prim = (struct osmo_scu_prim *)msgb_push(ranap_msg, sizeof(*prim));
 	osmo_prim_init(&prim->oph, SCCP_SAP_USER, OSMO_SCU_PRIM_N_CONNECT, PRIM_OP_REQUEST, ranap_msg);
 	prim->u.connect.called_addr = *hnbgw_cn_get_remote_addr(map->is_ps);
-	prim->u.connect.calling_addr = g_hnbgw->sccp.local_addr;
+	prim->u.connect.calling_addr = map->cnlink->local_addr;
 	prim->u.connect.sccp_class = 2;
 	prim->u.connect.conn_id = map->scu_conn_id;
 
-	rc = osmo_sccp_user_sap_down_nofree(map->cn_link->sccp_user, &prim->oph);
+	rc = osmo_sccp_user_sap_down_nofree(map->cnlink->hnbgw_sccp_inst->sccp_user, &prim->oph);
 	if (rc)
-		LOGPFSML(fi, LOGL_ERROR, "Failed to forward SCCP Connectoin Request to CN\n");
+		LOGPFSML(fi, LOGL_ERROR, "Failed to send SCCP Connection Request to CN\n");
 	return rc;
 }
 
@@ -150,20 +155,31 @@ static int tx_sccp_df1(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 	if (!msg_has_l2_data(ranap_msg))
 		return 0;
 
+	if (!map->cnlink || !map->cnlink->hnbgw_sccp_inst) {
+		LOGPFSML(fi, LOGL_ERROR, "Failed to send SCCP Data Form 1: no CN link\n");
+		return -1;
+	}
+
 	prim = (struct osmo_scu_prim *)msgb_push(ranap_msg, sizeof(*prim));
 	osmo_prim_init(&prim->oph, SCCP_SAP_USER, OSMO_SCU_PRIM_N_DATA, PRIM_OP_REQUEST, ranap_msg);
 	prim->u.data.conn_id = map->scu_conn_id;
 
-	rc = osmo_sccp_user_sap_down_nofree(map->cn_link->sccp_user, &prim->oph);
+	rc = osmo_sccp_user_sap_down_nofree(map->cnlink->hnbgw_sccp_inst->sccp_user, &prim->oph);
 	if (rc)
-		LOGPFSML(fi, LOGL_ERROR, "Failed to forward SCCP Data Form 1 to CN\n");
+		LOGPFSML(fi, LOGL_ERROR, "Failed to send SCCP Data Form 1 to CN\n");
 	return rc;
 }
 
 static int tx_sccp_rlsd(struct osmo_fsm_inst *fi)
 {
 	struct hnbgw_context_map *map = fi->priv;
-	return osmo_sccp_tx_disconn(map->cn_link->sccp_user, map->scu_conn_id, NULL, 0);
+
+	if (!map->cnlink || !map->cnlink->hnbgw_sccp_inst) {
+		LOGPFSML(fi, LOGL_ERROR, "Failed to send SCCP RLSD: no CN link\n");
+		return -1;
+	}
+
+	return osmo_sccp_tx_disconn(map->cnlink->hnbgw_sccp_inst->sccp_user, map->scu_conn_id, NULL, 0);
 }
 
 static int destruct_ranap_ran_rx_co_ies(ranap_message *ranap_message_p)
@@ -455,7 +471,7 @@ static int map_sccp_fsm_timer_cb(struct osmo_fsm_inst *fi)
 		/* send SCCP RLSD. libosmo-sigtran/sccp_scoc.c will do the SCCP connection cleanup.
 		 * (It will repeatedly send SCCP RLSD until the peer responded with SCCP RLC, or until the
 		 * sccp_connection->t_int timer expires, and the sccp_connection is freed.) */
-		if (map->cn_link && map->cn_link->sccp_user)
+		if (map->cnlink)
 			tx_sccp_rlsd(fi);
 		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
 		return 0;
