@@ -1,0 +1,37 @@
+digraph G {
+rankdir=TB
+labelloc=t; label="SCCP/SS7 use in OsmoHNBGW"
+
+	subgraph cluster_ss0 {
+		label=""
+		ss0 [label="cs7 instance 0\n local pc: 1.1.1"]
+		ss0ab [label="address book"]
+		ss0 -> ss0ab
+
+		msc0a [label="2.2.2"]
+		sgsn0a [label="3.3.3"]
+		ss0ab -> msc0a,sgsn0a
+	}
+
+	iucs_addr [label=".iucs_addr -> 2.2.2"]
+	iups_addr [label=".iups_addr -> 3.3.3"]
+	msc0a -> iucs_addr [dir=back]
+	sgsn0a -> iups_addr [dir=back]
+	cnlink [label="hnbgw_cnlink (singleton)\n .osmo_sccp_instance\n .osmo_ss7_user SSN: RANAP"];
+	ss0 -> cnlink [dir=back]
+
+	cs0 [label="UE CS conn\n hnbgw_context_map"]
+	cs1 [label="UE CS conn\n hnbgw_context_map"]
+	ps0 [label="UE PS conn\n hnbgw_context_map"]
+	ps1 [label="UE PS conn\n hnbgw_context_map"]
+	cnlink -> cs0,cs1,ps0,ps1
+	iucs_addr -> cs0,cs1 [style=dotted,dir=none]
+	iups_addr -> ps0,ps1 [style=dotted,dir=none]
+
+	subgraph cluster_hnbgw {
+		label="global hnb_gw"
+		cnlink
+		iucs_addr
+		iups_addr
+	}
+}
