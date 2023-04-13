@@ -4,6 +4,7 @@ msc: \
 
 dot: \
 	$(builddir)/hnbgw_context_map_fsm.png \
+	$(builddir)/sccp.png \
 	$(NULL)
 
 $(builddir)/%.png: $(srcdir)/%.msc
