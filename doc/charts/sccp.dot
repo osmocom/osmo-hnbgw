@@ -9,13 +9,15 @@ labelloc=t; label="SCCP/SS7 use in OsmoHNBGW"
 		ss0 -> ss0ab
 
 		msc0a [label="2.2.2"]
-		ss0ab -> msc0a
+		sgsn0a [label="3.3.3"]
+		msc1a [label="5.5.5"]
+		ss0ab -> msc0a,sgsn0a,msc1a
 	}
 
 	sccp0 [label="hnbgw_sccp_inst for '0'\n .osmo_sccp_instance\n .osmo_ss7_user SSN: RANAP"];
 	ss0 -> sccp0 [dir=back]
 
-	msc0 [label="hnbgw_cnlink for IuCS\n .sccp_addr -> 2.2.2"]
+	msc0 [label="hnbgw_cnlink 'msc0'\n .domain = IuCS\n .sccp_addr -> 2.2.2"]
 	sccp0 -> msc0 [dir=back]
 	msc0a -> msc0 [dir=back]
 
@@ -23,26 +25,41 @@ labelloc=t; label="SCCP/SS7 use in OsmoHNBGW"
 	cs1 [label="UE CS conn\n hnbgw_context_map"]
 	msc0 -> cs0,cs1
 
+	sgsn0 [label="hnbgw_cnlink 'sgsn0'\n .domain = IuPS\n .sccp_addr -> 3.3.3"]
+	sccp0 -> sgsn0 [dir=back]
+	sgsn0a -> sgsn0 [dir=back]
+
+	ps0 [label="UE PS conn\n hnbgw_context_map"]
+	sgsn0 -> ps0
+
+
+
 	subgraph cluster_ss1 {
 		label=""
 		ss1 [label="cs7 instance 1\n local pc: 4.4.4"]
 		ss1ab [label="address book"]
 		ss1 -> ss1ab
 
-		sgsn0a [label="3.3.3"]
-		ss1ab -> sgsn0a
+		sgsn1a [label="6.6.6"]
+		ss1ab -> sgsn1a
 	}
 
 	sccp1 [label="hnbgw_sccp_inst for '1'\n .osmo_sccp_instance\n .osmo_ss7_user SSN: RANAP"];
 	ss1 -> sccp1 [dir=back]
 
-	sgsn0 [label="hnbgw_cnlink for IuPS\n .sccp_addr -> 3.3.3"]
-	sccp1 -> sgsn0 [dir=back]
-	sgsn0a -> sgsn0 [dir=back]
+	msc1 [label="hnbgw_cnlink 'msc1'\n .domain = IuCS\n .sccp_addr -> 5.5.5"]
+	sccp0 -> msc1 [dir=back]
+	msc1a -> msc1 [dir=back]
 
-	ps0 [label="UE PS conn\n hnbgw_context_map"]
-	ps1 [label="UE PS conn\n hnbgw_context_map"]
-	sgsn0 -> ps0,ps1
+	cs2 [label="UE CS conn\n hnbgw_context_map"]
+	msc1 -> cs2
+
+	sgsn1 [label="hnbgw_cnlink 'sgsn1'\n .domain = IuPS\n .sccp_addr -> 6.6.6"]
+	sccp1 -> sgsn1 [dir=back]
+	sgsn1a -> sgsn1 [dir=back]
+
+	ps2 [label="UE PS conn\n hnbgw_context_map"]
+	sgsn1 -> ps2
 
 	subgraph cluster_sccp_inst {
 		label="global sccp_instances (llist)"
@@ -51,8 +68,10 @@ labelloc=t; label="SCCP/SS7 use in OsmoHNBGW"
 	}
 
 	subgraph cluster_hnbgw {
-		label="global hnb_gw"
+		label="global cn_pool (llist)"
 		msc0
+		msc1
 		sgsn0
+		sgsn1
 	}
 }
