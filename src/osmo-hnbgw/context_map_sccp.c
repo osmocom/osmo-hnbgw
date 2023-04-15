@@ -52,6 +52,7 @@ static const struct value_string map_sccp_fsm_event_names[] = {
 	OSMO_VALUE_STRING(MAP_SCCP_EV_RX_DATA_INDICATION),
 	OSMO_VALUE_STRING(MAP_SCCP_EV_TX_DATA_REQUEST),
 	OSMO_VALUE_STRING(MAP_SCCP_EV_RAN_DISC),
+	OSMO_VALUE_STRING(MAP_SCCP_EV_RAN_LINK_LOST),
 	OSMO_VALUE_STRING(MAP_SCCP_EV_RX_RELEASED),
 	{}
 };
@@ -278,6 +279,7 @@ static void map_sccp_init_action(struct osmo_fsm_inst *fi, uint32_t event, void 
 			map_sccp_fsm_state_chg(MAP_SCCP_ST_WAIT_CC);
 		return;
 
+	case MAP_SCCP_EV_RAN_LINK_LOST:
 	case MAP_SCCP_EV_RAN_DISC:
 		/* No CR has been sent yet, just go to disconnected state. */
 		if (msg_has_l2_data(ranap_msg))
@@ -313,6 +315,7 @@ static void map_sccp_wait_cc_action(struct osmo_fsm_inst *fi, uint32_t event, vo
 		LOGPFSML(fi, LOGL_ERROR, "Connection not yet confirmed, cannot forward RANAP to CN\n");
 		return;
 
+	case MAP_SCCP_EV_RAN_LINK_LOST:
 	case MAP_SCCP_EV_RAN_DISC:
 		/* RUA connection was terminated. First wait for the CC before releasing the SCCP conn. */
 		if (msg_has_l2_data(ranap_msg))
@@ -365,6 +368,16 @@ static void map_sccp_connected_action(struct osmo_fsm_inst *fi, uint32_t event, 
 		 * expect the CN to send an SCCP RLSD soon. */
 		map_sccp_fsm_state_chg(MAP_SCCP_ST_WAIT_RLSD);
 		tx_sccp_df1(fi, ranap_msg);
+		return;
+
+	case MAP_SCCP_EV_RAN_LINK_LOST:
+		/* RUA has disconnected ungracefully, so there is no Iu Release that told the CN to disconnect.
+		 * Disconnect on the SCCP layer, ungracefully. */
+		/* There won't be any ranap_msg, but if a caller wants to dispatch a msg, forward it before
+		 * disconnecting. */
+		tx_sccp_df1(fi, ranap_msg);
+		tx_sccp_rlsd(fi);
+		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
 		return;
 
 	case MAP_SCCP_EV_RX_RELEASED:
@@ -496,6 +509,7 @@ static const struct osmo_fsm_state map_sccp_fsm_states[] = {
 		.in_event_mask = 0
 			| S(MAP_SCCP_EV_TX_DATA_REQUEST)
 			| S(MAP_SCCP_EV_RAN_DISC)
+			| S(MAP_SCCP_EV_RAN_LINK_LOST)
 			| S(MAP_SCCP_EV_RX_RELEASED)
 			,
 		.out_state_mask = 0
@@ -511,6 +525,7 @@ static const struct osmo_fsm_state map_sccp_fsm_states[] = {
 			| S(MAP_SCCP_EV_RX_CONNECTION_CONFIRM)
 			| S(MAP_SCCP_EV_TX_DATA_REQUEST)
 			| S(MAP_SCCP_EV_RAN_DISC)
+			| S(MAP_SCCP_EV_RAN_LINK_LOST)
 			| S(MAP_SCCP_EV_RX_RELEASED)
 			,
 		.out_state_mask = 0
@@ -525,6 +540,7 @@ static const struct osmo_fsm_state map_sccp_fsm_states[] = {
 			| S(MAP_SCCP_EV_RX_DATA_INDICATION)
 			| S(MAP_SCCP_EV_TX_DATA_REQUEST)
 			| S(MAP_SCCP_EV_RAN_DISC)
+			| S(MAP_SCCP_EV_RAN_LINK_LOST)
 			| S(MAP_SCCP_EV_RX_RELEASED)
 			| S(MAP_SCCP_EV_RX_CONNECTION_CONFIRM)
 			,
@@ -542,6 +558,7 @@ static const struct osmo_fsm_state map_sccp_fsm_states[] = {
 			| S(MAP_SCCP_EV_RX_DATA_INDICATION)
 			| S(MAP_SCCP_EV_TX_DATA_REQUEST)
 			| S(MAP_SCCP_EV_RAN_DISC)
+			| S(MAP_SCCP_EV_RAN_LINK_LOST)
 			| S(MAP_SCCP_EV_RX_CONNECTION_CONFIRM)
 			,
 		.out_state_mask = 0
@@ -555,6 +572,7 @@ static const struct osmo_fsm_state map_sccp_fsm_states[] = {
 		.in_event_mask = 0
 			| S(MAP_SCCP_EV_TX_DATA_REQUEST)
 			| S(MAP_SCCP_EV_RAN_DISC)
+			| S(MAP_SCCP_EV_RAN_LINK_LOST)
 			,
 		.onenter = map_sccp_disconnected_onenter,
 		.action = map_sccp_disconnected_action,
