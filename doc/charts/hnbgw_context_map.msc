@@ -65,7 +65,7 @@ msc {
   sccp abox sccp [label="MAP_SCCP_ST_DISCONNECTED"];
   rua <= sccp [label="MAP_RUA_EV_CN_DISC"];
   hnb <= rua [label="RUA Disconnect"];
-  rua abox rua [label="MAP_RUA_ST_DISCONNECTED"];
+  rua abox rua [label="MAP_RUA_ST_DISRUPTED"];
   rua rbox sccp [label="map_check_released()"];
   rua rbox sccp [label="hnbgw_context_map_free()"];
 
@@ -81,10 +81,10 @@ msc {
   --- [label="Ungraceful release from HNB"];
   hnb -x rua [label="link loss"];
   rua rbox rua [label="MAP_RUA_EV_HNB_LINK_LOST"];
-  rua => sccp [label="MAP_SCCP_EV_RAN_DISC"];
+  rua abox rua [label="MAP_RUA_ST_DISRUPTED"];
+  rua => sccp [label="MAP_SCCP_EV_RAN_LINK_LOST"];
   sccp => cn [label="SCCP Released"];
   sccp abox sccp [label="MAP_SCCP_ST_DISCONNECTED"];
-  rua abox rua [label="MAP_RUA_ST_DISCONNECTED"];
   rua rbox sccp [label="map_check_released()"];
   rua rbox sccp [label="hnbgw_context_map_free()"];
 
@@ -98,10 +98,8 @@ msc {
   rua rbox rua [label="MAP_RUA_EV_HNB_LINK_LOST"];
   hnb <= rua [label="RUA Disconnect"];
   hnb note rua [label="TODO: does it make sense to send\nRUA Disconnect per context when HNB is/was gone?\nOr has the HNB implicitly discarded these?"];
-  rua abox rua [label="MAP_RUA_ST_DISCONNECTED"];
-  rua => sccp [label="MAP_SCCP_EV_RAN_DISC\nfrom map_rua_disconnected_onenter()"];
-  sccp abox sccp [label="MAP_SCCP_ST_WAIT_RLSD"];
-  rua => sccp [label="MAP_SCCP_EV_RAN_DISC\nto skip waiting for SCCP Released from CN"];
+  rua abox rua [label="MAP_RUA_ST_DISRUPTED"];
+  rua => sccp [label="MAP_SCCP_EV_RAN_LINK_LOST\nfrom map_rua_disrupted_onenter()"];
   sccp => cn [label="SCCP Released"];
   sccp abox sccp [label="MAP_SCCP_ST_DISCONNECTED"];
   rua rbox sccp [label="map_check_released()"];

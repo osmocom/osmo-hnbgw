@@ -51,6 +51,8 @@ enum map_sccp_fsm_event {
 	 * CN should have received an Iu-ReleaseComplete with or before this, give CN a chance to send an SCCP RLSD;
 	 * after a timeout we will send a non-standard RLSD to the CN instead. */
 	MAP_SCCP_EV_RAN_DISC,
+	/* The RAN released ungracefully. We will directly disconnect the SCCP connection, too. */
+	MAP_SCCP_EV_RAN_LINK_LOST,
 	/* Receiving an SCCP RLSD from CN, or libosmo-sigtran tells us about SCCP connection timeout. All done. */
 	MAP_SCCP_EV_RX_RELEASED,
 };

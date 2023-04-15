@@ -41,6 +41,7 @@ enum map_rua_fsm_state {
 	MAP_RUA_ST_INIT,
 	MAP_RUA_ST_CONNECTED,
 	MAP_RUA_ST_DISCONNECTED,
+	MAP_RUA_ST_DISRUPTED,
 };
 
 static const struct value_string map_rua_fsm_event_names[] = {
@@ -58,6 +59,7 @@ static struct osmo_fsm map_rua_fsm;
 static const struct osmo_tdef_state_timeout map_rua_fsm_timeouts[32] = {
 	[MAP_RUA_ST_INIT] = { .T = -31 },
 	[MAP_RUA_ST_DISCONNECTED] = { .T = -31 },
+	[MAP_RUA_ST_DISRUPTED] = { .T = -31 },
 };
 
 /* Transition to a state, using the T timer defined in map_rua_fsm_timeouts.
@@ -93,6 +95,7 @@ enum hnbgw_context_map_state map_rua_get_state(struct hnbgw_context_map *map)
 		return MAP_S_ACTIVE;
 	default:
 	case MAP_RUA_ST_DISCONNECTED:
+	case MAP_RUA_ST_DISRUPTED:
 		return MAP_S_DISCONNECTING;
 	}
 }
@@ -103,6 +106,7 @@ bool map_rua_is_active(struct hnbgw_context_map *map)
 		return false;
 	switch (map->rua_fi->state) {
 	case MAP_RUA_ST_DISCONNECTED:
+	case MAP_RUA_ST_DISRUPTED:
 		return false;
 	default:
 		return true;
@@ -114,10 +118,11 @@ static int map_rua_fsm_timer_cb(struct osmo_fsm_inst *fi)
 	/* Return 1 to terminate FSM instance, 0 to keep running */
 	switch (fi->state) {
 	default:
-		map_rua_fsm_state_chg(MAP_RUA_ST_DISCONNECTED);
+		map_rua_fsm_state_chg(MAP_RUA_ST_DISRUPTED);
 		return 0;
 
 	case MAP_RUA_ST_DISCONNECTED:
+	case MAP_RUA_ST_DISRUPTED:
 		return 1;
 	}
 }
@@ -210,14 +215,17 @@ static void map_rua_init_action(struct osmo_fsm_inst *fi, uint32_t event, void *
 		return;
 
 	case MAP_RUA_EV_RX_DISCONNECT:
-	case MAP_RUA_EV_CN_DISC:
-	case MAP_RUA_EV_HNB_LINK_LOST:
 		/* Unlikely that SCCP is active, but let the SCCP FSM decide about that. */
 		handle_rx_rua(fi, ranap_msg);
 		/* There is a reason to shut down this RUA connection. Super unlikely, we haven't even processed the
 		 * MAP_RUA_EV_RX_CONNECT that created this FSM. Semantically, RUA is not connected, so we can
 		 * directly go to MAP_RUA_ST_DISCONNECTED. */
 		map_rua_fsm_state_chg(MAP_RUA_ST_DISCONNECTED);
+		break;
+
+	case MAP_RUA_EV_CN_DISC:
+	case MAP_RUA_EV_HNB_LINK_LOST:
+		map_rua_fsm_state_chg(MAP_RUA_ST_DISRUPTED);
 		break;
 
 	default:
@@ -276,14 +284,14 @@ static void map_rua_connected_action(struct osmo_fsm_inst *fi, uint32_t event, v
 
 	case MAP_RUA_EV_HNB_LINK_LOST:
 		/* The HNB is gone. Cannot gracefully cleanup the RUA connection, just be gone. */
-		map_rua_fsm_state_chg(MAP_RUA_ST_DISCONNECTED);
+		map_rua_fsm_state_chg(MAP_RUA_ST_DISRUPTED);
 		return;
 
 	case MAP_RUA_EV_CN_DISC:
 		/* There is a disruptive reason to shut down this RUA connection, HNB is still there */
 		OSMO_ASSERT(data == NULL);
 		map_rua_tx_disconnect(fi);
-		map_rua_fsm_state_chg(MAP_RUA_ST_DISCONNECTED);
+		map_rua_fsm_state_chg(MAP_RUA_ST_DISRUPTED);
 		return;
 
 	default:
@@ -291,16 +299,21 @@ static void map_rua_connected_action(struct osmo_fsm_inst *fi, uint32_t event, v
 	}
 }
 
-static void map_rua_disconnected_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state)
+static void map_rua_free_if_done(struct hnbgw_context_map *map, uint32_t sccp_event)
 {
-	struct hnbgw_context_map *map = fi->priv;
 	/* From RUA's POV, we can now free the hnbgw_context_map.
 	 * If SCCP is still active, tell it to disconnect -- in that case the SCCP side will call context_map_free().
 	 * If SCCP is no longer active, free this map. */
 	if (map_sccp_is_active(map))
-		map_sccp_dispatch(map, MAP_SCCP_EV_RAN_DISC, NULL);
+		map_sccp_dispatch(map, sccp_event, NULL);
 	else
 		context_map_free(map);
+}
+
+static void map_rua_disconnected_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state)
+{
+	struct hnbgw_context_map *map = fi->priv;
+	map_rua_free_if_done(map, MAP_SCCP_EV_RAN_DISC);
 }
 
 static void map_rua_disconnected_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
@@ -308,6 +321,13 @@ static void map_rua_disconnected_action(struct osmo_fsm_inst *fi, uint32_t event
 	struct msgb *ranap_msg = data;
 	if (msg_has_l2_data(ranap_msg))
 		LOGPFSML(fi, LOGL_ERROR, "RUA not connected, cannot dispatch RANAP message\n");
+	/* Ignore all events. */
+}
+
+static void map_rua_disrupted_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state)
+{
+	struct hnbgw_context_map *map = fi->priv;
+	map_rua_free_if_done(map, MAP_SCCP_EV_RAN_LINK_LOST);
 }
 
 void map_rua_fsm_cleanup(struct osmo_fsm_inst *fi, enum osmo_fsm_term_cause cause)
@@ -331,6 +351,7 @@ static const struct osmo_fsm_state map_rua_fsm_states[] = {
 			| S(MAP_RUA_ST_INIT)
 			| S(MAP_RUA_ST_CONNECTED)
 			| S(MAP_RUA_ST_DISCONNECTED)
+			| S(MAP_RUA_ST_DISRUPTED)
 			,
 		.action = map_rua_init_action,
 	},
@@ -345,6 +366,7 @@ static const struct osmo_fsm_state map_rua_fsm_states[] = {
 			,
 		.out_state_mask = 0
 			| S(MAP_RUA_ST_DISCONNECTED)
+			| S(MAP_RUA_ST_DISRUPTED)
 			,
 		.action = map_rua_connected_action,
 	},
@@ -355,6 +377,16 @@ static const struct osmo_fsm_state map_rua_fsm_states[] = {
 			| S(MAP_RUA_EV_HNB_LINK_LOST)
 			,
 		.onenter = map_rua_disconnected_onenter,
+		.action = map_rua_disconnected_action,
+	},
+	[MAP_RUA_ST_DISRUPTED] = {
+		.name = "disrupted",
+		.in_event_mask = 0
+			| S(MAP_RUA_EV_CN_DISC)
+			| S(MAP_RUA_EV_HNB_LINK_LOST)
+			,
+		.onenter = map_rua_disrupted_onenter,
+		/* same as MAP_RUA_ST_DISCONNECTED: */
 		.action = map_rua_disconnected_action,
 	},
 };
