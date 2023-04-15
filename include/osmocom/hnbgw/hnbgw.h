@@ -67,7 +67,6 @@ struct hnbgw_cnlink {
 	/* reference to the SCCP User SAP by which we communicate */
 	struct osmo_sccp_instance *sccp;
 	struct osmo_sccp_user *sccp_user;
-	uint32_t next_conn_id;
 
 	/* linked list of hnbgw_context_map */
 	struct llist_head map_list;

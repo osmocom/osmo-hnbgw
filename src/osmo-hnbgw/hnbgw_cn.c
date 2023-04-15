@@ -495,7 +495,6 @@ int hnbgw_cnlink_init(const char *stp_host, uint16_t stp_port, const char *local
 
 	cnlink = talloc_zero(g_hnbgw, struct hnbgw_cnlink);
 	INIT_LLIST_HEAD(&cnlink->map_list);
-	cnlink->next_conn_id = 1000;
 
 	cnlink->sccp_user = osmo_sccp_user_bind_pc(g_hnbgw->sccp.client, "OsmoHNBGW", sccp_sap_up,
 						   OSMO_SCCP_SSN_RANAP, g_hnbgw->sccp.local_addr.pc);
