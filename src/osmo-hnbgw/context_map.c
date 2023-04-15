@@ -52,57 +52,12 @@ enum hnbgw_context_map_state context_map_get_state(struct hnbgw_context_map *map
 	return MAP_S_CONNECTING;
 }
 
-/* is a given SCCP USER SAP Connection ID in use for a given CN link? */
-static int sccp_id_in_use(struct hnbgw_sccp_inst *hsi, uint32_t id)
-{
-	struct hnbgw_context_map *map;
-
-	/* Iterate only those maps that use this SCCP instance. */
-	hash_for_each_possible(hsi->hnbgw_context_map_by_conn_id, map, hnbgw_sccp_inst_entry, id) {
-		if (map->scu_conn_id == id)
-			return 1;
-	}
-	return 0;
-}
-
-/* try to allocate a new SCCP User SAP Connection ID. Return 0 on success, negative on error. */
-static int sccp_alloc_conn_id(struct hnbgw_sccp_inst *hsi, uint32_t *id_out)
-{
-	uint32_t i;
-	uint32_t id;
-
-	if (!hsi)
-		return -ENOENT;
-
-	/* SUA: RFC3868 sec 3.10.4:
-	 *    The source reference number is a 4 octet long integer.
-	 *    This is allocated by the source SUA instance.
-	 * M3UA/SCCP: ITU-T Q.713 sec 3.3:
-	 *    The "source local reference" parameter field is a three-octet field containing a
-	 *    reference number which is generated and used by the local node to identify the
-	 *    connection section after the connection section is set up.
-	 *    The coding "all ones" is reserved for future use.
-	 * Hence, let's simply use 24 bit ids to fit all link types (excluding 0x00ffffff).
-	 */
-
-	for (i = 0; i < 0x00ffffff; i++) {
-		id = hsi->next_conn_id++;
-		if (hsi->next_conn_id == 0x00ffffff)
-			hsi->next_conn_id = 0;
-		if (!sccp_id_in_use(hsi, id)) {
-			*id_out = id;
-			return 0;
-		}
-	}
-	return -EADDRNOTAVAIL;
-}
-
 /* Map from a HNB + ContextID to the SCCP-side Connection ID */
 struct hnbgw_context_map *context_map_find_or_create_by_rua_ctx_id(struct hnb_context *hnb, uint32_t rua_ctx_id,
 								   bool is_ps)
 {
 	struct hnbgw_context_map *map;
-	uint32_t new_scu_conn_id;
+	int new_scu_conn_id;
 	struct hnbgw_cnlink *cnlink;
 	struct hnbgw_sccp_inst *hsi;
 
@@ -140,7 +95,8 @@ struct hnbgw_context_map *context_map_find_or_create_by_rua_ctx_id(struct hnb_co
 		return NULL;
 	}
 
-	if (sccp_alloc_conn_id(hsi, &new_scu_conn_id)) {
+	new_scu_conn_id = osmo_sccp_instance_next_conn_id(hsi->sccp);
+	if (new_scu_conn_id < 0) {
 		LOGHNB(hnb, DMAIN, LOGL_ERROR, "Unable to allocate SCCP conn ID on %s\n", hsi->name);
 		return NULL;
 	}

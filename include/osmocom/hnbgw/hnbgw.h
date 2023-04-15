@@ -83,8 +83,6 @@ struct hnbgw_sccp_inst {
 	/* for SSN = RANAP */
 	struct osmo_sccp_user *sccp_user;
 
-	uint32_t next_conn_id;
-
 	DECLARE_HASHTABLE(hnbgw_context_map_by_conn_id, 6);
 };
 
