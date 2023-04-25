@@ -2,9 +2,11 @@
 # jenkins build helper script for osmo-hnbgw.  This is how we build on jenkins.osmocom.org
 #
 # environment variables:
+# * PFCP: configure PFCP support if set to "1" (default)
 # * WITH_MANUALS: build manual PDFs if set to "1"
 # * PUBLISH: upload manuals after building if set to "1" (ignored without WITH_MANUALS = "1")
 #
+PFCP=${PFCP:-1}
 
 if ! [ -x "$(command -v osmo-build-dep.sh)" ]; then
 	echo "Error: We need to have scripts/osmo-deps.sh from http://git.osmocom.org/osmo-ci/ in PATH !"
@@ -33,15 +35,18 @@ osmo-build-dep.sh libosmocore "" --disable-doxygen
 osmo-build-dep.sh libosmo-abis
 osmo-build-dep.sh libosmo-netif
 osmo-build-dep.sh libosmo-sccp
-osmo-build-dep.sh libosmo-pfcp
 osmo-build-dep.sh libasn1c
 osmo-build-dep.sh osmo-iuh
 osmo-build-dep.sh osmo-mgw
 
 # Additional configure options and depends
 CONFIG=""
+if [ "$PFCP" = "1" ]; then
+	osmo-build-dep.sh libosmo-pfcp
+	CONFIG="$CONFIG --enable-pfcp"
+fi
 if [ "$WITH_MANUALS" = "1" ]; then
-	CONFIG="--enable-manuals"
+	CONFIG="$CONFIG --enable-manuals"
 fi
 
 set +x
