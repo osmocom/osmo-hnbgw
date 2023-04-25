@@ -27,6 +27,8 @@
 #include <osmocom/core/utils.h>
 #include <osmocom/core/timer.h>
 
+#include <osmocom/gsm/gsm23236.h>
+
 #include <osmocom/sigtran/protocol/m3ua.h>
 #include <osmocom/sigtran/sccp_sap.h>
 #include <osmocom/sigtran/sccp_helpers.h>
@@ -506,12 +508,26 @@ static void cnlink_set_sccp_inst(struct hnbgw_cnlink *cnlink, struct hnbgw_sccp_
 
 void hnbgw_cnpool_apply_cfg(struct hnbgw_cnpool *cnpool)
 {
-	cnpool->use = cnpool->vty;
+	struct osmo_nri_range *r;
+
+	cnpool->use.nri_bitlen = cnpool->vty.nri_bitlen;
+
+	osmo_nri_ranges_free(cnpool->use.null_nri_ranges);
+	cnpool->use.null_nri_ranges = osmo_nri_ranges_alloc(g_hnbgw);
+	llist_for_each_entry(r, &cnpool->vty.null_nri_ranges->entries, entry)
+		osmo_nri_ranges_add(cnpool->use.null_nri_ranges, r);
 }
 
 static void hnbgw_cnlink_cfg_copy(struct hnbgw_cnlink *cnlink)
 {
+	struct osmo_nri_range *r;
+
 	osmo_talloc_replace_string(cnlink, &cnlink->use.remote_addr_name, cnlink->vty.remote_addr_name);
+
+	osmo_nri_ranges_free(cnlink->use.nri_ranges);
+	cnlink->use.nri_ranges = osmo_nri_ranges_alloc(cnlink);
+	llist_for_each_entry(r, &cnlink->vty.nri_ranges->entries, entry)
+		osmo_nri_ranges_add(cnlink->use.nri_ranges, r);
 }
 
 static bool hnbgw_cnlink_sccp_cfg_changed(struct hnbgw_cnlink *cnlink)
@@ -654,12 +670,14 @@ static struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
 		.nr = nr,
 		.vty = {
 			/* VTY config defaults for the new cnlink */
+			.nri_ranges = osmo_nri_ranges_alloc(cnlink),
 		},
 		.name = talloc_asprintf(cnlink, "%s-%d", cnpool->peer_name, nr),
 		.T_RafC = {
 			.cb = cnlink_trafc_cb,
 			.data = cnlink,
 		},
+		.allow_attach = true,
 	};
 	osmo_sccp_addr_set_ssn(&cnlink->local_addr, OSMO_SCCP_SSN_RANAP);
 	INIT_LLIST_HEAD(&cnlink->map_list);

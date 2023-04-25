@@ -1,0 +1,273 @@
+OsmoHNBGW> show nri
+hnbgw
+ iucs
+  nri bitlen 10
+  % No NULL-NRI entries
+ iups
+  nri bitlen 10
+  % No NULL-NRI entries
+
+OsmoHNBGW> enable
+OsmoHNBGW# configure terminal
+
+OsmoHNBGW(config)# msc 0
+
+OsmoHNBGW(config-msc)# list
+...
+  nri add <0-32767> [<0-32767>]
+  nri del <0-32767> [<0-32767>]
+  show nri
+...
+OsmoHNBGW(config-msc)# nri ?
+  add  Add NRI value or range to the NRI mapping for this CN link
+  del  Remove NRI value or range from the NRI mapping for this CN link
+OsmoHNBGW(config-msc)# nri add ?
+  <0-32767>  First value of the NRI value range, should not surpass the configured 'nri bitlen'.
+OsmoHNBGW(config-msc)# nri add 23 ?
+  [<0-32767>]  Last value of the NRI value range, should not surpass the configured 'nri bitlen' and be larger than the first value; if omitted, apply only the first value.
+
+OsmoHNBGW(config-msc)# nri add 23
+OsmoHNBGW(config-msc)# nri add 256 511
+OsmoHNBGW(config-msc)# nri add 100 200
+OsmoHNBGW(config-msc)# nri add 1024 1024
+% Warning: msc 0: Warning: NRI range surpasses current NRI bitlen: 1024..1024
+OsmoHNBGW(config-msc)# show nri
+msc 0
+ nri add 23
+ nri add 100 200
+ nri add 256 511
+ nri add 1024
+OsmoHNBGW(config-msc)# exit
+
+OsmoHNBGW(config)# ### Do msc 2 first, to see that the order of mscs in the internal list is not determined by the msc->nr,
+OsmoHNBGW(config)# ### and whichever was configured first gets higher priority for overlaps.
+
+OsmoHNBGW(config)# msc 2
+OsmoHNBGW(config-msc)# nri add 200 300
+% Warning: msc 2: NRI range [200..300] overlaps between msc 2 and msc 0. For overlaps, msc 0 has higher priority than msc 2
+OsmoHNBGW(config-msc)# nri add 1024 1025
+% Warning: msc 2: Warning: NRI range surpasses current NRI bitlen: 1024..1025
+% Warning: msc 2: NRI range [1024..1025] overlaps between msc 2 and msc 0. For overlaps, msc 0 has higher priority than msc 2
+OsmoHNBGW(config-msc)# exit
+
+OsmoHNBGW(config)# msc 1
+OsmoHNBGW(config-msc)# nri add 42
+OsmoHNBGW(config-msc)# nri add 512 767
+OsmoHNBGW(config-msc)# nri add 200 300
+% Warning: msc 1: NRI range [200..300] overlaps between msc 1 and msc 0. For overlaps, msc 0 has higher priority than msc 1
+% Warning: msc 1: NRI range [200..300] overlaps between msc 1 and msc 2. For overlaps, msc 2 has higher priority than msc 1
+OsmoHNBGW(config-msc)# nri add 1024 1025
+% Warning: msc 1: Warning: NRI range surpasses current NRI bitlen: 1024..1025
+% Warning: msc 1: NRI range [1024..1025] overlaps between msc 1 and msc 0. For overlaps, msc 0 has higher priority than msc 1
+% Warning: msc 1: NRI range [1024..1025] overlaps between msc 1 and msc 2. For overlaps, msc 2 has higher priority than msc 1
+OsmoHNBGW(config-msc)# show nri
+msc 1
+ nri add 42
+ nri add 200 300
+ nri add 512 767
+ nri add 1024 1025
+OsmoHNBGW(config-msc)# exit
+
+OsmoHNBGW(config)# do show nri
+hnbgw
+ iucs
+  nri bitlen 10
+  % No NULL-NRI entries
+ iups
+  nri bitlen 10
+  % No NULL-NRI entries
+msc 0
+ nri add 23
+ nri add 100 200
+ nri add 256 511
+ nri add 1024
+msc 2
+ nri add 200 300
+ nri add 1024 1025
+msc 1
+ nri add 42
+ nri add 200 300
+ nri add 512 767
+ nri add 1024 1025
+
+OsmoHNBGW(config)# ### msc and sgsn have separate scopes of NRI, i.e. overlaps are no problem
+OsmoHNBGW(config)# sgsn 0
+OsmoHNBGW(config-sgsn)# nri add 0 1023
+OsmoHNBGW(config-sgsn)# show nri
+sgsn 0
+ nri add 0 1023
+OsmoHNBGW(config-sgsn)# exit
+
+OsmoHNBGW(config)# ### NULL-NRI config
+OsmoHNBGW(config)# hnbgw
+OsmoHNBGW(config-hnbgw)# iucs
+
+OsmoHNBGW(config-hnbgw-iucs)# list
+...
+  nri bitlen <1-15>
+  nri null add <0-32767> [<0-32767>]
+  nri null del <0-32767> [<0-32767>]
+...
+
+OsmoHNBGW(config-hnbgw-iucs)# nri ?
+  bitlen  Set number of bits that an NRI has, to extract from TMSI identities (always starting just after the TMSI's most significant octet).
+  null    Define NULL-NRI values that cause re-assignment of an MS to a different CN peer, for CN pooling.
+
+OsmoHNBGW(config-hnbgw-iucs)# nri bitlen ?
+  <1-15>  bit count (default: 10)
+
+OsmoHNBGW(config-hnbgw-iucs)# nri bitlen 11
+OsmoHNBGW(config-hnbgw-iucs)# show running-config
+...
+hnbgw
+...
+ iucs
+...
+  nri bitlen 11
+...
+
+OsmoHNBGW(config-hnbgw-iucs)# nri null ?
+  add  Add NULL-NRI value (or range)
+  del  Remove NRI value or range from the NRI mapping for this CN link
+
+OsmoHNBGW(config-hnbgw-iucs)# nri null add ?
+  <0-32767>  First value of the NRI value range, should not surpass the configured 'nri bitlen'.
+OsmoHNBGW(config-hnbgw-iucs)# nri null add 0 ?
+  [<0-32767>]  Last value of the NRI value range, should not surpass the configured 'nri bitlen' and be larger than the first value; if omitted, apply only the first value.
+
+OsmoHNBGW(config-hnbgw-iucs)# nri null del ?
+  <0-32767>  First value of the NRI value range, should not surpass the configured 'nri bitlen'.
+OsmoHNBGW(config-hnbgw-iucs)# nri null del 0 ?
+  [<0-32767>]  Last value of the NRI value range, should not surpass the configured 'nri bitlen' and be larger than the first value; if omitted, apply only the first value.
+
+OsmoHNBGW(config-hnbgw-iucs)# exit
+
+OsmoHNBGW(config-hnbgw)# iups
+
+OsmoHNBGW(config-hnbgw-iups)# list
+...
+  nri bitlen <1-15>
+  nri null add <0-32767> [<0-32767>]
+  nri null del <0-32767> [<0-32767>]
+...
+
+OsmoHNBGW(config-hnbgw-iups)# nri ?
+  bitlen  Set number of bits that an NRI has, to extract from TMSI identities (always starting just after the TMSI's most significant octet).
+  null    Define NULL-NRI values that cause re-assignment of an MS to a different CN peer, for CN pooling.
+
+OsmoHNBGW(config-hnbgw-iups)# nri bitlen ?
+  <1-15>  bit count (default: 10)
+
+OsmoHNBGW(config-hnbgw-iups)# nri bitlen 9
+OsmoHNBGW(config-hnbgw-iups)# show running-config
+...
+hnbgw
+...
+ iups
+...
+  nri bitlen 9
+...
+
+OsmoHNBGW(config-hnbgw-iups)# nri null ?
+  add  Add NULL-NRI value (or range)
+  del  Remove NRI value or range from the NRI mapping for this CN link
+
+OsmoHNBGW(config-hnbgw-iups)# nri null add ?
+  <0-32767>  First value of the NRI value range, should not surpass the configured 'nri bitlen'.
+OsmoHNBGW(config-hnbgw-iups)# nri null add 0 ?
+  [<0-32767>]  Last value of the NRI value range, should not surpass the configured 'nri bitlen' and be larger than the first value; if omitted, apply only the first value.
+
+OsmoHNBGW(config-hnbgw-iups)# nri null del ?
+  <0-32767>  First value of the NRI value range, should not surpass the configured 'nri bitlen'.
+OsmoHNBGW(config-hnbgw-iups)# nri null del 0 ?
+  [<0-32767>]  Last value of the NRI value range, should not surpass the configured 'nri bitlen' and be larger than the first value; if omitted, apply only the first value.
+
+OsmoHNBGW(config-hnbgw-iups)# exit
+
+OsmoHNBGW(config-hnbgw)# exit
+
+OsmoHNBGW(config)# msc 0
+OsmoHNBGW(config-msc)# nri del 0 10000
+OsmoHNBGW(config-msc)# exit
+OsmoHNBGW(config)# msc 1
+OsmoHNBGW(config-msc)# nri del 0 10000
+OsmoHNBGW(config-msc)# exit
+OsmoHNBGW(config)# msc 2
+OsmoHNBGW(config-msc)# nri del 0 10000
+OsmoHNBGW(config-msc)# exit
+OsmoHNBGW(config)# do show nri
+hnbgw
+ iucs
+  nri bitlen 11
+  % No NULL-NRI entries
+ iups
+  nri bitlen 9
+  % No NULL-NRI entries
+msc 0
+ % no NRI mappings
+msc 2
+ % no NRI mappings
+msc 1
+ % no NRI mappings
+sgsn 0
+ nri add 0 1023
+
+OsmoHNBGW(config)# msc 0
+OsmoHNBGW(config-msc)# nri add 0 1000
+OsmoHNBGW(config-msc)# show nri
+msc 0
+ nri add 0 1000
+OsmoHNBGW(config-msc)# nri del 23
+OsmoHNBGW(config-msc)# nri del 200 300
+OsmoHNBGW(config-msc)# nri del 1000 2000
+OsmoHNBGW(config-msc)# show nri
+msc 0
+ nri add 0 22
+ nri add 24 199
+ nri add 301 999
+OsmoHNBGW(config-msc)# nri add 23
+OsmoHNBGW(config-msc)# show nri
+msc 0
+ nri add 0 199
+ nri add 301 999
+OsmoHNBGW(config-msc)# nri add 200 300
+OsmoHNBGW(config-msc)# show nri
+msc 0
+ nri add 0 999
+OsmoHNBGW(config-msc)# nri add 1000
+OsmoHNBGW(config-msc)# show nri
+msc 0
+ nri add 0 1000
+
+OsmoHNBGW(config-msc)# show running-config
+... ! no allow-attach
+OsmoHNBGW(config-msc)# no allow-attach
+OsmoHNBGW(config-msc)# show running-config
+...
+msc 0
+...
+ nri add 0 1000
+ no allow-attach
+... ! no allow-attach
+OsmoHNBGW(config-msc)# exit
+OsmoHNBGW(config)# sgsn 1
+OsmoHNBGW(config-sgsn)# no allow-attach
+OsmoHNBGW(config-sgsn)# show running-config
+...
+msc 0
+...
+ nri add 0 1000
+ no allow-attach
+... ! no allow-attach
+sgsn 1
+...
+ no allow-attach
+...
+
+OsmoHNBGW(config-sgsn)# allow-attach
+OsmoHNBGW(config-sgsn)# exit
+OsmoHNBGW(config)# msc 0
+OsmoHNBGW(config-msc)# allow-attach
+OsmoHNBGW(config-msc)# show running-config
+... ! no allow-attach
+OsmoHNBGW(config-msc)# exit

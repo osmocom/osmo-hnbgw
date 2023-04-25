@@ -24,7 +24,7 @@ EXTRA_DIST = \
 	testsuite.at \
 	$(srcdir)/package.m4 \
 	$(TESTSUITE) \
-	osmo-hnbgw.vty \
+	*.vty \
 	$(NULL)
 
 TESTSUITE = $(srcdir)/testsuite

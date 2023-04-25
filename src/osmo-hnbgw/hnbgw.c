@@ -24,6 +24,8 @@
 
 #include <osmocom/vty/vty.h>
 
+#include <osmocom/gsm/gsm23236.h>
+
 #include <osmocom/netif/stream.h>
 
 #include "config.h"
@@ -66,9 +68,8 @@ void g_hnbgw_alloc(void *ctx)
 		.pool_name = "iucs",
 		.peer_name = "msc",
 		.vty = {
-			/* FUTURE: This will be added here shortly:
-			 * - defaults for global NRI config: bitlen and NULL-NRI.
-			 */
+			.nri_bitlen = OSMO_NRI_BITLEN_DEFAULT,
+			.null_nri_ranges = osmo_nri_ranges_alloc(g_hnbgw),
 		},
 	};
 	INIT_LLIST_HEAD(&g_hnbgw->sccp.cnpool_iucs.cnlinks);
@@ -78,9 +79,8 @@ void g_hnbgw_alloc(void *ctx)
 		.pool_name = "iups",
 		.peer_name = "sgsn",
 		.vty = {
-			/* FUTURE: This will be added here shortly:
-			 * - defaults for global NRI config: bitlen and NULL-NRI.
-			 */
+			.nri_bitlen = OSMO_NRI_BITLEN_DEFAULT,
+			.null_nri_ranges = osmo_nri_ranges_alloc(g_hnbgw),
 		},
 	};
 	INIT_LLIST_HEAD(&g_hnbgw->sccp.cnpool_iups.cnlinks);
