@@ -54,6 +54,7 @@ static const struct value_string map_sccp_fsm_event_names[] = {
 	OSMO_VALUE_STRING(MAP_SCCP_EV_RAN_DISC),
 	OSMO_VALUE_STRING(MAP_SCCP_EV_RAN_LINK_LOST),
 	OSMO_VALUE_STRING(MAP_SCCP_EV_RX_RELEASED),
+	OSMO_VALUE_STRING(MAP_SCCP_EV_USER_ABORT),
 	{}
 };
 
@@ -136,7 +137,7 @@ static int tx_sccp_cr(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 
 	prim = (struct osmo_scu_prim *)msgb_push(ranap_msg, sizeof(*prim));
 	osmo_prim_init(&prim->oph, SCCP_SAP_USER, OSMO_SCU_PRIM_N_CONNECT, PRIM_OP_REQUEST, ranap_msg);
-	prim->u.connect.called_addr = *hnbgw_cn_get_remote_addr(map->is_ps);
+	prim->u.connect.called_addr = map->cnlink->remote_addr;
 	prim->u.connect.calling_addr = map->cnlink->local_addr;
 	prim->u.connect.sccp_class = 2;
 	prim->u.connect.conn_id = map->scu_conn_id;
@@ -281,6 +282,7 @@ static void map_sccp_init_action(struct osmo_fsm_inst *fi, uint32_t event, void 
 
 	case MAP_SCCP_EV_RAN_LINK_LOST:
 	case MAP_SCCP_EV_RAN_DISC:
+	case MAP_SCCP_EV_USER_ABORT:
 		/* No CR has been sent yet, just go to disconnected state. */
 		if (msg_has_l2_data(ranap_msg))
 			LOG_MAP(map, DLSCCP, LOGL_ERROR, "SCCP not connected, cannot dispatch RANAP message\n");
@@ -317,6 +319,7 @@ static void map_sccp_wait_cc_action(struct osmo_fsm_inst *fi, uint32_t event, vo
 
 	case MAP_SCCP_EV_RAN_LINK_LOST:
 	case MAP_SCCP_EV_RAN_DISC:
+	case MAP_SCCP_EV_USER_ABORT:
 		/* RUA connection was terminated. First wait for the CC before releasing the SCCP conn. */
 		if (msg_has_l2_data(ranap_msg))
 			LOGPFSML(fi, LOGL_ERROR, "Connection not yet confirmed, cannot forward RANAP to CN\n");
@@ -373,6 +376,9 @@ static void map_sccp_connected_action(struct osmo_fsm_inst *fi, uint32_t event, 
 	case MAP_SCCP_EV_RAN_LINK_LOST:
 		/* RUA has disconnected ungracefully, so there is no Iu Release that told the CN to disconnect.
 		 * Disconnect on the SCCP layer, ungracefully. */
+	case MAP_SCCP_EV_USER_ABORT:
+		/* The user is asking for disconnection, so there is no Iu Release in progress. Disconnect now. */
+
 		/* There won't be any ranap_msg, but if a caller wants to dispatch a msg, forward it before
 		 * disconnecting. */
 		tx_sccp_df1(fi, ranap_msg);
@@ -438,6 +444,12 @@ static void map_sccp_wait_rlsd_action(struct osmo_fsm_inst *fi, uint32_t event, 
 		/* Already connected. Unusual, but if there is data just forward it. */
 		LOGPFSML(fi, LOGL_ERROR, "Already connected, but received SCCP CC\n");
 		handle_rx_sccp(fi, ranap_msg);
+		return;
+
+	case MAP_SCCP_EV_USER_ABORT:
+		/* Stop waiting for RLSD, send RLSD now. */
+		tx_sccp_rlsd(fi);
+		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
 		return;
 
 	default:
@@ -511,6 +523,7 @@ static const struct osmo_fsm_state map_sccp_fsm_states[] = {
 			| S(MAP_SCCP_EV_RAN_DISC)
 			| S(MAP_SCCP_EV_RAN_LINK_LOST)
 			| S(MAP_SCCP_EV_RX_RELEASED)
+			| S(MAP_SCCP_EV_USER_ABORT)
 			,
 		.out_state_mask = 0
 			| S(MAP_SCCP_ST_INIT)
@@ -527,6 +540,7 @@ static const struct osmo_fsm_state map_sccp_fsm_states[] = {
 			| S(MAP_SCCP_EV_RAN_DISC)
 			| S(MAP_SCCP_EV_RAN_LINK_LOST)
 			| S(MAP_SCCP_EV_RX_RELEASED)
+			| S(MAP_SCCP_EV_USER_ABORT)
 			,
 		.out_state_mask = 0
 			| S(MAP_SCCP_ST_CONNECTED)
@@ -543,6 +557,7 @@ static const struct osmo_fsm_state map_sccp_fsm_states[] = {
 			| S(MAP_SCCP_EV_RAN_LINK_LOST)
 			| S(MAP_SCCP_EV_RX_RELEASED)
 			| S(MAP_SCCP_EV_RX_CONNECTION_CONFIRM)
+			| S(MAP_SCCP_EV_USER_ABORT)
 			,
 		.out_state_mask = 0
 			| S(MAP_SCCP_ST_WAIT_RLSD)
@@ -560,6 +575,7 @@ static const struct osmo_fsm_state map_sccp_fsm_states[] = {
 			| S(MAP_SCCP_EV_RAN_DISC)
 			| S(MAP_SCCP_EV_RAN_LINK_LOST)
 			| S(MAP_SCCP_EV_RX_CONNECTION_CONFIRM)
+			| S(MAP_SCCP_EV_USER_ABORT)
 			,
 		.out_state_mask = 0
 			| S(MAP_SCCP_ST_DISCONNECTED)
@@ -573,6 +589,7 @@ static const struct osmo_fsm_state map_sccp_fsm_states[] = {
 			| S(MAP_SCCP_EV_TX_DATA_REQUEST)
 			| S(MAP_SCCP_EV_RAN_DISC)
 			| S(MAP_SCCP_EV_RAN_LINK_LOST)
+			| S(MAP_SCCP_EV_USER_ABORT)
 			,
 		.onenter = map_sccp_disconnected_onenter,
 		.action = map_sccp_disconnected_action,

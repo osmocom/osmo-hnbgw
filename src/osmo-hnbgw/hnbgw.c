@@ -60,6 +60,30 @@ void g_hnbgw_alloc(void *ctx)
 #if ENABLE_PFCP
 	g_hnbgw->config.pfcp.remote_port = OSMO_PFCP_PORT;
 #endif
+
+	g_hnbgw->sccp.cnpool_iucs = (struct hnbgw_cnpool){
+		.domain = DOMAIN_CS,
+		.pool_name = "iucs",
+		.peer_name = "msc",
+		.vty = {
+			/* FUTURE: This will be added here shortly:
+			 * - defaults for global NRI config: bitlen and NULL-NRI.
+			 */
+		},
+	};
+	INIT_LLIST_HEAD(&g_hnbgw->sccp.cnpool_iucs.cnlinks);
+
+	g_hnbgw->sccp.cnpool_iups = (struct hnbgw_cnpool){
+		.domain = DOMAIN_PS,
+		.pool_name = "iups",
+		.peer_name = "sgsn",
+		.vty = {
+			/* FUTURE: This will be added here shortly:
+			 * - defaults for global NRI config: bitlen and NULL-NRI.
+			 */
+		},
+	};
+	INIT_LLIST_HEAD(&g_hnbgw->sccp.cnpool_iups.cnlinks);
 }
 
 static struct hnb_context *hnb_context_by_id(uint32_t cid)
@@ -490,15 +514,6 @@ struct msgb *hnbgw_ranap_msg_alloc(const char *name)
 	msgb_reserve(ranap_msg, sizeof(struct osmo_scu_prim));
 	ranap_msg->l2h = ranap_msg->data;
 	return ranap_msg;
-}
-
-struct hnbgw_cnlink *hnbgw_cnlink_select(bool is_ps)
-{
-	/* FUTURE: soon we will pick one of many configurable CN peers from a pool. There will be more input arguments
-	 * (MI, or TMSI, or NRI decoded from RANAP) and this function will do round robin for new subscribers. */
-	if (is_ps)
-		return g_hnbgw->sccp.cnlink_iups;
-	return g_hnbgw->sccp.cnlink_iucs;
 }
 
 static const char * const hnbgw_copyright =

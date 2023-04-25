@@ -1,0 +1,242 @@
+OsmoHNBGW> enable
+OsmoHNBGW# configure terminal
+
+OsmoHNBGW(config)# ### Define some cs7 address book entries to play with
+OsmoHNBGW(config)# cs7 instance 0
+
+OsmoHNBGW(config-cs7)# sccp-address addr-msc0
+OsmoHNBGW(config-cs7-sccpaddr)# point-code 0.1.0
+OsmoHNBGW(config-cs7-sccpaddr)# exit
+
+OsmoHNBGW(config-cs7)# sccp-address addr-msc2
+OsmoHNBGW(config-cs7-sccpaddr)# point-code 0.1.2
+OsmoHNBGW(config-cs7-sccpaddr)# exit
+
+OsmoHNBGW(config-cs7)# sccp-address addr-sgsn3
+OsmoHNBGW(config-cs7-sccpaddr)# point-code 0.2.3
+OsmoHNBGW(config-cs7-sccpaddr)# exit
+
+OsmoHNBGW(config-cs7)# sccp-address addr-sgsn4
+OsmoHNBGW(config-cs7-sccpaddr)# point-code 0.2.4
+OsmoHNBGW(config-cs7-sccpaddr)# exit
+
+OsmoHNBGW(config-cs7)# exit
+
+OsmoHNBGW(config)# cs7 instance 1
+
+OsmoHNBGW(config-cs7)# sccp-address addr-sgsn0
+OsmoHNBGW(config-cs7-sccpaddr)# point-code 1.2.0
+OsmoHNBGW(config-cs7-sccpaddr)# exit
+
+OsmoHNBGW(config-cs7)# sccp-address addr-sgsn2
+OsmoHNBGW(config-cs7-sccpaddr)# point-code 1.2.2
+OsmoHNBGW(config-cs7-sccpaddr)# exit
+
+OsmoHNBGW(config-cs7)# sccp-address addr-msc3
+OsmoHNBGW(config-cs7-sccpaddr)# point-code 1.1.3
+OsmoHNBGW(config-cs7-sccpaddr)# exit
+
+OsmoHNBGW(config-cs7)# sccp-address addr-msc4
+OsmoHNBGW(config-cs7-sccpaddr)# point-code 1.1.4
+OsmoHNBGW(config-cs7-sccpaddr)# exit
+
+OsmoHNBGW(config-cs7)# exit
+
+OsmoHNBGW(config)# ### cnpool doc strings
+OsmoHNBGW(config)# hnbgw
+OsmoHNBGW(config-hnbgw)# list
+...
+  iucs
+  iups
+  apply
+...
+OsmoHNBGW(config-hnbgw)# iucs?
+  iucs  Configure IuCS options
+OsmoHNBGW(config-hnbgw)# iups?
+  iups  Configure IuPS options
+OsmoHNBGW(config-hnbgw)# apply?
+  apply  For telnet VTY: apply config changes made in the running osmo-hnbgw process to all CN links in all CN pools. If 'remote-addr' changed, related SCCP links will be restarted, possibly dropping active UE contexts. This is run implicitly on program startup, only needed to apply changes made later via telnet VTY.
+
+OsmoHNBGW(config-hnbgw)# iucs
+
+OsmoHNBGW(config-hnbgw-iucs)# list
+...
+  apply
+...
+
+OsmoHNBGW(config-hnbgw-iucs)# apply?
+  apply  For telnet VTY: apply config changes made in the running osmo-hnbgw process to all CN links within this CN pool. If 'remote-addr' changed, related SCCP links will be restarted, possibly dropping active UE contexts. This is run implicitly on program startup, only needed to apply changes made later via telnet VTY.
+
+OsmoHNBGW(config-hnbgw-iucs)# exit
+
+OsmoHNBGW(config-hnbgw)# iups
+
+OsmoHNBGW(config-hnbgw-iups)# list
+...
+  apply
+...
+
+OsmoHNBGW(config-hnbgw-iups)# apply?
+  apply  For telnet VTY: apply config changes made in the running osmo-hnbgw process to all CN links within this CN pool. If 'remote-addr' changed, related SCCP links will be restarted, possibly dropping active UE contexts. This is run implicitly on program startup, only needed to apply changes made later via telnet VTY.
+
+OsmoHNBGW(config-hnbgw-iups)# exit
+OsmoHNBGW(config-hnbgw)# exit
+
+OsmoHNBGW(config)# msc?
+  msc  Configure an IuCS link to an MSC
+OsmoHNBGW(config)# msc ?
+  <0-1000>  MSC nr
+
+OsmoHNBGW(config)# sgsn?
+  sgsn  Configure an IuPS link to an SGSN
+OsmoHNBGW(config)# sgsn ?
+  <0-1000>  SGSN nr
+
+OsmoHNBGW(config)# msc 1
+
+OsmoHNBGW(config-msc)# list
+...
+  remote-addr NAME
+  apply
+...
+
+OsmoHNBGW(config-msc)# remote-addr?
+  remote-addr  SCCP address to send RANAP/SCCP to
+OsmoHNBGW(config-msc)# remote-addr ?
+  NAME  SCCP address book entry name (see 'cs7 instance' / 'sccp-address')
+
+OsmoHNBGW(config-msc)# apply?
+  apply  For telnet VTY: apply config changes made in the running osmo-hnbgw process to this CN link only. If 'remote-addr' changed, related SCCP links will be restarted, possibly dropping active UE contexts. This is run implicitly on program startup, only needed to apply changes made later via telnet VTY.
+
+OsmoHNBGW(config-msc)# exit
+
+OsmoHNBGW(config)# sgsn 1
+
+OsmoHNBGW(config-sgsn)# list
+...
+  remote-addr NAME
+  apply
+...
+
+OsmoHNBGW(config-sgsn)# remote-addr?
+  remote-addr  SCCP address to send RANAP/SCCP to
+OsmoHNBGW(config-sgsn)# remote-addr ?
+  NAME  SCCP address book entry name (see 'cs7 instance' / 'sccp-address')
+
+OsmoHNBGW(config-sgsn)# apply?
+  apply  For telnet VTY: apply config changes made in the running osmo-hnbgw process to this CN link only. If 'remote-addr' changed, related SCCP links will be restarted, possibly dropping active UE contexts. This is run implicitly on program startup, only needed to apply changes made later via telnet VTY.
+
+OsmoHNBGW(config-sgsn)# exit
+
+
+OsmoHNBGW(config)# ### Add msc 2, msc 3, sgsn 2 and sgsn 3
+
+OsmoHNBGW(config)# msc 2
+OsmoHNBGW(config-msc)# remote-addr addr-msc2
+OsmoHNBGW(config-msc)# exit
+
+OsmoHNBGW(config)# msc 3
+OsmoHNBGW(config-msc)# remote-addr addr-msc3
+OsmoHNBGW(config-msc)# exit
+
+OsmoHNBGW(config)# sgsn 2
+OsmoHNBGW(config-sgsn)# remote-addr addr-sgsn2
+OsmoHNBGW(config-sgsn)# exit
+
+OsmoHNBGW(config)# sgsn 3
+OsmoHNBGW(config-sgsn)# remote-addr addr-sgsn3
+OsmoHNBGW(config-sgsn)# exit
+
+OsmoHNBGW(config)# show running-config
+...
+hnbgw
+...
+msc 1
+msc 2
+ remote-addr addr-msc2
+msc 3
+ remote-addr addr-msc3
+sgsn 1
+sgsn 2
+ remote-addr addr-sgsn2
+sgsn 3
+ remote-addr addr-sgsn3
+...
+
+OsmoHNBGW(config)# ### Re-entering existing nodes works (does not create new ones)
+OsmoHNBGW(config)# msc 3
+OsmoHNBGW(config-msc)# remote-addr addr-msc4
+OsmoHNBGW(config-msc)# exit
+OsmoHNBGW(config)# sgsn 2
+OsmoHNBGW(config-sgsn)# remote-addr addr-sgsn4
+OsmoHNBGW(config-sgsn)# exit
+
+OsmoHNBGW(config)# show running-config
+...
+hnbgw
+...
+msc 1
+msc 2
+ remote-addr addr-msc2
+msc 3
+ remote-addr addr-msc4
+sgsn 1
+sgsn 2
+ remote-addr addr-sgsn4
+sgsn 3
+ remote-addr addr-sgsn3
+...
+
+OsmoHNBGW(config)# ### Legacy configuration 'iups' / 'remote-addr' redirects to 'sgsn 0':
+
+OsmoHNBGW(config)# hnbgw
+OsmoHNBGW(config-hnbgw)# iucs
+OsmoHNBGW(config-hnbgw-iucs)# remote-addr?
+% There is no matched command.
+OsmoHNBGW(config-hnbgw-iucs)# remote-addr ?
+% There is no matched command.
+OsmoHNBGW(config-hnbgw-iucs)# remote-addr addr-msc0
+% Deprecated: instead of hnbgw/iucs/remote-addr, use 'msc 0'/remote-addr
+OsmoHNBGW(config-hnbgw-iucs)# exit
+
+OsmoHNBGW(config-hnbgw)# iups
+OsmoHNBGW(config-hnbgw-iups)# remote-addr?
+% There is no matched command.
+OsmoHNBGW(config-hnbgw-iups)# remote-addr ?
+% There is no matched command.
+OsmoHNBGW(config-hnbgw-iups)# remote-addr addr-sgsn0
+% Deprecated: instead of hnbgw/iups/remote-addr, use 'sgsn 0'/remote-addr
+OsmoHNBGW(config-hnbgw-iups)# exit
+
+OsmoHNBGW(config-hnbgw)# show running-config
+...
+hnbgw
+...
+msc 1
+msc 2
+ remote-addr addr-msc2
+msc 3
+ remote-addr addr-msc4
+msc 0
+ remote-addr addr-msc0
+sgsn 1
+sgsn 2
+ remote-addr addr-sgsn4
+sgsn 3
+ remote-addr addr-sgsn3
+sgsn 0
+ remote-addr addr-sgsn0
+...
+
+
+OsmoHNBGW(config-hnbgw)# ### placement of the new 'msc' and 'sgsn' nodes must be below 'pfcp' and 'mgw' nodes
+OsmoHNBGW(config-hnbgw)# show running-config
+...
+hnbgw
+... !msc
+ iuh
+... !msc
+ mgw 0
+...
+msc 1
+...

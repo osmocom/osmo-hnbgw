@@ -73,6 +73,7 @@ DEFUN(cfg_hnbgw_iucs, cfg_hnbgw_iucs_cmd,
       "iucs", "Configure IuCS options")
 {
 	vty->node = IUCS_NODE;
+	vty->index = &g_hnbgw->sccp.cnpool_iucs;
 	return CMD_SUCCESS;
 }
 
@@ -86,6 +87,7 @@ DEFUN(cfg_hnbgw_iups, cfg_hnbgw_iups_cmd,
       "iups", "Configure IuPS options")
 {
 	vty->node = IUPS_NODE;
+	vty->index = &g_hnbgw->sccp.cnpool_iups;
 	return CMD_SUCCESS;
 }
 
@@ -104,30 +106,7 @@ DEFUN(cfg_hnbgw_mgcp, cfg_hnbgw_mgcp_cmd,
 
 int hnbgw_vty_go_parent(struct vty *vty)
 {
-	switch (vty->node) {
-	case IUH_NODE:
-	case IUCS_NODE:
-	case IUPS_NODE:
-		vty->node = HNBGW_NODE;
-		vty->index = NULL;
-		break;
-	case MGCP_NODE:
-		vty->node = HNBGW_NODE;
-		vty->index = NULL;
-		break;
-	case HNBGW_NODE:
-		vty->node = CONFIG_NODE;
-		vty->index = NULL;
-		break;
-	case CONFIG_NODE:
-		vty->node = ENABLE_NODE;
-		vty->index = NULL;
-		break;
-	default:
-		osmo_ss7_vty_go_parent(vty);
-		break;
-	}
-
+	osmo_ss7_vty_go_parent(vty);
 	return vty->node;
 }
 
@@ -159,7 +138,7 @@ static void _show_cnlink(struct vty *vty, struct hnbgw_cnlink *cnlink)
 	vty_out(vty, "%s <->",
 		osmo_sccp_user_name(cnlink->hnbgw_sccp_inst->sccp_user));
 	vty_out(vty, " %s%s%s%s",
-		GUARD(cnlink->remote_addr_name),
+		GUARD(cnlink->use.remote_addr_name),
 		osmo_sccp_inst_addr_name(cnlink->hnbgw_sccp_inst->sccp, &cnlink->remote_addr),
 		VTY_NEWLINE);
 
@@ -172,10 +151,13 @@ static void _show_cnlink(struct vty *vty, struct hnbgw_cnlink *cnlink)
 DEFUN(show_cnlink, show_cnlink_cmd, "show cnlink",
       SHOW_STR "Display information on core network link\n")
 {
+	struct hnbgw_cnlink *cnlink;
 	vty_out(vty, "IuCS: ");
-	_show_cnlink(vty, g_hnbgw->sccp.cnlink_iucs);
+	llist_for_each_entry(cnlink, &g_hnbgw->sccp.cnpool_iucs.cnlinks, entry)
+		_show_cnlink(vty, cnlink);
 	vty_out(vty, "IuPS: ");
-	_show_cnlink(vty, g_hnbgw->sccp.cnlink_iups);
+	llist_for_each_entry(cnlink, &g_hnbgw->sccp.cnpool_iups.cnlinks, entry)
+		_show_cnlink(vty, cnlink);
 	return CMD_SUCCESS;
 }
 
@@ -361,23 +343,134 @@ DEFUN_DEPRECATED(cfg_hnbgw_max_sccp_cr_payload_len, cfg_hnbgw_max_sccp_cr_payloa
 	return CMD_SUCCESS;
 }
 
-DEFUN(cfg_hnbgw_iucs_remote_addr,
-      cfg_hnbgw_iucs_remote_addr_cmd,
-      "remote-addr NAME",
-      "SCCP address to send IuCS to (MSC)\n"
-      "SCCP address book entry name (see 'cs7-instance')\n")
+/* Legacy from when there was only one IuCS and one IuPS peer. Instead, there are now 'msc 123' / 'sgsn 123' sub nodes.
+ * To yield legacy behavior, set the first cnlink config in this pool ('msc 0' / 'sgsn 0'). */
+DEFUN_DEPRECATED(cfg_hnbgw_cnpool_remote_addr,
+		 cfg_hnbgw_cnpool_remote_addr_cmd,
+		 "remote-addr NAME",
+		 "Deprecated command: same as '{msc,sgsn} 0' / 'remote-addr NAME'\n-\n")
 {
-	g_hnbgw->config.iucs_remote_addr_name = talloc_strdup(g_hnbgw, argv[0]);
+	const char *logmsg;
+	struct hnbgw_cnpool *cnpool = vty->index;
+	struct hnbgw_cnlink *cnlink = cnlink_get_nr(cnpool, 0, true);
+	OSMO_ASSERT(cnlink);
+	cnlink->vty.remote_addr_name = talloc_strdup(cnlink, argv[0]);
+
+	logmsg = talloc_asprintf(OTC_SELECT,
+				 "Deprecated: instead of hnbgw/%s/remote-addr,"
+				 " use '%s 0'/remote-addr",
+				 cnpool->pool_name,
+				 cnpool->peer_name);
+	vty_out(vty, "%% %s%s", logmsg, VTY_NEWLINE);
+	LOGP(DLGLOBAL, LOGL_ERROR, "config: %s\n", logmsg);
 	return CMD_SUCCESS;
 }
 
-DEFUN(cfg_hnbgw_iups_remote_addr,
-      cfg_hnbgw_iups_remote_addr_cmd,
-      "remote-addr NAME",
-      "SCCP address to send IuPS to (SGSN)\n"
-      "SCCP address book entry name (see 'cs7-instance')\n")
+#define CNLINK_NR_RANGE "<0-1000>"
+
+static struct cmd_node msc_node = {
+	MSC_NODE,
+	"%s(config-msc)# ",
+	1,
+};
+
+static struct cmd_node sgsn_node = {
+	SGSN_NODE,
+	"%s(config-sgsn)# ",
+	1,
+};
+
+/* Commands that are common for 'msc 0' and 'sgsn 0' */
+
+static int cnlink_nr(struct vty *vty, struct hnbgw_cnpool *cnpool, int argc, const char **argv)
 {
-	g_hnbgw->config.iups_remote_addr_name = talloc_strdup(g_hnbgw, argv[0]);
+	int nr = atoi(argv[0]);
+	struct hnbgw_cnlink *cnlink = cnlink_get_nr(cnpool, nr, true);
+	OSMO_ASSERT(cnlink);
+	switch (cnpool->domain) {
+	case DOMAIN_CS:
+		vty->node = MSC_NODE;
+		break;
+	case DOMAIN_PS:
+		vty->node = SGSN_NODE;
+		break;
+	default:
+		OSMO_ASSERT(false);
+	}
+	vty->index = cnlink;
+	return CMD_SUCCESS;
+}
+
+/* 'msc 0' */
+DEFUN(cfg_msc_nr, cfg_msc_nr_cmd,
+      "msc " CNLINK_NR_RANGE,
+      "Configure an IuCS link to an MSC\n"
+      "MSC nr\n")
+{
+	return cnlink_nr(vty, &g_hnbgw->sccp.cnpool_iucs, argc, argv);
+}
+
+/* 'sgsn 0' */
+DEFUN(cfg_sgsn_nr, cfg_sgsn_nr_cmd,
+      "sgsn " CNLINK_NR_RANGE,
+      "Configure an IuPS link to an SGSN\n"
+      "SGSN nr\n")
+{
+	return cnlink_nr(vty, &g_hnbgw->sccp.cnpool_iups, argc, argv);
+}
+
+/* 'msc 0'  / 'remote-addr my-msc'  and
+ * 'sgsn 0' / 'remote-addr my-sgsn'
+ */
+DEFUN(cfg_cnlink_remote_addr,
+      cfg_cnlink_remote_addr_cmd,
+      "remote-addr NAME",
+      "SCCP address to send RANAP/SCCP to\n"
+      "SCCP address book entry name (see 'cs7 instance' / 'sccp-address')\n")
+{
+	struct hnbgw_cnlink *cnlink = vty->index;
+	cnlink->vty.remote_addr_name = talloc_strdup(cnlink, argv[0]);
+	return CMD_SUCCESS;
+}
+
+#define APPLY_STR(SCOPE) \
+	"For telnet VTY: apply config changes made in the running osmo-hnbgw process to " SCOPE "." \
+	" If 'remote-addr' changed, related SCCP links will be restarted, possibly dropping active UE contexts." \
+	" This is run implicitly on program startup, only needed to apply changes made later via telnet VTY.\n"
+
+DEFUN(cfg_cnlink_apply, cfg_cnlink_apply_cmd,
+      "apply",
+      APPLY_STR("this CN link only"))
+{
+	struct hnbgw_cnlink *cnlink = vty->index;
+	hnbgw_cnlink_start_or_restart(cnlink);
+	return CMD_SUCCESS;
+}
+
+DEFUN(cfg_cnpool_apply, cfg_cnpool_apply_cmd,
+      "apply",
+      APPLY_STR("all CN links within this CN pool"))
+{
+	struct hnbgw_cnpool *cnpool = vty->index;
+	hnbgw_cnpool_apply_cfg(cnpool);
+	hnbgw_cnpool_cnlinks_start_or_restart(cnpool);
+	return CMD_SUCCESS;
+}
+
+DEFUN(cfg_hnbgw_apply, cfg_hnbgw_apply_cmd,
+      "apply",
+      APPLY_STR("all CN links in all CN pools"))
+{
+	struct hnbgw_cnpool *cnpool;
+
+	cnpool = &g_hnbgw->sccp.cnpool_iucs;
+	hnbgw_cnpool_apply_cfg(cnpool);
+	hnbgw_cnpool_cnlinks_start_or_restart(cnpool);
+
+	cnpool = &g_hnbgw->sccp.cnpool_iups;
+	hnbgw_cnpool_apply_cfg(cnpool);
+	hnbgw_cnpool_cnlinks_start_or_restart(cnpool);
+
 	return CMD_SUCCESS;
 }
 
@@ -456,27 +549,32 @@ static int config_write_hnbgw_iuh(struct vty *vty)
 	return CMD_SUCCESS;
 }
 
-static int config_write_hnbgw_iucs(struct vty *vty)
+/* hnbgw
+ * msc 0   } this part
+ * sgsn 0  }
+ */
+static void _config_write_cnlink(struct vty *vty, struct hnbgw_cnpool *cnpool)
 {
-	if (!g_hnbgw->config.iucs_remote_addr_name)
-		return CMD_SUCCESS;
+	struct hnbgw_cnlink *cnlink;
 
-	vty_out(vty, " iucs%s", VTY_NEWLINE);
-	vty_out(vty, "  remote-addr %s%s", g_hnbgw->config.iucs_remote_addr_name,
-		VTY_NEWLINE);
+	llist_for_each_entry(cnlink, &cnpool->cnlinks, entry)
+	{
+		vty_out(vty, "%s %d%s", cnpool->peer_name, cnlink->nr, VTY_NEWLINE);
+		if (cnlink->vty.remote_addr_name)
+			vty_out(vty, " remote-addr %s%s", cnlink->vty.remote_addr_name, VTY_NEWLINE);
+		/* FUTURE: NRI config */
+	}
+}
 
+static int config_write_msc(struct vty *vty)
+{
+	_config_write_cnlink(vty, &g_hnbgw->sccp.cnpool_iucs);
 	return CMD_SUCCESS;
 }
 
-static int config_write_hnbgw_iups(struct vty *vty)
+static int config_write_sgsn(struct vty *vty)
 {
-	if (!g_hnbgw->config.iups_remote_addr_name)
-		return CMD_SUCCESS;
-
-	vty_out(vty, " iups%s", VTY_NEWLINE);
-	vty_out(vty, "  remote-addr %s%s", g_hnbgw->config.iups_remote_addr_name,
-		VTY_NEWLINE);
-
+	_config_write_cnlink(vty, &g_hnbgw->sccp.cnpool_iups);
 	return CMD_SUCCESS;
 }
 
@@ -510,14 +608,18 @@ void hnbgw_vty_init(void)
 	install_element(IUH_NODE, &cfg_hnbgw_iuh_hnbap_allow_tmsi_cmd);
 
 	install_element(HNBGW_NODE, &cfg_hnbgw_iucs_cmd);
-	install_node(&iucs_node, config_write_hnbgw_iucs);
-
-	install_element(IUCS_NODE, &cfg_hnbgw_iucs_remote_addr_cmd);
+	install_node(&iucs_node, NULL);
+	install_element(IUCS_NODE, &cfg_cnpool_apply_cmd);
 
 	install_element(HNBGW_NODE, &cfg_hnbgw_iups_cmd);
-	install_node(&iups_node, config_write_hnbgw_iups);
+	install_node(&iups_node, NULL);
+	install_element(IUPS_NODE, &cfg_cnpool_apply_cmd);
 
-	install_element(IUPS_NODE, &cfg_hnbgw_iups_remote_addr_cmd);
+	/* deprecated: 'remote-addr' outside of 'msc 123' redirects to 'msc 0' / same for 'sgsn' */
+	install_element(IUCS_NODE, &cfg_hnbgw_cnpool_remote_addr_cmd);
+	install_element(IUPS_NODE, &cfg_hnbgw_cnpool_remote_addr_cmd);
+
+	install_element(HNBGW_NODE, &cfg_hnbgw_apply_cmd);
 
 	install_element_ve(&show_cnlink_cmd);
 	install_element_ve(&show_hnb_cmd);
@@ -539,6 +641,16 @@ void hnbgw_vty_init(void)
 	install_element(PFCP_NODE, &cfg_pfcp_local_port_cmd);
 	install_element(PFCP_NODE, &cfg_pfcp_remote_addr_cmd);
 #endif
+
+	install_element(CONFIG_NODE, &cfg_msc_nr_cmd);
+	install_node(&msc_node, config_write_msc);
+	install_element(MSC_NODE, &cfg_cnlink_remote_addr_cmd);
+	install_element(MSC_NODE, &cfg_cnlink_apply_cmd);
+
+	install_element(CONFIG_NODE, &cfg_sgsn_nr_cmd);
+	install_node(&sgsn_node, config_write_sgsn);
+	install_element(SGSN_NODE, &cfg_cnlink_remote_addr_cmd);
+	install_element(SGSN_NODE, &cfg_cnlink_apply_cmd);
 
 	osmo_tdef_vty_groups_init(HNBGW_NODE, hnbgw_tdef_group);
 }

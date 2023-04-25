@@ -64,7 +64,7 @@ static int transmit_rst(struct hnbgw_cnlink *cnlink)
 		   cnlink_is_cs(cnlink) ? "IuCS" : "IuPS",
 		   osmo_sccp_inst_addr_name(cnlink->hnbgw_sccp_inst->sccp, &cnlink->remote_addr));
 
-	msg = ranap_new_msg_reset(cnlink->domain, &cause);
+	msg = ranap_new_msg_reset(cnlink->pool->domain, &cause);
 
 	return osmo_sccp_tx_unitdata_msg(cnlink->hnbgw_sccp_inst->sccp_user,
 					 &cnlink->local_addr,
@@ -87,7 +87,7 @@ static int transmit_reset_ack(struct hnbgw_cnlink *cnlink)
 		   osmo_sccp_inst_addr_to_str_c(OTC_SELECT, cnlink->hnbgw_sccp_inst->sccp, &cnlink->local_addr),
 		   osmo_sccp_inst_addr_to_str_c(OTC_SELECT, cnlink->hnbgw_sccp_inst->sccp, &cnlink->remote_addr));
 
-	msg = ranap_new_msg_reset_ack(cnlink->domain, NULL);
+	msg = ranap_new_msg_reset_ack(cnlink->pool->domain, NULL);
 
 	return osmo_sccp_tx_unitdata_msg(cnlink->hnbgw_sccp_inst->sccp_user,
 					 &cnlink->local_addr,
@@ -99,6 +99,7 @@ static int transmit_reset_ack(struct hnbgw_cnlink *cnlink)
 static void cnlink_trafc_cb(void *data)
 {
 	struct hnbgw_cnlink *cnlink = data;
+	OSMO_ASSERT(false);
 
 	transmit_rst(cnlink);
 	hnbgw_cnlink_change_state(cnlink, CNLINK_S_EST_RST_TX_WAIT_ACK);
@@ -109,6 +110,7 @@ static void cnlink_trafc_cb(void *data)
 /* change the state of a CN Link */
 void hnbgw_cnlink_change_state(struct hnbgw_cnlink *cnlink, enum hnbgw_cnlink_state state)
 {
+	OSMO_ASSERT(false);
 	switch (state) {
 	case CNLINK_S_NULL:
 	case CNLINK_S_EST_PEND:
@@ -482,7 +484,7 @@ static int resolve_addr_name(struct osmo_sccp_addr *dest, struct osmo_ss7_instan
 	return 0;
 }
 
-void cnlink_set_sccp_inst(struct hnbgw_cnlink *cnlink, struct hnbgw_sccp_inst *hsi)
+static void cnlink_set_sccp_inst(struct hnbgw_cnlink *cnlink, struct hnbgw_sccp_inst *hsi)
 {
 	uint32_t local_pc;
 
@@ -502,10 +504,39 @@ void cnlink_set_sccp_inst(struct hnbgw_cnlink *cnlink, struct hnbgw_sccp_inst *h
 	osmo_sccp_make_addr_pc_ssn(&cnlink->local_addr, local_pc, OSMO_SCCP_SSN_RANAP);
 }
 
+void hnbgw_cnpool_apply_cfg(struct hnbgw_cnpool *cnpool)
+{
+	cnpool->use = cnpool->vty;
+}
+
+static void hnbgw_cnlink_cfg_copy(struct hnbgw_cnlink *cnlink)
+{
+	osmo_talloc_replace_string(cnlink, &cnlink->use.remote_addr_name, cnlink->vty.remote_addr_name);
+}
+
+static bool hnbgw_cnlink_sccp_cfg_changed(struct hnbgw_cnlink *cnlink)
+{
+	if (!cnlink->vty.remote_addr_name ||
+	    !cnlink->use.remote_addr_name)
+		return true;
+	return strcmp(cnlink->vty.remote_addr_name, cnlink->use.remote_addr_name) != 0;
+}
+
+static void hnbgw_cnlink_drop_sccp(struct hnbgw_cnlink *cnlink)
+{
+	struct hnbgw_context_map *map, *map2;
+
+	llist_for_each_entry_safe(map, map2, &cnlink->map_list, hnbgw_cnlink_entry) {
+		map_sccp_dispatch(map, MAP_SCCP_EV_USER_ABORT, NULL);
+	}
+
+	cnlink->hnbgw_sccp_inst = NULL;
+}
+
 /* If not present yet, set up all of osmo_ss7_instance, osmo_sccp_instance and hnbgw_sccp_inst for the given cnlink.
  * The cs7 instance nr to use is determined by cnlink->remote_addr_name, or cs7 instance 0 if that is not present.
  * Set cnlink->hnbgw_sccp_inst to the new SCCP instance. Return 0 on success, negative on error. */
-int cnlink_ensure_sccp(struct hnbgw_cnlink *cnlink)
+int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink)
 {
 	struct osmo_ss7_instance *ss7 = NULL;
 	struct osmo_sccp_instance *sccp;
@@ -513,35 +544,47 @@ int cnlink_ensure_sccp(struct hnbgw_cnlink *cnlink)
 	uint32_t local_pc;
 	struct hnbgw_sccp_inst *hsi;
 
-	/* If a hnbgw_sccp_inst has already been set up, use that. */
-	if (cnlink->hnbgw_sccp_inst)
-		return 0;
-
-	/* Figure out which cs7 instance to use. If cnlink->remote_addr_name is set, it points to an address book entry
-	 * in a specific cs7 instance. If it is not set, leave ss7 == NULL to use cs7 instance 0. */
-	if (cnlink->remote_addr_name) {
-		if (resolve_addr_name(&cnlink->remote_addr, &ss7, cnlink->remote_addr_name, cnlink->name,
-				      DEFAULT_PC_HNBGW)) {
-			LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "cannot initialize SCCP: there is no SCCP address named '%s'\n",
-				   cnlink->remote_addr_name);
-			return -ENOENT;
-		}
-
-		LOG_CNLINK(cnlink, DCN, LOGL_NOTICE, "using cs7 instance %u\n", ss7->cfg.id);
-
-		/* Has another cnlink already set up an SCCP instance for this ss7? */
-		llist_for_each_entry(hsi, &g_hnbgw->sccp.instances, entry) {
-			if (hsi->cs7_instance != ss7->cfg.id)
-				continue;
-			cnlink_set_sccp_inst(cnlink, hsi);
+	/* If a hnbgw_sccp_inst has already been set up, and the SCCP config has not changed since starting, use that.
+	 */
+	if (cnlink->hnbgw_sccp_inst) {
+		if (hnbgw_cnlink_sccp_cfg_changed(cnlink)) {
+			/* User is asking to restart the SCCP. Drop all contexts. */
+			hnbgw_cnlink_drop_sccp(cnlink);
+		} else {
 			return 0;
 		}
-		/* else cnlink->hnbgw_sccp_inst stays NULL and is set up below. */
-
-		/* All SCCP instances should originate from this function. So if there is no hnbgw_sccp_inst for the cs7
-		 * instance, then the cs7 instance should not have an SCCP instance yet. */
-		OSMO_ASSERT(!ss7->sccp);
 	}
+	if (!cnlink->vty.remote_addr_name) {
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "cannot initialize SCCP: no remote address set\n");
+		return -EINVAL;
+	}
+
+	/* Copy the current configuration. */
+	hnbgw_cnlink_cfg_copy(cnlink);
+
+	/* Figure out which cs7 instance to use. cnlink->remote_addr_name is set, it points to an address book entry
+	 * in a specific cs7 instance. */
+	if (resolve_addr_name(&cnlink->remote_addr, &ss7, cnlink->use.remote_addr_name, cnlink->name,
+			      DEFAULT_PC_HNBGW)) {
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "cannot initialize SCCP: there is no SCCP address named '%s'\n",
+			   cnlink->use.remote_addr_name);
+		return -ENOENT;
+	}
+
+	LOG_CNLINK(cnlink, DCN, LOGL_NOTICE, "using cs7 instance %u\n", ss7->cfg.id);
+
+	/* Has another cnlink already set up an SCCP instance for this ss7? */
+	llist_for_each_entry(hsi, &g_hnbgw->sccp.instances, entry) {
+		if (hsi->cs7_instance != ss7->cfg.id)
+			continue;
+		cnlink_set_sccp_inst(cnlink, hsi);
+		return 0;
+	}
+	/* else cnlink->hnbgw_sccp_inst stays NULL and is set up below. */
+
+	/* All SCCP instances should originate from this function. So if there is no hnbgw_sccp_inst for the cs7
+	 * instance, then the cs7 instance should not have an SCCP instance yet. */
+	OSMO_ASSERT(!ss7->sccp);
 
 	/* No SCCP instance yet for this ss7. Create it. */
 	sccp = osmo_sccp_simple_client_on_ss7_id(g_hnbgw, ss7 ? ss7->cfg.id : 0, cnlink->name, DEFAULT_PC_HNBGW,
@@ -584,51 +627,59 @@ int cnlink_ensure_sccp(struct hnbgw_cnlink *cnlink)
 	return 0;
 }
 
-struct hnbgw_cnlink *hnbgw_cnlink_alloc(const char *remote_addr_name, RANAP_CN_DomainIndicator_t domain)
+void hnbgw_cnpool_cnlinks_start_or_restart(struct hnbgw_cnpool *cnpool)
 {
 	struct hnbgw_cnlink *cnlink;
+	hnbgw_cnpool_apply_cfg(cnpool);
+	llist_for_each_entry(cnlink, &cnpool->cnlinks, entry) {
+		hnbgw_cnlink_start_or_restart(cnlink);
+	}
+}
 
+void hnbgw_cnpool_start(struct hnbgw_cnpool *cnpool)
+{
+	/* Legacy compat: when there is no 'msc N' at all in the config file, set up 'msc 0' with default values (or
+	 * 'sgsn' depending on cnpool). */
+	if (llist_empty(&cnpool->cnlinks))
+		cnlink_get_nr(cnpool, 0, true);
+	hnbgw_cnpool_cnlinks_start_or_restart(cnpool);
+}
+
+static struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
+{
+	struct hnbgw_cnlink *cnlink;
 	cnlink = talloc_zero(g_hnbgw, struct hnbgw_cnlink);
 	*cnlink = (struct hnbgw_cnlink){
-		.name = talloc_strdup(cnlink, remote_addr_name),
-		.domain = domain,
-		.remote_addr_name = talloc_strdup(cnlink, remote_addr_name),
+		.pool = cnpool,
+		.nr = nr,
+		.vty = {
+			/* VTY config defaults for the new cnlink */
+		},
+		.name = talloc_asprintf(cnlink, "%s-%d", cnpool->peer_name, nr),
 		.T_RafC = {
 			.cb = cnlink_trafc_cb,
 			.data = cnlink,
 		},
 	};
-
+	osmo_sccp_addr_set_ssn(&cnlink->local_addr, OSMO_SCCP_SSN_RANAP);
 	INIT_LLIST_HEAD(&cnlink->map_list);
 
-	if (cnlink_ensure_sccp(cnlink)) {
-		/* error logging already in cnlink_ensure_sccp() */
-		talloc_free(cnlink);
-		return NULL;
-	}
-
-	switch (domain) {
-	case DOMAIN_CS:
-		OSMO_ASSERT(!g_hnbgw->sccp.cnlink_iucs);
-		g_hnbgw->sccp.cnlink_iucs = cnlink;
-		break;
-	case DOMAIN_PS:
-		OSMO_ASSERT(!g_hnbgw->sccp.cnlink_iups);
-		g_hnbgw->sccp.cnlink_iups = cnlink;
-		break;
-	default:
-		OSMO_ASSERT(false);
-	}
-
+	llist_add_tail(&cnlink->entry, &cnpool->cnlinks);
 	return cnlink;
 }
 
-const struct osmo_sccp_addr *hnbgw_cn_get_remote_addr(bool is_ps)
+struct hnbgw_cnlink *cnlink_get_nr(struct hnbgw_cnpool *cnpool, int nr, bool create_if_missing)
 {
-	struct hnbgw_cnlink *cnlink = is_ps ? g_hnbgw->sccp.cnlink_iups : g_hnbgw->sccp.cnlink_iucs;
-	if (!cnlink)
+	struct hnbgw_cnlink *cnlink;
+	llist_for_each_entry(cnlink, &cnpool->cnlinks, entry) {
+		if (cnlink->nr == nr)
+			return cnlink;
+	}
+
+	if (!create_if_missing)
 		return NULL;
-	return &cnlink->remote_addr;
+
+	return cnlink_alloc(cnpool, nr);
 }
 
 static bool cnlink_matches(const struct hnbgw_cnlink *cnlink, const struct hnbgw_sccp_inst *hsi, const struct osmo_sccp_addr *remote_addr)
@@ -639,13 +690,35 @@ static bool cnlink_matches(const struct hnbgw_cnlink *cnlink, const struct hnbgw
 		return false;
 	return true;
 }
+
 struct hnbgw_cnlink *hnbgw_cnlink_find_by_addr(const struct hnbgw_sccp_inst *hsi,
 					       const struct osmo_sccp_addr *remote_addr)
 {
-	/* FUTURE: loop over llist g_hnb_gw->sccp.cnpool */
-	if (cnlink_matches(g_hnbgw->sccp.cnlink_iucs, hsi, remote_addr))
-		return g_hnbgw->sccp.cnlink_iucs;
-	if (cnlink_matches(g_hnbgw->sccp.cnlink_iups, hsi, remote_addr))
-		return g_hnbgw->sccp.cnlink_iups;
+	struct hnbgw_cnlink *cnlink;
+	llist_for_each_entry(cnlink, &g_hnbgw->sccp.cnpool_iucs.cnlinks, entry) {
+		if (cnlink_matches(cnlink, hsi, remote_addr))
+			return cnlink;
+	}
+	llist_for_each_entry(cnlink, &g_hnbgw->sccp.cnpool_iups.cnlinks, entry) {
+		if (cnlink_matches(cnlink, hsi, remote_addr))
+			return cnlink;
+	}
+	return NULL;
+}
+
+struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
+{
+	struct hnbgw_cnpool *cnpool = map->is_ps ? &g_hnbgw->sccp.cnpool_iups : &g_hnbgw->sccp.cnpool_iucs;
+	struct hnbgw_cnlink *cnlink;
+	/* FUTURE: soon we will pick one of many configurable CN peers from a pool. There will be more input arguments
+	 * (MI, or TMSI, or NRI decoded from RANAP) and this function will do round robin for new subscribers. */
+	llist_for_each_entry(cnlink, &cnpool->cnlinks, entry) {
+		if (!cnlink->hnbgw_sccp_inst || !cnlink->hnbgw_sccp_inst->sccp)
+			continue;
+		LOG_MAP(map, DCN, LOGL_INFO, "Selected %s / %s\n",
+			cnlink->name,
+			cnlink->hnbgw_sccp_inst->name);
+		return cnlink;
+	}
 	return NULL;
 }

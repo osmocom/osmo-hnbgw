@@ -71,6 +71,8 @@ struct umts_cell_id {
 	uint32_t cid;	/*!< Cell ID */
 };
 
+struct hnbgw_context_map;
+
 struct hnbgw_sccp_inst {
 	struct llist_head entry;
 
@@ -102,24 +104,66 @@ enum hnbgw_cnlink_state {
 	CNLINK_S_EST_ACTIVE,
 };
 
-/* A CN peer, like MSC or SGSN. */
+/* User provided configuration for struct hnbgw_cnpool. */
+struct hnbgw_cnpool_cfg {
+	/* FUTURE: This will be added here shortly:
+	 * - global NRI config: bitlen and NULL-NRI.
+	 */
+};
+
+/* User provided configuration for struct hnbgw_cnlink. */
+struct hnbgw_cnlink_cfg {
+	/* cs7 address book entry to indicate both the remote point-code of the peer, as well as which cs7 instance to
+	 * use. */
+	char *remote_addr_name;
+	/* maybe todo: add 'const char *local_addr_name;' to configure local point-code? */
+
+	/* FUTURE: This will be added here shortly:
+	 * - per peer NRI config: NRI ranges assigned to this peer.
+	 */
+};
+
+/* Collection of CN peers to distribute UE connections across. MSCs for DOMAIN_CS, SGSNs for DOMAIN_PS. */
+struct hnbgw_cnpool {
+	RANAP_CN_DomainIndicator_t domain;
+
+	/* CN pool string used in VTY config and logging, "iucs" or "iups". */
+	const char *pool_name;
+	/* CN peer string used in VTY config and logging, "msc" or "sgsn". */
+	const char *peer_name;
+
+	struct hnbgw_cnpool_cfg vty;
+	struct hnbgw_cnpool_cfg use;
+
+	/* List of struct hnbgw_cnlink */
+	struct llist_head cnlinks;
+
+	/* FUTURE: This will be added here shortly:
+	 * - round robin state for new conns
+	 */
+};
+
+/* A CN peer, like MSC or SGSN, operative state. When this instance exists, it means that the cnlink is active. */
 struct hnbgw_cnlink {
+	struct llist_head entry;
+
+	/* backpointer */
+	struct hnbgw_cnpool *pool;
+
+	int nr;
+
+	struct hnbgw_cnlink_cfg vty;
+	struct hnbgw_cnlink_cfg use;
+
 	/* To print in logging/VTY */
 	char *name;
-
-	/* IuCS or IuPS? */
-	RANAP_CN_DomainIndicator_t domain;
 
 	/* FUTURE: In principle, there may be different local point-codes for separate CN links on the same SCCP
 	 * instance. So far, each hnbgw_cnlink->local_addr just contains SSN = RANAP, so that the cs7 instance fills in
 	 * its primary point code. */
 	struct osmo_sccp_addr local_addr;
 
-	/* cs7 address book entry to indicate both the remote point-code of the peer, as well as which cs7 instance to
-	 * use. */
-	const char *remote_addr_name;
-
-	/* Copy of the address pointed at by remote_addr_name. */
+	/* Copy of the address pointed at by use.remote_addr_name. */
 	struct osmo_sccp_addr remote_addr;
 
 	/* The SCCP instance for the cs7 instance indicated by remote_addr_name. (Multiple hnbgw_cnlinks may use the
@@ -137,14 +181,17 @@ struct hnbgw_cnlink {
 #define LOG_CNLINK(CNLINK, SUBSYS, LEVEL, FMT, ARGS...) \
 	LOGP(SUBSYS, LEVEL, "(%s) " FMT, (CNLINK) ? (CNLINK)->name : "null", ##ARGS)
 
+struct hnbgw_cnlink_cfg *cnlink_cfg_get_nr(struct hnbgw_cnpool_cfg *cnpool, int nr, bool create_if_missing);
+struct hnbgw_cnlink *cnlink_get_nr(struct hnbgw_cnpool *cnpool, int nr, bool create_if_missing);
+
 static inline bool cnlink_is_cs(const struct hnbgw_cnlink *cnlink)
 {
-	return cnlink && cnlink->domain == DOMAIN_CS;
+	return cnlink && cnlink->pool->domain == DOMAIN_CS;
 }
 
 static inline bool cnlink_is_ps(const struct hnbgw_cnlink *cnlink)
 {
-	return cnlink && cnlink->domain == DOMAIN_PS;
+	return cnlink && cnlink->pool->domain == DOMAIN_PS;
 }
 
 static inline struct osmo_sccp_instance *cnlink_sccp(const struct hnbgw_cnlink *cnlink)
@@ -191,6 +238,12 @@ struct ue_context {
 };
 
 struct hnbgw {
+	/* Configuration items that do not take immedate effect / need separate storage for VTY. These are copied to
+	 * operative state when they take effect, like parsing iuh_local_ip and iuh_local_port to an osmo_sockaddr.
+	 * - For writing the VTY config, use these.
+	 * - For active operation, use the operative state instead, because these config settings may go out of sync
+	 *   with what is currently active and open in the running process.
+	 */
 	struct {
 		const char *iuh_local_ip;
 		/*! SCTP port for Iuh listening */
@@ -198,8 +251,6 @@ struct hnbgw {
 		/*! The UDP port where we receive multiplexed CS user
 		 * plane traffic from HNBs */
 		uint16_t iuh_cs_mux_port;
-		const char *iucs_remote_addr_name;
-		const char *iups_remote_addr_name;
 		uint16_t rnc_id;
 		bool hnbap_allow_tmsi;
 		/*! print hnb-id (true) or MCC-MNC-LAC-RAC-SAC (false) in logs */
@@ -225,10 +276,13 @@ struct hnbgw {
 	struct {
 		/* List of hnbgw_sccp_inst */
 		struct llist_head instances;
-		/* FUTURE: cnlink_iucs, cnlink_iups will be replaced with llist cnpool. */
-		struct hnbgw_cnlink *cnlink_iucs;
-		struct hnbgw_cnlink *cnlink_iups;
+
+		/* Pool of core network peers: MSCs for IuCS */
+		struct hnbgw_cnpool cnpool_iucs;
+		/* Pool of core network peers: SGSNs for IuPS */
+		struct hnbgw_cnpool cnpool_iups;
 	} sccp;
+
 	/* MGW pool, also includes the single MGCP client as fallback if no
 	 * pool is configured. */
 	struct mgcp_client_pool *mgw_pool;
@@ -277,4 +331,9 @@ static inline bool hnb_gw_is_gtp_mapping_enabled(void)
 
 struct msgb *hnbgw_ranap_msg_alloc(const char *name);
 
-struct hnbgw_cnlink *hnbgw_cnlink_select(bool is_ps);
+struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map);
+
+void hnbgw_cnpool_apply_cfg(struct hnbgw_cnpool *cnpool);
+void hnbgw_cnpool_cnlinks_start_or_restart(struct hnbgw_cnpool *cnpool);
+
+int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink);

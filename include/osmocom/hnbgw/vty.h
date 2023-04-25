@@ -10,5 +10,7 @@ enum osmo_iuh_vty_node {
 	MGCP_NODE,
 	MGW_NODE,
 	PFCP_NODE,
+	MSC_NODE,
+	SGSN_NODE,
 };
 

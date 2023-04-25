@@ -55,6 +55,8 @@ enum map_sccp_fsm_event {
 	MAP_SCCP_EV_RAN_LINK_LOST,
 	/* Receiving an SCCP RLSD from CN, or libosmo-sigtran tells us about SCCP connection timeout. All done. */
 	MAP_SCCP_EV_RX_RELEASED,
+	/* The user asks to drop the SCCP connection. */
+	MAP_SCCP_EV_USER_ABORT,
 };
 
 /* For context_map_get_state(), to combine the RUA and SCCP states, for VTY reporting only. */
@@ -90,7 +92,7 @@ struct hnbgw_context_map {
 	/* FSM handling the RUA state for rua_ctx_id. */
 	struct osmo_fsm_inst *rua_fi;
 
-	/* Pointer to CN, to transceive SCCP. */
+	/* Backpointer to CN, to transceive SCCP. */
 	struct hnbgw_cnlink *cnlink;
 	/* SCCP User SAP connection ID used in SCCP messages to/from the cn_link. */
 	uint32_t scu_conn_id;
