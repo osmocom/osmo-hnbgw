@@ -536,6 +536,8 @@ int hnbgw_rua_rx(struct hnb_context *hnb, struct msgb *msg)
 
 	rc = _hnbgw_rua_rx(msg, pdu);
 
+	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RUA_RUA_PDU, pdu);
+
 	return rc;
 }
 
