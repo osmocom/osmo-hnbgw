@@ -338,19 +338,8 @@ static int hnbgw_tx_ue_register_acc_tmsi(struct hnb_context *hnb, HNBAP_UE_Ident
 
 	memset(&accept_out, 0, sizeof(accept_out));
 	rc = hnbap_encode_ueregisteraccepties(&accept_out, &accept);
-	if (rc < 0) {
-		/* If we allocated the UE context but the UE REGISTER fails, get rid of it again: there will likely
-		 * never be a UE DE-REGISTER for this UE from the HNB, and the ue_context would linger forever. */
-		if (ue_allocated)
-			ue_context_free(ue_allocated);
-		return rc;
-	}
 
-	msg = hnbap_generate_successful_outcome(HNBAP_ProcedureCode_id_UERegister,
-						HNBAP_Criticality_reject,
-						&asn_DEF_HNBAP_UERegisterAccept,
-						&accept_out);
-
+	/* free 'accept', now encoded in 'accept_out' */
 	switch (ue_id->present) {
 	case HNBAP_UE_Identity_PR_tMSILAI:
 		ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_BIT_STRING,
@@ -377,9 +366,23 @@ static int hnbgw_tx_ue_register_acc_tmsi(struct hnb_context *hnb, HNBAP_UE_Ident
 		break;
 	}
 
-	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_HNBAP_UERegisterAccept, &accept_out);
+	if (rc < 0) {
+		/* Encoding failed. Nothing in 'accept_out'. */
+		/* If we allocated the UE context but the UE REGISTER fails, get rid of it again: there will likely
+		 * never be a UE DE-REGISTER for this UE from the HNB, and the ue_context would linger forever. */
+		if (ue_allocated)
+			ue_context_free(ue_allocated);
+		return rc;
+	}
 
-	return hnbgw_hnbap_tx(hnb, msg);
+	/* Encoding successful, transmit, then free 'accept_out'. */
+	msg = hnbap_generate_successful_outcome(HNBAP_ProcedureCode_id_UERegister,
+						HNBAP_Criticality_reject,
+						&asn_DEF_HNBAP_UERegisterAccept,
+						&accept_out);
+	rc = hnbgw_hnbap_tx(hnb, msg);
+	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_HNBAP_UERegisterAccept, &accept_out);
+	return rc;
 }
 
 static int hnbgw_rx_hnb_deregister(struct hnb_context *ctx, ANY_t *in)
