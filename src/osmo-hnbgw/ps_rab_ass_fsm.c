@@ -569,6 +569,8 @@ static void ps_rab_ass_resp_send_if_ready(struct ps_rab_ass *rab_ass)
 
 		/* Reencode this list item in the RANAP message */
 		rc = ANY_fromType_aper(&list_ie->value, &asn_DEF_RANAP_RAB_SetupOrModifiedItem, rab_item);
+		ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_BIT_STRING, &rab_item->transportLayerAddress);
+		ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_OCTET_STRING, &rab_item->iuTransportAssociation->choice.gTP_TEI);
 		if (rc < 0) {
 			ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_SetupOrModifiedItem, &item_ies);
 			LOG_PS_RAB_ASS(rab_ass, LOGL_ERROR, "Re-encoding RANAP PS RAB-AssignmentResponse failed\n");
