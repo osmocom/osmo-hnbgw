@@ -729,6 +729,8 @@ int main(int argc, char **argv)
 	struct osmo_stream_srv_link *srv;
 	int rc;
 
+	talloc_enable_null_tracking();
+
 	tall_hnb_ctx = talloc_named_const(NULL, 0, "hnb_context");
 	talloc_asn1_ctx = talloc_named_const(NULL, 1, "asn1_context");
 	msgb_talloc_ctx_init(tall_hnb_ctx, 0);
