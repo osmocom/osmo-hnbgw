@@ -276,6 +276,7 @@ static int handle_cn_ranap(struct hnbgw_cnlink *cnlink, const struct osmo_scu_un
 	}
 
 	rc = _cn_ranap_rx(cnlink, unitdata, pdu, data, len);
+	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RANAP_PDU, pdu);
 
 	return rc;
 }
