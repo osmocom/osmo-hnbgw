@@ -518,13 +518,12 @@ static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 		else
 			rc = hnbgw_tx_ue_register_rej_tmsi(ctx, &ies.uE_Identity);
 		/* all has been handled by TMSI, skip the IMSI code below */
-		hnbap_free_ueregisterrequesties(&ies);
-		return rc;
+		goto free_and_return_rc;
 	default:
 		LOGHNB(ctx, DHNBAP, LOGL_NOTICE, "UE-REGISTER-REQ with unsupported UE Id type %d\n",
 			ies.uE_Identity.present);
-		hnbap_free_ueregisterrequesties(&ies);
-		return rc;
+		rc = -ENOTSUP;
+		goto free_and_return_rc;
 	}
 
 	LOGHNB(ctx, DHNBAP, LOGL_DEBUG, "UE-REGISTER-REQ ID_type=%d imsi=%s cause=%ld\n",
@@ -534,7 +533,6 @@ static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 	if (!ue)
 		ue = ue_allocated = ue_context_alloc(ctx, imsi, 0);
 
-	hnbap_free_ueregisterrequesties(&ies);
 	/* Send UERegisterAccept */
 	rc = hnbgw_tx_ue_register_acc(ue);
 	if (rc < 0) {
@@ -543,6 +541,8 @@ static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 		if (ue_allocated)
 			ue_context_free(ue_allocated);
 	}
+free_and_return_rc:
+	hnbap_free_ueregisterrequesties(&ies);
 	return rc;
 }
 
