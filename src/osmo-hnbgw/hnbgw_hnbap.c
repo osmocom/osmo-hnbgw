@@ -323,7 +323,7 @@ static int hnbgw_tx_ue_register_acc_tmsi(struct hnb_context *hnb, HNBAP_UE_Ident
 		break;
 
 	default:
-		LOGHNB(hnb, DHNBAP, LOGL_ERROR, "Unsupportedccept UE ID (present=%d)\n", ue_id->present);
+		LOGHNB(hnb, DHNBAP, LOGL_ERROR, "Unsupported HNBAP UE Identity type (present=%d)\n", ue_id->present);
 		return -1;
 	}
 
