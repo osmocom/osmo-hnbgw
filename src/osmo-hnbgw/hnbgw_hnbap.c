@@ -146,6 +146,7 @@ static int hnbgw_tx_ue_register_acc(struct ue_context *ue)
 
 	memset(&accept_out, 0, sizeof(accept_out));
 	rc = hnbap_encode_ueregisteraccepties(&accept_out, &accept);
+	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_OCTET_STRING, &accept.uE_Identity.choice.iMSI);
 	if (rc < 0) {
 		return rc;
 	}
@@ -155,7 +156,6 @@ static int hnbgw_tx_ue_register_acc(struct ue_context *ue)
 						&asn_DEF_HNBAP_UERegisterAccept,
 						&accept_out);
 
-	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_OCTET_STRING, &accept.uE_Identity.choice.iMSI);
 	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_HNBAP_UERegisterAccept, &accept_out);
 
 	return hnbgw_hnbap_tx(ue->hnb, msg);
