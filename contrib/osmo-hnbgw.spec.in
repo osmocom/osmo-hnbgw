@@ -94,6 +94,7 @@ make %{?_smp_mflags} check || (find . -name testsuite.log -exec cat {} +)
 %{_docdir}/%{name}/examples/osmo-hnbgw/osmo-hnbgw.cfg
 %{_docdir}/%{name}/examples/osmo-hnbgw/osmo-hnbgw-cs7.cfg
 %{_docdir}/%{name}/examples/osmo-hnbgw/osmo-hnbgw-pfcp.cfg
+%{_docdir}/%{name}/examples/osmo-hnbgw/osmo-hnbgw-cnpool.cfg
 %dir %{_sysconfdir}/osmocom
 %config(noreplace) %{_sysconfdir}/osmocom/osmo-hnbgw.cfg
 %{_unitdir}/%{name}.service
