@@ -133,19 +133,6 @@ struct hnb_context *hnb_context_by_identity_info(struct hnb_gw *gw, const char *
 	return NULL;
 }
 
-
-unsigned hnb_contexts(const struct hnb_gw *gw)
-{
-	unsigned num_ctx = 0;
-	struct hnb_context *hnb;
-
-	llist_for_each_entry(hnb, &gw->hnb_list, list) {
-		num_ctx++;
-	}
-
-	return num_ctx;
-}
-
 struct ue_context *ue_context_by_id(struct hnb_gw *gw, uint32_t id)
 {
 	struct ue_context *ue;
@@ -640,7 +627,8 @@ static int get_hnb_info(struct ctrl_cmd *cmd, void *data)
 CTRL_CMD_DEFINE_RO(hnbs, "num-hnb");
 static int get_hnbs(struct ctrl_cmd *cmd, void *data)
 {
-	cmd->reply = talloc_asprintf(cmd, "%u", hnb_contexts(data));
+	struct hnb_gw *gw = data;
+	cmd->reply = talloc_asprintf(cmd, "%u", llist_count(&gw->hnb_list));
 
 	return CTRL_CMD_REPLY;
 }
