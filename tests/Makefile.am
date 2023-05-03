@@ -1,4 +1,5 @@
 SUBDIRS = \
+	asn1ctx \
 	ranap_rab_ass \
 	$(NULL)
 

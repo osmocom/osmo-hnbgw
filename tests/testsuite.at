@@ -1,6 +1,12 @@
 AT_INIT
 AT_BANNER([Regression tests.])
 
+AT_SETUP([asn1ctx])
+AT_KEYWORDS([asn1ctx])
+cat $abs_srcdir/asn1ctx/asn1ctx_test.ok > expout
+AT_CHECK([$abs_top_builddir/tests/asn1ctx/asn1ctx_test], [0], [expout], [ignore])
+AT_CLEANUP
+
 AT_SETUP([ranap_rab_ass])
 AT_KEYWORDS([ranap_rab_ass])
 cat $abs_srcdir/ranap_rab_ass/ranap_rab_ass_test.ok > expout
