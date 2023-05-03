@@ -29,10 +29,8 @@
 
 static void pfcp_set_msg_ctx(struct osmo_pfcp_endpoint *ep, struct osmo_pfcp_msg *m, struct osmo_pfcp_msg *req)
 {
-	struct hnb_gw *hnb_gw = osmo_pfcp_endpoint_get_priv(ep);
-
 	if (!m->ctx.peer_fi)
-		osmo_pfcp_cp_peer_set_msg_ctx(hnb_gw->pfcp.cp_peer, m);
+		osmo_pfcp_cp_peer_set_msg_ctx(g_hnbgw->pfcp.cp_peer, m);
 
 	/* If this is a response to an earlier request, just take the msg context from the request message.
 	 * In osmo-hnbgw, a session_fi always points at a ps_rab FSM. */
@@ -43,7 +41,7 @@ static void pfcp_set_msg_ctx(struct osmo_pfcp_endpoint *ep, struct osmo_pfcp_msg
 	 * ps_rab_new_pfcp_msg_tx() already sets the msg ctx, and for rx, we only expect to receive PFCP Responses,
 	 * which are handled above. The only time this will happen is when the UPF shuts down and sends a Deletion. */
 	if (!m->ctx.session_fi && m->h.seid_present && m->h.seid != 0) {
-		struct ps_rab *rab = ps_rab_find_by_seid(hnb_gw, m->h.seid, m->rx);
+		struct ps_rab *rab = ps_rab_find_by_seid(m->h.seid, m->rx);
 		if (rab)
 			ps_rab_pfcp_set_msg_ctx(rab, m);
 	}
@@ -64,7 +62,7 @@ static void pfcp_rx_msg(struct osmo_pfcp_endpoint *ep, struct osmo_pfcp_msg *m, 
 	}
 }
 
-int hnbgw_pfcp_init(struct hnb_gw *hnb_gw)
+int hnbgw_pfcp_init(void)
 {
 	struct osmo_pfcp_endpoint_cfg cfg;
 	struct osmo_pfcp_endpoint *ep;
@@ -72,13 +70,13 @@ int hnbgw_pfcp_init(struct hnb_gw *hnb_gw)
 	struct osmo_sockaddr_str upf_addr_str;
 	struct osmo_sockaddr upf_addr;
 
-	if (!hnb_gw_is_gtp_mapping_enabled(hnb_gw)) {
+	if (!hnb_gw_is_gtp_mapping_enabled()) {
 		LOGP(DLPFCP, LOGL_NOTICE, "No UPF configured, NOT setting up PFCP, NOT mapping GTP via UPF\n");
 		return 0;
 	}
-	LOGP(DLPFCP, LOGL_DEBUG, "%p cfg: pfcp remote-addr %s\n", hnb_gw, hnb_gw->config.pfcp.remote_addr);
+	LOGP(DLPFCP, LOGL_DEBUG, "%p cfg: pfcp remote-addr %s\n", g_hnbgw, g_hnbgw->config.pfcp.remote_addr);
 
-	if (!hnb_gw->config.pfcp.local_addr) {
+	if (!g_hnbgw->config.pfcp.local_addr) {
 		LOGP(DLPFCP, LOGL_ERROR, "Configuration error: missing local PFCP address, required for Node Id\n");
 		return -1;
 	}
@@ -86,44 +84,43 @@ int hnbgw_pfcp_init(struct hnb_gw *hnb_gw)
 	cfg = (struct osmo_pfcp_endpoint_cfg){
 		.set_msg_ctx_cb = pfcp_set_msg_ctx,
 		.rx_msg_cb = pfcp_rx_msg,
-		.priv = hnb_gw,
 	};
 
 	/* Set up PFCP endpoint's local node id from local IP address. Parse address string into local_addr_str... */
-	if (osmo_sockaddr_str_from_str(&local_addr_str, hnb_gw->config.pfcp.local_addr, hnb_gw->config.pfcp.local_port)) {
+	if (osmo_sockaddr_str_from_str(&local_addr_str, g_hnbgw->config.pfcp.local_addr, g_hnbgw->config.pfcp.local_port)) {
 		LOGP(DLPFCP, LOGL_ERROR, "Error in PFCP local IP: %s\n",
-		     osmo_quote_str_c(OTC_SELECT, hnb_gw->config.pfcp.local_addr, -1));
+		     osmo_quote_str_c(OTC_SELECT, g_hnbgw->config.pfcp.local_addr, -1));
 		return -1;
 	}
 	/* ...and convert to osmo_sockaddr, write to ep->cfg */
 	if (osmo_sockaddr_str_to_sockaddr(&local_addr_str, &cfg.local_addr.u.sas)) {
 		LOGP(DLPFCP, LOGL_ERROR, "Error in PFCP local IP: %s\n",
-		     osmo_quote_str_c(OTC_SELECT, hnb_gw->config.pfcp.local_addr, -1));
+		     osmo_quote_str_c(OTC_SELECT, g_hnbgw->config.pfcp.local_addr, -1));
 		return -1;
 	}
 	/* also store the local addr as local Node ID */
 	if (osmo_pfcp_ie_node_id_from_osmo_sockaddr(&cfg.local_node_id, &cfg.local_addr)) {
 		LOGP(DLPFCP, LOGL_ERROR, "Error in PFCP local IP: %s\n",
-		     osmo_quote_str_c(OTC_SELECT, hnb_gw->config.pfcp.local_addr, -1));
+		     osmo_quote_str_c(OTC_SELECT, g_hnbgw->config.pfcp.local_addr, -1));
 		return -1;
 	}
 
-	hnb_gw->pfcp.ep = ep = osmo_pfcp_endpoint_create(hnb_gw, &cfg);
+	g_hnbgw->pfcp.ep = ep = osmo_pfcp_endpoint_create(g_hnbgw, &cfg);
 	if (!ep) {
 		LOGP(DLPFCP, LOGL_ERROR, "Failed to allocate PFCP endpoint\n");
 		return -1;
 	}
 
 	/* Set up remote PFCP address to reach UPF at. First parse the string into upf_addr_str. */
-	if (osmo_sockaddr_str_from_str(&upf_addr_str, hnb_gw->config.pfcp.remote_addr, hnb_gw->config.pfcp.remote_port)) {
+	if (osmo_sockaddr_str_from_str(&upf_addr_str, g_hnbgw->config.pfcp.remote_addr, g_hnbgw->config.pfcp.remote_port)) {
 		LOGP(DLPFCP, LOGL_ERROR, "Error in PFCP remote IP: %s\n",
-		     osmo_quote_str_c(OTC_SELECT, hnb_gw->config.pfcp.remote_addr, -1));
+		     osmo_quote_str_c(OTC_SELECT, g_hnbgw->config.pfcp.remote_addr, -1));
 		return -1;
 	}
 	/* then convert upf_addr_str to osmo_sockaddr */
 	if (osmo_sockaddr_str_to_sockaddr(&upf_addr_str, &upf_addr.u.sas)) {
 		LOGP(DLPFCP, LOGL_ERROR, "Error in PFCP remote IP: %s\n",
-		     osmo_quote_str_c(OTC_SELECT, hnb_gw->config.pfcp.remote_addr, -1));
+		     osmo_quote_str_c(OTC_SELECT, g_hnbgw->config.pfcp.remote_addr, -1));
 		return -1;
 	}
 
@@ -134,12 +131,12 @@ int hnbgw_pfcp_init(struct hnb_gw *hnb_gw)
 	}
 
 	/* Associate with UPF */
-	hnb_gw->pfcp.cp_peer = osmo_pfcp_cp_peer_alloc(hnb_gw, ep, &upf_addr);
-	if (!hnb_gw->pfcp.cp_peer) {
+	g_hnbgw->pfcp.cp_peer = osmo_pfcp_cp_peer_alloc(g_hnbgw, ep, &upf_addr);
+	if (!g_hnbgw->pfcp.cp_peer) {
 		LOGP(DLPFCP, LOGL_ERROR, "Cannot allocate PFCP CP Peer FSM\n");
 		return -1;
 	}
-	if (osmo_pfcp_cp_peer_associate(hnb_gw->pfcp.cp_peer)) {
+	if (osmo_pfcp_cp_peer_associate(g_hnbgw->pfcp.cp_peer)) {
 		LOGP(DLPFCP, LOGL_ERROR, "Cannot start PFCP CP Peer FSM\n");
 		return -1;
 	}

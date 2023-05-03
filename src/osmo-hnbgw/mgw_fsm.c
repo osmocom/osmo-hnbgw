@@ -167,7 +167,7 @@ static void mgw_fsm_crcx_hnb_onenter(struct osmo_fsm_inst *fi, uint32_t prev_sta
 	mgw_info.codecs[0] = CODEC_IUFP;
 	mgw_info.codecs_len = 1;
 
-	mgw_fsm_priv->mgcpc = mgcp_client_pool_get(map->gw->mgw_pool);
+	mgw_fsm_priv->mgcpc = mgcp_client_pool_get(g_hnbgw->mgw_pool);
 	if (!mgw_fsm_priv->mgcpc) {
 		LOGPFSML(fi, LOGL_ERROR,
 			 "cannot ensure MGW endpoint -- no MGW configured, check configuration!\n");

@@ -200,7 +200,7 @@ static int rua_to_scu(struct hnb_context *hnb,
 {
 	struct msgb *ranap_msg = NULL;
 	struct hnbgw_context_map *map = NULL;
-	struct hnbgw_cnlink *cn = hnb->gw->sccp.cnlink;
+	struct hnbgw_cnlink *cn = g_hnbgw->sccp.cnlink;
 	bool is_ps;
 
 	switch (cN_DomainIndicator) {

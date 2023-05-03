@@ -128,7 +128,6 @@ context_map_alloc_by_hnb(struct hnb_context *hnb, uint32_t rua_ctx_id,
 
 	/* allocate a new map entry. */
 	map = talloc_zero(hnb, struct hnbgw_context_map);
-	map->gw = hnb->gw;
 	map->cn_link = cn_if_new;
 	map->hnb_ctx = hnb;
 	map->rua_ctx_id = rua_ctx_id;
@@ -208,7 +207,7 @@ void context_map_hnb_released(struct hnbgw_context_map *map)
 	 * We could also always allocate hnbgw_context_map under hnb_gw, but it is nice to see which hnb_context owns
 	 * which hnbgw_context_map in a talloc report.
 	 */
-	talloc_steal(map->gw, map);
+	talloc_steal(g_hnbgw, map);
 
 	/* Tell RUA that the HNB is gone. SCCP release will follow via FSM events. */
 	map_rua_dispatch(map, MAP_RUA_EV_HNB_LINK_LOST, NULL);

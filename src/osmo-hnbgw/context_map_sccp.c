@@ -130,8 +130,8 @@ static int tx_sccp_cr(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 
 	prim = (struct osmo_scu_prim *)msgb_push(ranap_msg, sizeof(*prim));
 	osmo_prim_init(&prim->oph, SCCP_SAP_USER, OSMO_SCU_PRIM_N_CONNECT, PRIM_OP_REQUEST, ranap_msg);
-	prim->u.connect.called_addr = *hnbgw_cn_get_remote_addr(map->gw, map->is_ps);
-	prim->u.connect.calling_addr = map->gw->sccp.local_addr;
+	prim->u.connect.called_addr = *hnbgw_cn_get_remote_addr(map->is_ps);
+	prim->u.connect.calling_addr = g_hnbgw->sccp.local_addr;
 	prim->u.connect.sccp_class = 2;
 	prim->u.connect.conn_id = map->scu_conn_id;
 
@@ -224,10 +224,10 @@ static int handle_rx_sccp(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 			case RANAP_ProcedureCode_id_RAB_Assignment:
 				/* If a UPF is configured, handle the RAB Assignment via ps_rab_ass_fsm, and replace the
 				 * GTP F-TEIDs in the RAB Assignment message before passing it on to RUA. */
-				if (hnb_gw_is_gtp_mapping_enabled(map->gw)) {
+				if (hnb_gw_is_gtp_mapping_enabled()) {
 					LOGP(DMAIN, LOGL_DEBUG,
 					     "RAB Assignment: setting up GTP tunnel mapping via UPF %s\n",
-					     osmo_sockaddr_to_str_c(OTC_SELECT, &map->gw->pfcp.cp_peer->remote_addr));
+					     osmo_sockaddr_to_str_c(OTC_SELECT, &g_hnbgw->pfcp.cp_peer->remote_addr));
 					return hnbgw_gtpmap_rx_rab_ass_req(map, ranap_msg, message);
 				}
 				/* If no UPF is configured, directly forward the message as-is (no GTP mapping). */

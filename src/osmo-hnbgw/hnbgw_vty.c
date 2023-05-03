@@ -37,9 +37,6 @@
 
 #include <osmocom/mgcp_client/mgcp_client.h>
 
-static void *tall_hnb_ctx = NULL;
-static struct hnb_gw *g_hnb_gw = NULL;
-
 static struct cmd_node hnbgw_node = {
 	HNBGW_NODE,
 	"%s(config-hnbgw)# ",
@@ -138,29 +135,29 @@ DEFUN(show_cnlink, show_cnlink_cmd, "show cnlink",
       SHOW_STR "Display information on core network link\n")
 {
 	struct osmo_ss7_route *rt;
-	struct osmo_ss7_instance *ss7 = osmo_sccp_get_ss7(g_hnb_gw->sccp.client);
+	struct osmo_ss7_instance *ss7 = osmo_sccp_get_ss7(g_hnbgw->sccp.client);
 #define GUARD(STR) \
 	STR ? STR : "", \
 	STR ? ":" : ""
 
 	vty_out(vty, "IuCS: %s <->",
-		osmo_sccp_user_name(g_hnb_gw->sccp.cnlink->sccp_user));
+		osmo_sccp_user_name(g_hnbgw->sccp.cnlink->sccp_user));
 	vty_out(vty, " %s%s%s%s",
-		GUARD(g_hnb_gw->config.iucs_remote_addr_name),
-		osmo_sccp_inst_addr_name(g_hnb_gw->sccp.client, &g_hnb_gw->sccp.iucs_remote_addr),
+		GUARD(g_hnbgw->config.iucs_remote_addr_name),
+		osmo_sccp_inst_addr_name(g_hnbgw->sccp.client, &g_hnbgw->sccp.iucs_remote_addr),
 		VTY_NEWLINE);
 
-	rt = osmo_ss7_route_lookup(ss7, g_hnb_gw->sccp.iucs_remote_addr.pc);
+	rt = osmo_ss7_route_lookup(ss7, g_hnbgw->sccp.iucs_remote_addr.pc);
 	vty_out(vty, "      SS7 route: %s%s", osmo_ss7_route_name(rt, true), VTY_NEWLINE);
 
 	vty_out(vty, "IuPS: %s <->",
-		osmo_sccp_user_name(g_hnb_gw->sccp.cnlink->sccp_user));
+		osmo_sccp_user_name(g_hnbgw->sccp.cnlink->sccp_user));
 	vty_out(vty, " %s%s%s%s",
-		GUARD(g_hnb_gw->config.iups_remote_addr_name),
-		osmo_sccp_inst_addr_name(g_hnb_gw->sccp.client, &g_hnb_gw->sccp.iups_remote_addr),
+		GUARD(g_hnbgw->config.iups_remote_addr_name),
+		osmo_sccp_inst_addr_name(g_hnbgw->sccp.client, &g_hnbgw->sccp.iups_remote_addr),
 		VTY_NEWLINE);
 
-	rt = osmo_ss7_route_lookup(ss7, g_hnb_gw->sccp.iups_remote_addr.pc);
+	rt = osmo_ss7_route_lookup(ss7, g_hnbgw->sccp.iups_remote_addr.pc);
 	vty_out(vty, "      SS7 route: %s%s", osmo_ss7_route_name(rt, true), VTY_NEWLINE);
 
 #undef GUARD
@@ -226,12 +223,12 @@ DEFUN(show_hnb, show_hnb_cmd, "show hnb all", SHOW_STR "Display information abou
 	struct hnb_context *hnb;
 	unsigned int count = 0;
 
-	if (llist_empty(&g_hnb_gw->hnb_list)) {
+	if (llist_empty(&g_hnbgw->hnb_list)) {
 		vty_out(vty, "No HNB connected%s", VTY_NEWLINE);
 		return CMD_SUCCESS;
 	}
 
-	llist_for_each_entry(hnb, &g_hnb_gw->hnb_list, list) {
+	llist_for_each_entry(hnb, &g_hnbgw->hnb_list, list) {
 		vty_dump_hnb_info(vty, hnb);
 		count++;
 	}
@@ -246,12 +243,12 @@ DEFUN(show_one_hnb, show_one_hnb_cmd, "show hnb NAME ", SHOW_STR "Display inform
 	struct hnb_context *hnb;
 	const char *identity_info = argv[0];
 
-	if (llist_empty(&g_hnb_gw->hnb_list)) {
+	if (llist_empty(&g_hnbgw->hnb_list)) {
 		vty_out(vty, "No HNB connected%s", VTY_NEWLINE);
 		return CMD_SUCCESS;
 	}
 
-	hnb = hnb_context_by_identity_info(g_hnb_gw, identity_info);
+	hnb = hnb_context_by_identity_info(identity_info);
 	if (hnb == NULL) {
 		vty_out(vty, "No HNB found with identity '%s'%s", identity_info, VTY_NEWLINE);
 		return CMD_SUCCESS;
@@ -265,7 +262,7 @@ DEFUN(show_ue, show_ue_cmd, "show ue all", SHOW_STR "Display information about a
 {
 	struct ue_context *ue;
 
-	llist_for_each_entry(ue, &g_hnb_gw->ue_list, list) {
+	llist_for_each_entry(ue, &g_hnbgw->ue_list, list) {
 		vty_dump_ue_info(vty, ue);
 	}
 
@@ -274,8 +271,7 @@ DEFUN(show_ue, show_ue_cmd, "show ue all", SHOW_STR "Display information about a
 
 DEFUN(show_talloc, show_talloc_cmd, "show talloc", SHOW_STR "Display talloc info")
 {
-	talloc_report_full(tall_hnb_ctx, stderr);
-	talloc_report_full(talloc_asn1_ctx, stderr);
+	talloc_report_full(g_hnbgw, stderr);
 
 	return CMD_SUCCESS;
 }
@@ -287,7 +283,7 @@ DEFUN(cfg_hnbgw_rnc_id, cfg_hnbgw_rnc_id_cmd,
       " RANAP InitialUE Messages' GlobalRNC-ID IE. Takes effect as soon as the hNodeB re-registers.\n"
       "RNC Id value\n")
 {
-	g_hnb_gw->config.rnc_id = atoi(argv[0]);
+	g_hnbgw->config.rnc_id = atoi(argv[0]);
 	return CMD_SUCCESS;
 }
 
@@ -295,8 +291,8 @@ DEFUN(cfg_hnbgw_iuh_local_ip, cfg_hnbgw_iuh_local_ip_cmd, "local-ip A.B.C.D",
       "Accept Iuh connections on local interface\n"
       "Local interface IP address (default: " HNBGW_LOCAL_IP_DEFAULT ")")
 {
-	talloc_free((void*)g_hnb_gw->config.iuh_local_ip);
-	g_hnb_gw->config.iuh_local_ip = talloc_strdup(tall_hnb_ctx, argv[0]);
+	talloc_free((void*)g_hnbgw->config.iuh_local_ip);
+	g_hnbgw->config.iuh_local_ip = talloc_strdup(g_hnbgw, argv[0]);
 	return CMD_SUCCESS;
 }
 
@@ -304,7 +300,7 @@ DEFUN(cfg_hnbgw_iuh_local_port, cfg_hnbgw_iuh_local_port_cmd, "local-port <1-655
       "Accept Iuh connections on local port\n"
       "Local interface port (default: 29169)")
 {
-	g_hnb_gw->config.iuh_local_port = atoi(argv[0]);
+	g_hnbgw->config.iuh_local_port = atoi(argv[0]);
 	return CMD_SUCCESS;
 }
 
@@ -314,7 +310,7 @@ DEFUN(cfg_hnbgw_iuh_hnbap_allow_tmsi, cfg_hnbgw_iuh_hnbap_allow_tmsi_cmd,
       "Only accept IMSI identity, reject TMSI or PTMSI\n"
       "Accept IMSI, TMSI or PTMSI as UE identity\n")
 {
-	g_hnb_gw->config.hnbap_allow_tmsi = (*argv[0] == '1');
+	g_hnbgw->config.hnbap_allow_tmsi = (*argv[0] == '1');
 	return CMD_SUCCESS;
 }
 
@@ -325,9 +321,9 @@ DEFUN(cfg_hnbgw_log_prefix, cfg_hnbgw_log_prefix_cmd,
       "Use the UMTS Cell ID as log message prefix\n")
 {
 	if (!strcmp(argv[0], "hnb-id"))
-		g_hnb_gw->config.log_prefix_hnb_id = true;
+		g_hnbgw->config.log_prefix_hnb_id = true;
 	else
-		g_hnb_gw->config.log_prefix_hnb_id = false;
+		g_hnbgw->config.log_prefix_hnb_id = false;
 	return CMD_SUCCESS;
 }
 
@@ -351,7 +347,7 @@ DEFUN(cfg_hnbgw_iucs_remote_addr,
       "SCCP address to send IuCS to (MSC)\n"
       "SCCP address book entry name (see 'cs7-instance')\n")
 {
-	g_hnb_gw->config.iucs_remote_addr_name = talloc_strdup(g_hnb_gw, argv[0]);
+	g_hnbgw->config.iucs_remote_addr_name = talloc_strdup(g_hnbgw, argv[0]);
 	return CMD_SUCCESS;
 }
 
@@ -361,7 +357,7 @@ DEFUN(cfg_hnbgw_iups_remote_addr,
       "SCCP address to send IuPS to (SGSN)\n"
       "SCCP address book entry name (see 'cs7-instance')\n")
 {
-	g_hnb_gw->config.iups_remote_addr_name = talloc_strdup(g_hnb_gw, argv[0]);
+	g_hnbgw->config.iups_remote_addr_name = talloc_strdup(g_hnbgw, argv[0]);
 	return CMD_SUCCESS;
 }
 
@@ -385,8 +381,8 @@ DEFUN(cfg_pfcp_remote_addr, cfg_pfcp_remote_addr_cmd,
       "Remote UPF's listen IP address; where to send PFCP requests\n"
       "IP address\n")
 {
-	osmo_talloc_replace_string(g_hnb_gw, &g_hnb_gw->config.pfcp.remote_addr, argv[0]);
-	LOGP(DLPFCP, LOGL_NOTICE, "%p cfg: pfcp remote-addr %s\n", g_hnb_gw, g_hnb_gw->config.pfcp.remote_addr);
+	osmo_talloc_replace_string(g_hnbgw, &g_hnbgw->config.pfcp.remote_addr, argv[0]);
+	LOGP(DLPFCP, LOGL_NOTICE, "%p cfg: pfcp remote-addr %s\n", g_hnbgw, g_hnbgw->config.pfcp.remote_addr);
 	return CMD_SUCCESS;
 }
 
@@ -395,7 +391,7 @@ DEFUN(cfg_pfcp_local_addr, cfg_pfcp_local_addr_cmd,
       "Local address for PFCP\n"
       "IP address\n")
 {
-	osmo_talloc_replace_string(g_hnb_gw, &g_hnb_gw->config.pfcp.local_addr, argv[0]);
+	osmo_talloc_replace_string(g_hnbgw, &g_hnbgw->config.pfcp.local_addr, argv[0]);
 	return CMD_SUCCESS;
 }
 
@@ -404,7 +400,7 @@ DEFUN(cfg_pfcp_local_port, cfg_pfcp_local_port_cmd,
       "Local port for PFCP\n"
       "IP port\n")
 {
-	g_hnb_gw->config.pfcp.local_port = atoi(argv[0]);
+	g_hnbgw->config.pfcp.local_port = atoi(argv[0]);
 	return CMD_SUCCESS;
 }
 
@@ -413,7 +409,7 @@ DEFUN(cfg_pfcp_local_port, cfg_pfcp_local_port_cmd,
 static int config_write_hnbgw(struct vty *vty)
 {
 	vty_out(vty, "hnbgw%s", VTY_NEWLINE);
-	vty_out(vty, " log-prefix %s%s", g_hnb_gw->config.log_prefix_hnb_id ? "hnb-id" : "umts-cell-id",
+	vty_out(vty, " log-prefix %s%s", g_hnbgw->config.log_prefix_hnb_id ? "hnb-id" : "umts-cell-id",
 		VTY_NEWLINE);
 	osmo_tdef_vty_groups_write(vty, " ");
 	return CMD_SUCCESS;
@@ -426,15 +422,15 @@ static int config_write_hnbgw_iuh(struct vty *vty)
 
 	vty_out(vty, " iuh%s", VTY_NEWLINE);
 
-	addr = g_hnb_gw->config.iuh_local_ip;
+	addr = g_hnbgw->config.iuh_local_ip;
 	if (addr && (strcmp(addr, HNBGW_LOCAL_IP_DEFAULT) != 0))
 		vty_out(vty, "  local-ip %s%s", addr, VTY_NEWLINE);
 
-	port = g_hnb_gw->config.iuh_local_port;
+	port = g_hnbgw->config.iuh_local_port;
 	if (port && port != IUH_DEFAULT_SCTP_PORT)
 		vty_out(vty, "  local-port %u%s", port, VTY_NEWLINE);
 
-	if (g_hnb_gw->config.hnbap_allow_tmsi)
+	if (g_hnbgw->config.hnbap_allow_tmsi)
 		vty_out(vty, "  hnbap-allow-tmsi 1%s", VTY_NEWLINE);
 
 	return CMD_SUCCESS;
@@ -442,11 +438,11 @@ static int config_write_hnbgw_iuh(struct vty *vty)
 
 static int config_write_hnbgw_iucs(struct vty *vty)
 {
-	if (!g_hnb_gw->config.iucs_remote_addr_name)
+	if (!g_hnbgw->config.iucs_remote_addr_name)
 		return CMD_SUCCESS;
 
 	vty_out(vty, " iucs%s", VTY_NEWLINE);
-	vty_out(vty, "  remote-addr %s%s", g_hnb_gw->config.iucs_remote_addr_name,
+	vty_out(vty, "  remote-addr %s%s", g_hnbgw->config.iucs_remote_addr_name,
 		VTY_NEWLINE);
 
 	return CMD_SUCCESS;
@@ -454,11 +450,11 @@ static int config_write_hnbgw_iucs(struct vty *vty)
 
 static int config_write_hnbgw_iups(struct vty *vty)
 {
-	if (!g_hnb_gw->config.iups_remote_addr_name)
+	if (!g_hnbgw->config.iups_remote_addr_name)
 		return CMD_SUCCESS;
 
 	vty_out(vty, " iups%s", VTY_NEWLINE);
-	vty_out(vty, "  remote-addr %s%s", g_hnb_gw->config.iups_remote_addr_name,
+	vty_out(vty, "  remote-addr %s%s", g_hnbgw->config.iups_remote_addr_name,
 		VTY_NEWLINE);
 
 	return CMD_SUCCESS;
@@ -468,20 +464,17 @@ static int config_write_hnbgw_iups(struct vty *vty)
 static int config_write_hnbgw_pfcp(struct vty *vty)
 {
 	vty_out(vty, " pfcp%s", VTY_NEWLINE);
-	if (g_hnb_gw->config.pfcp.local_addr)
-		vty_out(vty, "  local-addr %s%s", g_hnb_gw->config.pfcp.local_addr, VTY_NEWLINE);
-	if (g_hnb_gw->config.pfcp.remote_addr)
-		vty_out(vty, "  remote-addr %s%s", g_hnb_gw->config.pfcp.remote_addr, VTY_NEWLINE);
+	if (g_hnbgw->config.pfcp.local_addr)
+		vty_out(vty, "  local-addr %s%s", g_hnbgw->config.pfcp.local_addr, VTY_NEWLINE);
+	if (g_hnbgw->config.pfcp.remote_addr)
+		vty_out(vty, "  remote-addr %s%s", g_hnbgw->config.pfcp.remote_addr, VTY_NEWLINE);
 
 	return CMD_SUCCESS;
 }
 #endif
 
-void hnbgw_vty_init(struct hnb_gw *gw, void *tall_ctx)
+void hnbgw_vty_init(void)
 {
-	g_hnb_gw = gw;
-	tall_hnb_ctx = tall_ctx;
-
 	install_element(CONFIG_NODE, &cfg_hnbgw_cmd);
 	install_node(&hnbgw_node, config_write_hnbgw);
 
@@ -515,9 +508,9 @@ void hnbgw_vty_init(struct hnb_gw *gw, void *tall_ctx)
 	install_element(HNBGW_NODE, &cfg_hnbgw_mgcp_cmd);
 	/* Deprecated: Old MGCP config without pooling support in MSC node: */
 	install_node(&mgcp_node, NULL);
-	mgcp_client_vty_init(tall_hnb_ctx, MGCP_NODE, g_hnb_gw->config.mgcp_client);
+	mgcp_client_vty_init(g_hnbgw, MGCP_NODE, g_hnbgw->config.mgcp_client);
 
-	mgcp_client_pool_vty_init(HNBGW_NODE, MGW_NODE, " ", g_hnb_gw->mgw_pool);
+	mgcp_client_pool_vty_init(HNBGW_NODE, MGW_NODE, " ", g_hnbgw->mgw_pool);
 
 #if ENABLE_PFCP
 	install_node(&pfcp_node, config_write_hnbgw_pfcp);

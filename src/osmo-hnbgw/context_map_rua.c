@@ -154,7 +154,7 @@ static int handle_rx_rua(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 			}
 		}
 #if ENABLE_PFCP
-	} else if (hnb_gw_is_gtp_mapping_enabled(map->gw)) {
+	} else if (hnb_gw_is_gtp_mapping_enabled()) {
 		/* map->is_ps == true and PFCP is enabled in osmo-hnbgw.cfg */
 		ranap_message *message = talloc_zero(OTC_SELECT, ranap_message);
 		rc = ranap_cn_rx_co_decode2(message, msgb_l2(ranap_msg), msgb_l2len(ranap_msg));
