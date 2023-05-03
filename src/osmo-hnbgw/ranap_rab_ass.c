@@ -87,7 +87,7 @@ int ranap_rab_ass_resp_encode(uint8_t *data, unsigned int len,
 				     RANAP_Criticality_reject,
 				     &asn_DEF_RANAP_RAB_AssignmentResponse, rab_assignment_response);
 
-	/* 'msg' has been generated, we cann now release the input 'out' */
+	/* 'msg' has been generated, we can now release the input 'rab_assignment_response' */
 	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_AssignmentResponse, rab_assignment_response);
 
 	if (!msg)
