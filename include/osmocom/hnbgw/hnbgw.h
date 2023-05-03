@@ -23,6 +23,9 @@ enum {
 	DCN,
 };
 
+extern const struct log_info hnbgw_log_info;
+extern struct vty_app_info hnbgw_vty_info;
+
 #define LOGHNB(HNB_CTX, ss, lvl, fmt, args ...) \
 	LOGP(ss, lvl, "(%s) " fmt, hnb_context_name(HNB_CTX), ## args)
 
@@ -171,7 +174,13 @@ struct hnbgw {
 extern struct hnbgw *g_hnbgw;
 extern void *talloc_asn1_ctx;
 
-struct hnb_context *hnb_context_by_id(uint32_t cid);
+void g_hnbgw_alloc(void *ctx);
+
+int hnbgw_rua_accept_cb(struct osmo_stream_srv_link *srv, int fd);
+int hnb_ctrl_cmds_install(void);
+int hnb_ctrl_node_lookup(void *data, vector vline, int *node_type, void **node_data, int *i);
+int hnbgw_mgw_setup(void);
+
 struct hnb_context *hnb_context_by_identity_info(const char *identity_info);
 const char *hnb_context_name(struct hnb_context *ctx);
 
@@ -182,7 +191,6 @@ struct ue_context *ue_context_alloc(struct hnb_context *hnb, const char *imsi,
 				    uint32_t tmsi);
 void ue_context_free(struct ue_context *ue);
 
-struct hnb_context *hnb_context_alloc(struct osmo_stream_srv_link *link, int new_fd);
 void hnb_context_release(struct hnb_context *ctx);
 void hnb_context_release_ue_state(struct hnb_context *ctx);
 
