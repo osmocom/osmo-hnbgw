@@ -26,11 +26,11 @@ AM_LDFLAGS = \
 	$(COVERAGE_LDFLAGS) \
 	$(NULL)
 
-bin_PROGRAMS = \
-	osmo-hnbgw \
+noinst_LTLIBRARIES = \
+	libhnbgw.la \
 	$(NULL)
 
-osmo_hnbgw_SOURCES = \
+libhnbgw_la_SOURCES = \
 	hnbgw.c \
 	hnbgw_hnbap.c \
 	hnbgw_rua.c \
@@ -46,7 +46,7 @@ osmo_hnbgw_SOURCES = \
 	osmo_hnbgw_main.c \
 	$(NULL)
 
-osmo_hnbgw_LDADD = \
+libhnbgw_la_LIBADD = \
 	$(LIBASN1C_LIBS) \
 	$(LIBOSMOCORE_LIBS) \
 	$(LIBOSMOGSM_LIBS) \
@@ -60,6 +60,18 @@ osmo_hnbgw_LDADD = \
 	$(LIBOSMOHNBAP_LIBS) \
 	$(LIBSCTP_LIBS) \
 	$(LIBOSMOMGCPCLIENT_LIBS) \
+	$(NULL)
+
+bin_PROGRAMS = \
+	osmo-hnbgw \
+	$(NULL)
+
+osmo_hnbgw_SOURCES = \
+	osmo_hnbgw_main.c \
+	$(NULL)
+
+osmo_hnbgw_LDADD = \
+	libhnbgw.la \
 	$(NULL)
 
 if ENABLE_PFCP
