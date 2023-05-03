@@ -33,7 +33,6 @@
 #include <osmocom/ranap/ranap_common_cn.h>
 #include <osmocom/ranap/ranap_common_ran.h>
 
-static void *tall_hnb_ctx;
 static void *msgb_ctx;
 extern void *talloc_asn1_ctx;
 
@@ -368,12 +367,13 @@ static const struct log_info test_log_info = {
 int test_init(void)
 {
 	int rc;
+	void *root_ctx;
 
-	tall_hnb_ctx = talloc_named_const(NULL, 0, "hnb_context");
-	msgb_ctx = msgb_talloc_ctx_init(NULL, 0);
-	talloc_asn1_ctx = talloc_named_const(NULL, 0, "asn1_context");
+	root_ctx = talloc_named_const(NULL, 0, "ranap_rab_ass_test");
+	msgb_ctx = msgb_talloc_ctx_init(root_ctx, 0);
+	talloc_asn1_ctx = talloc_named_const(root_ctx, 0, "asn1_context");
 
-	rc = osmo_init_logging2(tall_hnb_ctx, &test_log_info);
+	rc = osmo_init_logging2(root_ctx, &test_log_info);
 	if (rc < 0)
 		exit(1);
 
