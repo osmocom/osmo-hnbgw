@@ -30,14 +30,7 @@ ranap_rab_ass_test_SOURCES = \
 	$(NULL)
 
 ranap_rab_ass_test_LDADD = \
-	$(LIBASN1C_LIBS) \
-	$(LIBOSMOCORE_LIBS) \
-	$(LIBOSMOVTY_LIBS) \
-	$(LIBOSMORANAP_LIBS) \
-	$(LIBOSMOSIGTRAN_LIBS) \
-	$(LIBOSMOMGCPCLIENT_LIBS) \
-	$(COVERAGE_LDFLAGS) \
-	$(top_builddir)/src/osmo-hnbgw/ranap_rab_ass.o \
+	$(top_builddir)/src/osmo-hnbgw/libhnbgw.la \
 	$(NULL)
 
 .PHONY: update_exp
