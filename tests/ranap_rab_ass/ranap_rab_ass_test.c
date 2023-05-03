@@ -69,6 +69,8 @@ void test_ranap_rab_ass_req_decode_encode(void)
 
 	ranap_ran_rx_co_free(&message);
 	msgb_free(encoded);
+
+	OSMO_ASSERT(talloc_total_blocks(talloc_asn1_ctx) == 1);
 }
 
 void test_ranap_rab_ass_resp_decode_encode(void)
@@ -96,6 +98,8 @@ void test_ranap_rab_ass_resp_decode_encode(void)
 	OSMO_ASSERT(memcmp(testvec, encoded, sizeof(testvec)) == 0);
 
 	ranap_cn_rx_co_free(&message);
+
+	OSMO_ASSERT(talloc_total_blocks(talloc_asn1_ctx) == 1);
 }
 
 void test_ranap_rab_ass_req_ies_extract_inet_addr(void)
@@ -127,6 +131,8 @@ void test_ranap_rab_ass_req_ies_extract_inet_addr(void)
 	printf("ranap_rab_ass_req_extract_inet_addr rc=%d\n", rc);
 	printf("RESULT: addr=%s, port=%u, rab-id=%02x\n", addr_str.ip, addr_str.port, rab_id);
 	ranap_ran_rx_co_free(&message);
+
+	OSMO_ASSERT(talloc_total_blocks(talloc_asn1_ctx) == 1);
 }
 
 void test_ranap_rab_ass_resp_ies_extract_inet_addr(void)
@@ -151,6 +157,8 @@ void test_ranap_rab_ass_resp_ies_extract_inet_addr(void)
 	printf("ranap_rab_ass_resp_extract_inet_addr rc=%d\n", rc);
 	printf("RESULT: addr=%s, port=%u\n", addr_str.ip, addr_str.port);
 	ranap_cn_rx_co_free(&message);
+
+	OSMO_ASSERT(talloc_total_blocks(talloc_asn1_ctx) == 1);
 }
 
 void test_ranap_rab_ass_req_ies_replace_inet_addr(void)
@@ -219,6 +227,8 @@ void test_ranap_rab_ass_req_ies_replace_inet_addr(void)
 
 	ranap_ran_rx_co_free(&message);
 	msgb_free(encoded);
+
+	OSMO_ASSERT(talloc_total_blocks(talloc_asn1_ctx) == 1);
 }
 
 void test_ranap_rab_ass_resp_ies_replace_inet_addr(void)
@@ -271,6 +281,8 @@ void test_ranap_rab_ass_resp_ies_replace_inet_addr(void)
 	OSMO_ASSERT(memcmp(testvec_in, testvec_expected_out, sizeof(testvec_in)) == 0);
 
 	ranap_cn_rx_co_free(&message);
+
+	OSMO_ASSERT(talloc_total_blocks(talloc_asn1_ctx) == 1);
 }
 
 void test_ranap_rab_ass_resp_ies_check_failure(void)
@@ -297,6 +309,8 @@ void test_ranap_rab_ass_resp_ies_check_failure(void)
 	       rab_failed_at_hnb);
 
 	ranap_cn_rx_co_free(&message);
+
+	OSMO_ASSERT(talloc_total_blocks(talloc_asn1_ctx) == 1);
 }
 
 void test_ranap_rab_ass_req_ies_check_release(void)
@@ -322,6 +336,8 @@ void test_ranap_rab_ass_req_ies_check_release(void)
 	printf("ranap_rab_ass_req_ies_check_release rab_release_req=%u (RAB ID 44, which is not in the message)\n", rab_release_req);
 
 	ranap_ran_rx_co_free(&message);
+
+	OSMO_ASSERT(talloc_total_blocks(talloc_asn1_ctx) == 1);
 }
 
 void test_ranap_rab_ass_req_ies_get_count(void)
@@ -349,6 +365,8 @@ void test_ranap_rab_ass_req_ies_get_count(void)
 	rc = ranap_rab_ass_req_ies_get_count(&message.msg.raB_AssignmentRequestIEs);
 	printf("ranap_rab_ass_req_ies_get_count rc=%d\n", rc);
 	ranap_ran_rx_co_free(&message);
+
+	OSMO_ASSERT(talloc_total_blocks(talloc_asn1_ctx) == 1);
 }
 
 static const struct log_info_cat log_cat[] = {
@@ -381,6 +399,8 @@ int test_init(void)
 	log_set_use_color(osmo_stderr_target, 0);
 	log_set_print_category(osmo_stderr_target, 0);
 	log_set_print_category_hex(osmo_stderr_target, 0);
+
+	OSMO_ASSERT(talloc_total_blocks(talloc_asn1_ctx) == 1);
 	return rc;
 }
 
