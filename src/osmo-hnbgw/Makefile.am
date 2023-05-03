@@ -43,6 +43,7 @@ osmo_hnbgw_SOURCES = \
 	ranap_rab_ass.c \
 	mgw_fsm.c \
 	tdefs.c \
+	osmo_hnbgw_main.c \
 	$(NULL)
 
 osmo_hnbgw_LDADD = \
