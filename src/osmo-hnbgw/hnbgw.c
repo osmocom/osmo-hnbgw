@@ -81,39 +81,36 @@ static const char * const osmo_hnbgw_copyright =
 	"This is free software: you are free to change and redistribute it.\r\n"
 	"There is NO WARRANTY, to the extent permitted by law.\r\n";
 
-static void *tall_hnb_ctx;
+struct hnbgw *g_hnbgw = NULL;
 
-static struct hnb_gw *g_hnb_gw;
-
-static struct hnb_gw *hnb_gw_create(void *ctx)
+static void g_hnbgw_alloc(void *ctx)
 {
-	struct hnb_gw *gw = talloc_zero(ctx, struct hnb_gw);
+	OSMO_ASSERT(!g_hnbgw);
+	g_hnbgw = talloc_zero(ctx, struct hnbgw);
 
 	/* strdup so we can easily talloc_free in the VTY code */
-	gw->config.iuh_local_ip = talloc_strdup(gw, HNBGW_LOCAL_IP_DEFAULT);
-	gw->config.iuh_local_port = IUH_DEFAULT_SCTP_PORT;
-	gw->config.log_prefix_hnb_id = true;
+	g_hnbgw->config.iuh_local_ip = talloc_strdup(g_hnbgw, HNBGW_LOCAL_IP_DEFAULT);
+	g_hnbgw->config.iuh_local_port = IUH_DEFAULT_SCTP_PORT;
+	g_hnbgw->config.log_prefix_hnb_id = true;
 
-	gw->next_ue_ctx_id = 23;
-	INIT_LLIST_HEAD(&gw->hnb_list);
-	INIT_LLIST_HEAD(&gw->ue_list);
+	g_hnbgw->next_ue_ctx_id = 23;
+	INIT_LLIST_HEAD(&g_hnbgw->hnb_list);
+	INIT_LLIST_HEAD(&g_hnbgw->ue_list);
 
-	gw->mgw_pool = mgcp_client_pool_alloc(gw);
-	gw->config.mgcp_client = talloc_zero(tall_hnb_ctx, struct mgcp_client_conf);
-	mgcp_client_conf_init(gw->config.mgcp_client);
+	g_hnbgw->mgw_pool = mgcp_client_pool_alloc(g_hnbgw);
+	g_hnbgw->config.mgcp_client = talloc_zero(g_hnbgw, struct mgcp_client_conf);
+	mgcp_client_conf_init(g_hnbgw->config.mgcp_client);
 
 #if ENABLE_PFCP
-	gw->config.pfcp.remote_port = OSMO_PFCP_PORT;
+	g_hnbgw->config.pfcp.remote_port = OSMO_PFCP_PORT;
 #endif
-
-	return gw;
 }
 
-struct hnb_context *hnb_context_by_id(struct hnb_gw *gw, uint32_t cid)
+struct hnb_context *hnb_context_by_id(uint32_t cid)
 {
 	struct hnb_context *hnb;
 
-	llist_for_each_entry(hnb, &gw->hnb_list, list) {
+	llist_for_each_entry(hnb, &g_hnbgw->hnb_list, list) {
 		if (hnb->id.cid == cid)
 			return hnb;
 	}
@@ -121,11 +118,11 @@ struct hnb_context *hnb_context_by_id(struct hnb_gw *gw, uint32_t cid)
 	return NULL;
 }
 
-struct hnb_context *hnb_context_by_identity_info(struct hnb_gw *gw, const char *identity_info)
+struct hnb_context *hnb_context_by_identity_info(const char *identity_info)
 {
 	struct hnb_context *hnb;
 
-	llist_for_each_entry(hnb, &gw->hnb_list, list) {
+	llist_for_each_entry(hnb, &g_hnbgw->hnb_list, list) {
 		if (strcmp(identity_info, hnb->identity_info) == 0)
 			return hnb;
 	}
@@ -133,11 +130,11 @@ struct hnb_context *hnb_context_by_identity_info(struct hnb_gw *gw, const char *
 	return NULL;
 }
 
-struct ue_context *ue_context_by_id(struct hnb_gw *gw, uint32_t id)
+struct ue_context *ue_context_by_id(uint32_t id)
 {
 	struct ue_context *ue;
 
-	llist_for_each_entry(ue, &gw->ue_list, list) {
+	llist_for_each_entry(ue, &g_hnbgw->ue_list, list) {
 		if (ue->context_id == id)
 			return ue;
 	}
@@ -145,45 +142,45 @@ struct ue_context *ue_context_by_id(struct hnb_gw *gw, uint32_t id)
 
 }
 
-struct ue_context *ue_context_by_imsi(struct hnb_gw *gw, const char *imsi)
+struct ue_context *ue_context_by_imsi(const char *imsi)
 {
 	struct ue_context *ue;
 
-	llist_for_each_entry(ue, &gw->ue_list, list) {
+	llist_for_each_entry(ue, &g_hnbgw->ue_list, list) {
 		if (!strcmp(ue->imsi, imsi))
 			return ue;
 	}
 	return NULL;
 }
 
-struct ue_context *ue_context_by_tmsi(struct hnb_gw *gw, uint32_t tmsi)
+struct ue_context *ue_context_by_tmsi(uint32_t tmsi)
 {
 	struct ue_context *ue;
 
-	llist_for_each_entry(ue, &gw->ue_list, list) {
+	llist_for_each_entry(ue, &g_hnbgw->ue_list, list) {
 		if (ue->tmsi == tmsi)
 			return ue;
 	}
 	return NULL;
 }
 
-void ue_context_free_by_hnb(struct hnb_gw *gw, const struct hnb_context *hnb)
+void ue_context_free_by_hnb(const struct hnb_context *hnb)
 {
 	struct ue_context *ue, *tmp;
 
-	llist_for_each_entry_safe(ue, tmp, &gw->ue_list, list) {
+	llist_for_each_entry_safe(ue, tmp, &g_hnbgw->ue_list, list) {
 		if (ue->hnb == hnb)
 			ue_context_free(ue);
 	}
 }
 
-static uint32_t get_next_ue_ctx_id(struct hnb_gw *gw)
+static uint32_t get_next_ue_ctx_id(void)
 {
 	uint32_t id;
 
 	do {
-		id = gw->next_ue_ctx_id++;
-	} while (ue_context_by_id(gw, id));
+		id = g_hnbgw->next_ue_ctx_id++;
+	} while (ue_context_by_id(id));
 
 	return id;
 }
@@ -193,7 +190,7 @@ struct ue_context *ue_context_alloc(struct hnb_context *hnb, const char *imsi,
 {
 	struct ue_context *ue;
 
-	ue = talloc_zero(tall_hnb_ctx, struct ue_context);
+	ue = talloc_zero(g_hnbgw, struct ue_context);
 	if (!ue)
 		return NULL;
 
@@ -203,8 +200,8 @@ struct ue_context *ue_context_alloc(struct hnb_context *hnb, const char *imsi,
 	else
 		ue->imsi[0] = '\0';
 	ue->tmsi = tmsi;
-	ue->context_id = get_next_ue_ctx_id(hnb->gw);
-	llist_add_tail(&ue->list, &hnb->gw->ue_list);
+	ue->context_id = get_next_ue_ctx_id();
+	llist_add_tail(&ue->list, &g_hnbgw->ue_list);
 
 	LOGP(DHNBAP, LOGL_INFO, "created UE context: id 0x%x, imsi %s, tmsi 0x%x\n",
 	     ue->context_id, imsi? imsi : "-", tmsi);
@@ -337,24 +334,23 @@ static int hnb_closed_cb(struct osmo_stream_srv *conn)
 	return 0;
 }
 
-struct hnb_context *hnb_context_alloc(struct hnb_gw *gw, struct osmo_stream_srv_link *link, int new_fd)
+struct hnb_context *hnb_context_alloc(struct osmo_stream_srv_link *link, int new_fd)
 {
 	struct hnb_context *ctx;
 
-	ctx = talloc_zero(tall_hnb_ctx, struct hnb_context);
+	ctx = talloc_zero(g_hnbgw, struct hnb_context);
 	if (!ctx)
 		return NULL;
 	INIT_LLIST_HEAD(&ctx->map_list);
 
-	ctx->gw = gw;
-	ctx->conn = osmo_stream_srv_create(tall_hnb_ctx, link, new_fd, hnb_read_cb, hnb_closed_cb, ctx);
+	ctx->conn = osmo_stream_srv_create(g_hnbgw, link, new_fd, hnb_read_cb, hnb_closed_cb, ctx);
 	if (!ctx->conn) {
 		LOGP(DMAIN, LOGL_INFO, "error while creating connection\n");
 		talloc_free(ctx);
 		return NULL;
 	}
 
-	llist_add_tail(&ctx->list, &gw->hnb_list);
+	llist_add_tail(&ctx->list, &g_hnbgw->hnb_list);
 	return ctx;
 }
 
@@ -371,7 +367,7 @@ const char *hnb_context_name(struct hnb_context *ctx)
 	if (!ctx)
 		return "NULL";
 
-	if (ctx->gw->config.log_prefix_hnb_id)
+	if (g_hnbgw->config.log_prefix_hnb_id)
 		return ctx->identity_info;
 	else
 		return umts_cell_id_name(&ctx->id);
@@ -386,7 +382,7 @@ void hnb_context_release_ue_state(struct hnb_context *ctx)
 		context_map_hnb_released(map);
 		/* hnbgw_context_map will remove itself from lists when it is ready. */
 	}
-	ue_context_free_by_hnb(ctx->gw, ctx);
+	ue_context_free_by_hnb(ctx);
 }
 
 void hnb_context_release(struct hnb_context *ctx)
@@ -422,13 +418,12 @@ void hnb_context_release(struct hnb_context *ctx)
 /*! call-back when the listen FD has something to read */
 static int accept_cb(struct osmo_stream_srv_link *srv, int fd)
 {
-	struct hnb_gw *gw = osmo_stream_srv_link_get_data(srv);
 	struct hnb_context *ctx;
 
 	LOGP(DMAIN, LOGL_INFO, "New HNB SCTP connection %s\n",
 	     osmo_sock_get_name2(fd));
 
-	ctx = hnb_context_alloc(gw, srv, fd);
+	ctx = hnb_context_alloc(srv, fd);
 	if (!ctx)
 		return -ENOMEM;
 
@@ -627,8 +622,7 @@ static int get_hnb_info(struct ctrl_cmd *cmd, void *data)
 CTRL_CMD_DEFINE_RO(hnbs, "num-hnb");
 static int get_hnbs(struct ctrl_cmd *cmd, void *data)
 {
-	struct hnb_gw *gw = data;
-	cmd->reply = talloc_asprintf(cmd, "%u", llist_count(&gw->hnb_list));
+	cmd->reply = talloc_asprintf(cmd, "%u", llist_count(&g_hnbgw->hnb_list));
 
 	return CTRL_CMD_REPLY;
 }
@@ -659,7 +653,7 @@ static int hnb_ctrl_node_lookup(void *data, vector vline, int *node_type, void *
 		if (!ctrl_parse_get_num(vline, *i, &num))
 			return -ERANGE;
 
-		hnb = hnb_context_by_id(data, num);
+		hnb = hnb_context_by_id(num);
 		if (!hnb)
 			return -ENODEV;
 
@@ -681,8 +675,8 @@ static int hnbgw_mgw_setup(void)
 	/* Initialize MGW pool. This initalizes and connects all MGCP clients that are currently configured in
 	 * the pool. Adding additional MGCP clients to the pool is possible but the user has to configure and
 	 * (re)connect them manually from the VTY. */
-	if (!mgcp_client_pool_empty(g_hnb_gw->mgw_pool)) {
-		pool_members_initalized = mgcp_client_pool_connect(g_hnb_gw->mgw_pool);
+	if (!mgcp_client_pool_empty(g_hnbgw->mgw_pool)) {
+		pool_members_initalized = mgcp_client_pool_connect(g_hnbgw->mgw_pool);
 		if (!pool_members_initalized) {
 			LOGP(DMGW, LOGL_ERROR, "MGW pool failed to initialize any pool members\n");
 			return -EINVAL;
@@ -696,18 +690,18 @@ static int hnbgw_mgw_setup(void)
 	/* Initialize and connect a single MGCP client. This MGCP client will appear as the one and only pool
 	 * member if there is no MGW pool configured. */
 	LOGP(DMGW, LOGL_NOTICE, "No MGW pool configured, using MGW configuration in VTY node 'mgcp'\n");
-	mgcp_client_single = mgcp_client_init(tall_hnb_ctx, g_hnb_gw->config.mgcp_client);
+	mgcp_client_single = mgcp_client_init(g_hnbgw, g_hnbgw->config.mgcp_client);
 	if (!mgcp_client_single) {
 		LOGP(DMGW, LOGL_ERROR, "MGW (single) client initalization failed\n");
 		return -EINVAL;
 	}
 	if (mgcp_client_connect(mgcp_client_single)) {
 		LOGP(DMGW, LOGL_ERROR, "MGW (single) connect failed at (%s:%u)\n",
-		     g_hnb_gw->config.mgcp_client->remote_addr,
-		     g_hnb_gw->config.mgcp_client->remote_port);
+		     g_hnbgw->config.mgcp_client->remote_addr,
+		     g_hnbgw->config.mgcp_client->remote_port);
 		return -EINVAL;
 	}
-	mgcp_client_pool_register_single(g_hnb_gw->mgw_pool, mgcp_client_single);
+	mgcp_client_pool_register_single(g_hnbgw->mgw_pool, mgcp_client_single);
 
 	return 0;
 }
@@ -719,14 +713,14 @@ int main(int argc, char **argv)
 
 	talloc_enable_null_tracking();
 
-	tall_hnb_ctx = talloc_named_const(NULL, 0, "hnb_context");
-	talloc_asn1_ctx = talloc_named_const(tall_hnb_ctx, 1, "asn1_context");
-	msgb_talloc_ctx_init(tall_hnb_ctx, 0);
+	/* g_hnbgw serves as the root talloc ctx, so allocate with NULL parent */
+	g_hnbgw_alloc(NULL);
+	g_hnbgw->config.rnc_id = 23;
 
-	g_hnb_gw = hnb_gw_create(tall_hnb_ctx);
-	g_hnb_gw->config.rnc_id = 23;
+	talloc_asn1_ctx = talloc_named_const(g_hnbgw, 1, "asn1_context");
+	msgb_talloc_ctx_init(g_hnbgw, 0);
 
-	rc = osmo_init_logging2(tall_hnb_ctx, &hnbgw_log_info);
+	rc = osmo_init_logging2(g_hnbgw, &hnbgw_log_info);
 	if (rc < 0)
 		exit(1);
 
@@ -738,14 +732,14 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	vty_info.tall_ctx = tall_hnb_ctx;
+	vty_info.tall_ctx = g_hnbgw;
 	vty_info.copyright = osmo_hnbgw_copyright;
 	vty_init(&vty_info);
 
-	osmo_ss7_vty_init_asp(tall_hnb_ctx);
+	osmo_ss7_vty_init_asp(g_hnbgw);
 	osmo_sccp_vty_init();
-	hnbgw_vty_init(g_hnb_gw, tall_hnb_ctx);
-	ctrl_vty_init(tall_hnb_ctx);
+	hnbgw_vty_init();
+	ctrl_vty_init(g_hnbgw);
 	logging_vty_add_cmds();
 	osmo_talloc_vty_add_cmds();
 
@@ -774,15 +768,15 @@ int main(int argc, char **argv)
 		log_set_log_level(osmo_stderr_target,
 				  hnbgw_cmdline_config.log_level);
 
-	rc = telnet_init_default(tall_hnb_ctx, g_hnb_gw, OSMO_VTY_PORT_HNBGW);
+	rc = telnet_init_default(g_hnbgw, g_hnbgw, OSMO_VTY_PORT_HNBGW);
 	if (rc < 0) {
 		perror("Error binding VTY port");
 		exit(1);
 	}
 
-	g_hnb_gw->ctrl = ctrl_interface_setup2(g_hnb_gw, OSMO_CTRL_PORT_HNBGW, hnb_ctrl_node_lookup,
+	g_hnbgw->ctrl = ctrl_interface_setup2(g_hnbgw, OSMO_CTRL_PORT_HNBGW, hnb_ctrl_node_lookup,
 					       _LAST_CTRL_NODE_HNB);
-	if (!g_hnb_gw->ctrl) {
+	if (!g_hnbgw->ctrl) {
 		LOGP(DMAIN, LOGL_ERROR, "Failed to create CTRL interface on %s:%u\n",
 		     ctrl_vty_get_bind_addr(), OSMO_CTRL_PORT_HNBGW);
 		exit(1);
@@ -796,35 +790,35 @@ int main(int argc, char **argv)
 
 	ranap_set_log_area(DRANAP);
 
-	rc = hnbgw_cnlink_init(g_hnb_gw, "localhost", M3UA_PORT, "localhost");
+	rc = hnbgw_cnlink_init("localhost", M3UA_PORT, "localhost");
 	if (rc < 0) {
 		LOGP(DMAIN, LOGL_ERROR, "Failed to initialize SCCP link to CN\n");
 		exit(1);
 	}
 
-	LOGP(DHNBAP, LOGL_NOTICE, "Using RNC-Id %u\n", g_hnb_gw->config.rnc_id);
+	LOGP(DHNBAP, LOGL_NOTICE, "Using RNC-Id %u\n", g_hnbgw->config.rnc_id);
 
-	OSMO_ASSERT(g_hnb_gw->config.iuh_local_ip);
+	OSMO_ASSERT(g_hnbgw->config.iuh_local_ip);
 	LOGP(DMAIN, LOGL_NOTICE, "Listening for Iuh at %s %d\n",
-	     g_hnb_gw->config.iuh_local_ip,
-	     g_hnb_gw->config.iuh_local_port);
-	srv = osmo_stream_srv_link_create(tall_hnb_ctx);
+	     g_hnbgw->config.iuh_local_ip,
+	     g_hnbgw->config.iuh_local_port);
+	srv = osmo_stream_srv_link_create(g_hnbgw);
 	if (!srv) {
 		perror("cannot create server");
 		exit(1);
 	}
-	osmo_stream_srv_link_set_data(srv, g_hnb_gw);
+	osmo_stream_srv_link_set_data(srv, g_hnbgw);
 	osmo_stream_srv_link_set_proto(srv, IPPROTO_SCTP);
 	osmo_stream_srv_link_set_nodelay(srv, true);
-	osmo_stream_srv_link_set_addr(srv, g_hnb_gw->config.iuh_local_ip);
-	osmo_stream_srv_link_set_port(srv, g_hnb_gw->config.iuh_local_port);
+	osmo_stream_srv_link_set_addr(srv, g_hnbgw->config.iuh_local_ip);
+	osmo_stream_srv_link_set_port(srv, g_hnbgw->config.iuh_local_port);
 	osmo_stream_srv_link_set_accept_cb(srv, accept_cb);
 
 	if (osmo_stream_srv_link_open(srv) < 0) {
 		perror("Cannot open server");
 		exit(1);
 	}
-	g_hnb_gw->iuh = srv;
+	g_hnbgw->iuh = srv;
 
 	/* Initialize and connect MGCP client. */
 	if (hnbgw_mgw_setup() != 0)
@@ -832,7 +826,7 @@ int main(int argc, char **argv)
 
 #if ENABLE_PFCP
 	/* If UPF is configured, set up PFCP socket and send Association Setup Request to UPF */
-	hnbgw_pfcp_init(g_hnb_gw);
+	hnbgw_pfcp_init();
 #endif
 
 	if (hnbgw_cmdline_config.daemonize) {

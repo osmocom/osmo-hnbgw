@@ -49,9 +49,6 @@ struct ps_rab {
 	/* Instance of ps_rab_fsm. */
 	struct osmo_fsm_inst *fi;
 
-	/* backpointer */
-	struct hnb_gw *hnb_gw;
-
 	/* List entry and backpointer.
 	 * If map == NULL, do not call llist_del(&entry): the hnbgw_context_map may deallocate before the PFCP release
 	 * is complete, in which case it sets map = NULL. */
@@ -98,5 +95,5 @@ struct ps_rab_rx_args {
 int ps_rab_rx_access_remote_f_teid(struct hnbgw_context_map *map, uint8_t rab_id,
 				   const struct ps_rab_rx_args *args);
 
-struct ps_rab *ps_rab_find_by_seid(struct hnb_gw *hnb_gw, uint64_t seid, bool is_cp_seid);
+struct ps_rab *ps_rab_find_by_seid(uint64_t seid, bool is_cp_seid);
 void ps_rab_pfcp_set_msg_ctx(struct ps_rab *rab, struct osmo_pfcp_msg *m);

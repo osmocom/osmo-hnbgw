@@ -99,7 +99,7 @@ static int hnbgw_tx_hnb_register_acc(struct hnb_context *ctx)
 
 	/* Single required response IE: RNC-ID */
 	HNBAP_HNBRegisterAcceptIEs_t accept = {
-		.rnc_id = ctx->gw->config.rnc_id
+		.rnc_id = g_hnbgw->config.rnc_id
 	};
 
 	/* encode the Information Elements */
@@ -330,7 +330,7 @@ static int hnbgw_tx_ue_register_acc_tmsi(struct hnb_context *hnb, HNBAP_UE_Ident
 	tmsi = ntohl(tmsi);
 	LOGHNB(hnb, DHNBAP, LOGL_DEBUG, "HNBAP register with TMSI %x\n", tmsi);
 
-	ue = ue_context_by_tmsi(hnb->gw, tmsi);
+	ue = ue_context_by_tmsi(tmsi);
 	if (!ue)
 		ue = ue_allocated = ue_context_alloc(hnb, NULL, tmsi);
 
@@ -431,7 +431,7 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	ctx->id.mcc = plmn.mcc;
 	ctx->id.mnc = plmn.mnc;
 
-	llist_for_each_entry_safe(hnb, tmp, &ctx->gw->hnb_list, list) {
+	llist_for_each_entry_safe(hnb, tmp, &g_hnbgw->hnb_list, list) {
 		if (hnb->hnb_registered && ctx != hnb && memcmp(&ctx->id, &hnb->id, sizeof(ctx->id)) == 0) {
 			/* If it's coming from the same remote IP addr+port, then it must be our internal
 			 * fault (bug), and we release the old context to keep going... */
@@ -513,7 +513,7 @@ static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 		break;
 	case HNBAP_UE_Identity_PR_tMSILAI:
 	case HNBAP_UE_Identity_PR_pTMSIRAI:
-		if (ctx->gw->config.hnbap_allow_tmsi)
+		if (g_hnbgw->config.hnbap_allow_tmsi)
 			rc = hnbgw_tx_ue_register_acc_tmsi(ctx, &ies.uE_Identity);
 		else
 			rc = hnbgw_tx_ue_register_rej_tmsi(ctx, &ies.uE_Identity);
@@ -529,7 +529,7 @@ static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 	LOGHNB(ctx, DHNBAP, LOGL_DEBUG, "UE-REGISTER-REQ ID_type=%d imsi=%s cause=%ld\n",
 		ies.uE_Identity.present, imsi, ies.registration_Cause);
 
-	ue = ue_context_by_imsi(ctx->gw, imsi);
+	ue = ue_context_by_imsi(imsi);
 	if (!ue)
 		ue = ue_allocated = ue_context_alloc(ctx, imsi, 0);
 
@@ -561,7 +561,7 @@ static int hnbgw_rx_ue_deregister(struct hnb_context *ctx, ANY_t *in)
 
 	LOGHNB(ctx, DHNBAP, LOGL_DEBUG, "UE-DE-REGISTER context=%u cause=%s\n", ctxid, hnbap_cause_str(&ies.cause));
 
-	ue = ue_context_by_id(ctx->gw, ctxid);
+	ue = ue_context_by_id(ctxid);
 	if (ue)
 		ue_context_free(ue);
 

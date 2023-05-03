@@ -87,7 +87,7 @@ static struct ps_rab *ps_rab_alloc(struct hnbgw_context_map *map, uint8_t rab_id
 
 	/* Allocate with the global hnb_gw, so that we can gracefully handle PFCP release even if a hnb_ctx gets
 	 * deallocated. */
-	fi = osmo_fsm_inst_alloc(&ps_rab_fsm, map->gw, NULL, LOGL_DEBUG, NULL);
+	fi = osmo_fsm_inst_alloc(&ps_rab_fsm, g_hnbgw, NULL, LOGL_DEBUG, NULL);
 	OSMO_ASSERT(fi);
 	osmo_fsm_inst_update_id_f_sanitize(fi, '-', "%s-RUA-%u-RAB-%u", hnb_context_name(map->hnb_ctx), map->rua_ctx_id,
 					   rab_id);
@@ -96,7 +96,6 @@ static struct ps_rab *ps_rab_alloc(struct hnbgw_context_map *map, uint8_t rab_id
 	OSMO_ASSERT(rab);
 	*rab = (struct ps_rab){
 		.fi = fi,
-		.hnb_gw = map->gw,
 		.map = map,
 		.rab_id = rab_id,
 		.use_count = {
@@ -115,10 +114,10 @@ static struct ps_rab *ps_rab_alloc(struct hnbgw_context_map *map, uint8_t rab_id
 /* Iterate all ps_rab instances of all context maps and return the one matching the given SEID.
  * If is_cp_seid == true, match seid with rab->cp_seid (e.g. for received PFCP messages).
  * Otherwise match seid with rab->up_f_seid.seid (e.g. for sent PFCP messages). */
-struct ps_rab *ps_rab_find_by_seid(struct hnb_gw *hnb_gw, uint64_t seid, bool is_cp_seid)
+struct ps_rab *ps_rab_find_by_seid(uint64_t seid, bool is_cp_seid)
 {
 	struct hnb_context *hnb;
-	llist_for_each_entry(hnb, &hnb_gw->hnb_list, list) {
+	llist_for_each_entry(hnb, &g_hnbgw->hnb_list, list) {
 		struct hnbgw_context_map *map;
 		llist_for_each_entry(map, &hnb->map_list, hnb_list) {
 			struct ps_rab *rab;
@@ -144,8 +143,7 @@ void ps_rab_pfcp_set_msg_ctx(struct ps_rab *rab, struct osmo_pfcp_msg *m)
 
 static struct osmo_pfcp_msg *ps_rab_new_pfcp_msg_req(struct ps_rab *rab, enum osmo_pfcp_message_type msg_type)
 {
-	struct hnb_gw *hnb_gw = rab->hnb_gw;
-	struct osmo_pfcp_msg *m = osmo_pfcp_cp_peer_new_req(hnb_gw->pfcp.cp_peer, msg_type);
+	struct osmo_pfcp_msg *m = osmo_pfcp_cp_peer_new_req(g_hnbgw->pfcp.cp_peer, msg_type);
 
 	m->h.seid_present = true;
 	m->h.seid = rab->up_f_seid.seid;
@@ -300,7 +298,6 @@ static int on_pfcp_est_resp(struct osmo_pfcp_msg *req, struct osmo_pfcp_msg *rx_
 static void ps_rab_fsm_wait_pfcp_est_resp_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state)
 {
 	struct ps_rab *rab = fi->priv;
-	struct hnb_gw *hnb_gw = rab->hnb_gw;
 	struct osmo_pfcp_msg *m;
 	struct osmo_pfcp_ie_f_seid cp_f_seid;
 	struct osmo_pfcp_msg_session_est_req *ser;
@@ -313,11 +310,11 @@ static void ps_rab_fsm_wait_pfcp_est_resp_onenter(struct osmo_fsm_inst *fi, uint
 	m->h.seid = 0;
 
 	/* Make a new CP-SEID, our local reference for the PFCP session. */
-	rab->cp_seid = osmo_pfcp_next_seid(&hnb_gw->pfcp.cp_peer->next_seid_state);
+	rab->cp_seid = osmo_pfcp_next_seid(&g_hnbgw->pfcp.cp_peer->next_seid_state);
 	cp_f_seid = (struct osmo_pfcp_ie_f_seid){
 		.seid = rab->cp_seid,
 	};
-	osmo_pfcp_ip_addrs_set(&cp_f_seid.ip_addr, &osmo_pfcp_endpoint_get_cfg(hnb_gw->pfcp.ep)->local_addr);
+	osmo_pfcp_ip_addrs_set(&cp_f_seid.ip_addr, &osmo_pfcp_endpoint_get_cfg(g_hnbgw->pfcp.ep)->local_addr);
 
 	m->ies.session_est_req = (struct osmo_pfcp_msg_session_est_req){
 		.node_id = m->ies.session_est_req.node_id,
@@ -336,7 +333,7 @@ static void ps_rab_fsm_wait_pfcp_est_resp_onenter(struct osmo_fsm_inst *fi, uint
 
 	/* Send PFCP Session Establishment Request to UPF, wait for response. */
 	m->ctx.resp_cb = on_pfcp_est_resp;
-	if (osmo_pfcp_endpoint_tx(hnb_gw->pfcp.ep, m)) {
+	if (osmo_pfcp_endpoint_tx(g_hnbgw->pfcp.ep, m)) {
 		LOG_PS_RAB(rab, LOGL_ERROR, "Failed to send PFCP message\n");
 		ps_rab_failure(rab);
 	}
@@ -524,7 +521,6 @@ static void ps_rab_fsm_wait_pfcp_mod_resp_onenter(struct osmo_fsm_inst *fi, uint
 	/* We have been given the Access side's remote F-TEID, now in rab->access.remote, and we need to tell the UPF
 	 * about it. */
 	struct ps_rab *rab = fi->priv;
-	struct hnb_gw *hnb_gw = rab->hnb_gw;
 	struct osmo_pfcp_msg *m;
 
 	if (!(rab->up_f_seid.ip_addr.v4_present /* || rab->up_f_seid.ip_addr.v6_present */)) {
@@ -542,7 +538,7 @@ static void ps_rab_fsm_wait_pfcp_mod_resp_onenter(struct osmo_fsm_inst *fi, uint
 	}
 
 	m->ctx.resp_cb = on_pfcp_mod_resp;
-	if (osmo_pfcp_endpoint_tx(hnb_gw->pfcp.ep, m)) {
+	if (osmo_pfcp_endpoint_tx(g_hnbgw->pfcp.ep, m)) {
 		LOG_PS_RAB(rab, LOGL_ERROR, "Failed to send PFCP message\n");
 		ps_rab_failure(rab);
 	}
@@ -611,7 +607,6 @@ static void ps_rab_fsm_wait_pfcp_del_resp_onenter(struct osmo_fsm_inst *fi, uint
 	/* If a PFCP session has been established, send a Session Deletion Request and wait for the response.
 	 * If no session is established, just terminate. */
 	struct ps_rab *rab = fi->priv;
-	struct hnb_gw *hnb_gw = rab->hnb_gw;
 	struct osmo_pfcp_msg *m;
 
 	if (!(rab->up_f_seid.ip_addr.v4_present /* || rab->up_f_seid.ip_addr.v6_present */)) {
@@ -622,7 +617,7 @@ static void ps_rab_fsm_wait_pfcp_del_resp_onenter(struct osmo_fsm_inst *fi, uint
 
 	m = ps_rab_new_pfcp_msg_req(rab, OSMO_PFCP_MSGT_SESSION_DEL_REQ);
 	m->ctx.resp_cb = on_pfcp_del_resp;
-	if (osmo_pfcp_endpoint_tx(hnb_gw->pfcp.ep, m)) {
+	if (osmo_pfcp_endpoint_tx(g_hnbgw->pfcp.ep, m)) {
 		LOG_PS_RAB(rab, LOGL_ERROR, "Failed to send PFCP message\n");
 		ps_rab_failure(rab);
 	}

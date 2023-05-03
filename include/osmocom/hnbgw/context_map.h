@@ -77,9 +77,6 @@ struct hnbgw_context_map {
 	 * must not be used. */
 	struct llist_head hnb_list;
 
-	/* Backpointer to global hnb_gw. */
-	struct hnb_gw *gw;
-
 	/* Pointer to HNB for this map, to transceive RUA. If the HNB has disconnected without releasing the RUA
 	 * context, this is NULL. */
 	struct hnb_context *hnb_ctx;

@@ -58,8 +58,6 @@ struct umts_cell_id {
 	uint32_t cid;	/*!< Cell ID */
 };
 
-struct hnb_gw;
-
 enum hnbgw_cnlink_state {
 	/* we have just been initialized or were disconnected */
 	CNLINK_S_NULL,
@@ -76,7 +74,6 @@ enum hnbgw_cnlink_state {
 struct hnbgw_cnlink {
 	struct llist_head list;
 	enum hnbgw_cnlink_state state;
-	struct hnb_gw *gw;
 	/* timer for re-transmitting the RANAP Reset */
 	struct osmo_timer_list T_RafC;
 	/* reference to the SCCP User SAP by which we communicate */
@@ -92,8 +89,6 @@ struct hnbgw_cnlink {
 struct hnb_context {
 	/*! Entry in HNB-global list of HNB */
 	struct llist_head list;
-	/*! HNB-GW we are part of */
-	struct hnb_gw *gw;
 	/*! SCTP socket + write queue for Iuh to this specific HNB */
 	struct osmo_stream_srv *conn;
 	/*! copied from HNB-Identity-Info IE */
@@ -124,7 +119,7 @@ struct ue_context {
 	struct hnb_context *hnb;
 };
 
-struct hnb_gw {
+struct hnbgw {
 	struct {
 		const char *iuh_local_ip;
 		/*! SCTP port for Iuh listening */
@@ -173,24 +168,25 @@ struct hnb_gw {
 	} pfcp;
 };
 
+extern struct hnbgw *g_hnbgw;
 extern void *talloc_asn1_ctx;
 
-struct hnb_context *hnb_context_by_id(struct hnb_gw *gw, uint32_t cid);
-struct hnb_context *hnb_context_by_identity_info(struct hnb_gw *gw, const char *identity_info);
+struct hnb_context *hnb_context_by_id(uint32_t cid);
+struct hnb_context *hnb_context_by_identity_info(const char *identity_info);
 const char *hnb_context_name(struct hnb_context *ctx);
 
-struct ue_context *ue_context_by_id(struct hnb_gw *gw, uint32_t id);
-struct ue_context *ue_context_by_imsi(struct hnb_gw *gw, const char *imsi);
-struct ue_context *ue_context_by_tmsi(struct hnb_gw *gw, uint32_t tmsi);
+struct ue_context *ue_context_by_id(uint32_t id);
+struct ue_context *ue_context_by_imsi(const char *imsi);
+struct ue_context *ue_context_by_tmsi(uint32_t tmsi);
 struct ue_context *ue_context_alloc(struct hnb_context *hnb, const char *imsi,
 				    uint32_t tmsi);
 void ue_context_free(struct ue_context *ue);
 
-struct hnb_context *hnb_context_alloc(struct hnb_gw *gw, struct osmo_stream_srv_link *link, int new_fd);
+struct hnb_context *hnb_context_alloc(struct osmo_stream_srv_link *link, int new_fd);
 void hnb_context_release(struct hnb_context *ctx);
 void hnb_context_release_ue_state(struct hnb_context *ctx);
 
-void hnbgw_vty_init(struct hnb_gw *gw, void *tall_ctx);
+void hnbgw_vty_init(void);
 int hnbgw_vty_go_parent(struct vty *vty);
 
 /* Return true when the user configured GTP mapping to be enabled, by configuring a PFCP link to a UPF.
@@ -198,9 +194,9 @@ int hnbgw_vty_go_parent(struct vty *vty);
  * 1:1.
  * GTP mapping means that there are two GTP tunnels, one towards HNB and one towards CN, and we forward payloads between
  * the two tunnels, mapping the TEIDs and GTP addresses. */
-static inline bool hnb_gw_is_gtp_mapping_enabled(const struct hnb_gw *gw)
+static inline bool hnb_gw_is_gtp_mapping_enabled(void)
 {
-	return gw->config.pfcp.remote_addr != NULL;
+	return g_hnbgw->config.pfcp.remote_addr != NULL;
 }
 
 struct msgb *hnbgw_ranap_msg_alloc(const char *name);
