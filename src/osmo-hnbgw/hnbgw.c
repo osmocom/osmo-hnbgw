@@ -36,6 +36,7 @@
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/hnbgw_hnbap.h>
 #include <osmocom/hnbgw/hnbgw_rua.h>
+#include <osmocom/hnbgw/hnbgw_cn.h>
 #include <osmocom/hnbgw/context_map.h>
 
 struct hnbgw *g_hnbgw = NULL;
@@ -71,6 +72,9 @@ void g_hnbgw_alloc(void *ctx)
 			.nri_bitlen = OSMO_NRI_BITLEN_DEFAULT,
 			.null_nri_ranges = osmo_nri_ranges_alloc(g_hnbgw),
 		},
+		.cnlink_ctrg_desc = &msc_ctrg_desc,
+
+		.ctrs = rate_ctr_group_alloc(g_hnbgw, &iucs_ctrg_desc, 0),
 	};
 	INIT_LLIST_HEAD(&g_hnbgw->sccp.cnpool_iucs.cnlinks);
 
@@ -82,6 +86,9 @@ void g_hnbgw_alloc(void *ctx)
 			.nri_bitlen = OSMO_NRI_BITLEN_DEFAULT,
 			.null_nri_ranges = osmo_nri_ranges_alloc(g_hnbgw),
 		},
+		.cnlink_ctrg_desc = &sgsn_ctrg_desc,
+
+		.ctrs = rate_ctr_group_alloc(g_hnbgw, &iups_ctrg_desc, 0),
 	};
 	INIT_LLIST_HEAD(&g_hnbgw->sccp.cnpool_iups.cnlinks);
 }

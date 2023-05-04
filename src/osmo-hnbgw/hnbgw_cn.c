@@ -26,6 +26,7 @@
 #include <osmocom/core/msgb.h>
 #include <osmocom/core/utils.h>
 #include <osmocom/core/timer.h>
+#include <osmocom/core/stats.h>
 
 #include <osmocom/gsm/gsm23236.h>
 
@@ -678,6 +679,7 @@ static struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
 			.data = cnlink,
 		},
 		.allow_attach = true,
+		.ctrs = rate_ctr_group_alloc(g_hnbgw, cnpool->cnlink_ctrg_desc, nr),
 	};
 	osmo_sccp_addr_set_ssn(&cnlink->local_addr, OSMO_SCCP_SSN_RANAP);
 	INIT_LLIST_HEAD(&cnlink->map_list);
@@ -785,7 +787,7 @@ struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 			if (nri_matches_cnlink) {
 				LOG_NRI(LOGL_DEBUG, "matches %s %d, but this %s is currently not connected\n",
 					cnpool->peer_name, cnlink->nr, cnpool->peer_name);
-				//TODO rate_ctr_inc(rate_ctr_group_get_ctr(msc->msc_ctrs, MSC_CTR_MSCPOOL_SUBSCR_ATTACH_LOST));
+				rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_SUBSCR_ATTACH_LOST));
 			}
 			continue;
 		}
@@ -797,10 +799,10 @@ struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 					cnpool->peer_name, cnlink->nr);
 			} else {
 				LOG_NRI(LOGL_DEBUG, "matches %s %d\n", cnpool->peer_name, cnlink->nr);
-				//TODO rate_ctr_inc(rate_ctr_group_get_ctr(msc->msc_ctrs, MSC_CTR_MSCPOOL_SUBSCR_KNOWN));
+				rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_SUBSCR_KNOWN));
 				if (map->l3.is_emerg) {
-					//TODO rate_ctr_inc(rate_ctr_group_get_ctr(msc->msc_ctrs, MSC_CTR_MSCPOOL_EMERG_FORWARDED));
-					//TODO rate_ctr_inc(rate_ctr_group_get_ctr(bsc_gsmnet->bsc_ctrs, BSC_CTR_MSCPOOL_EMERG_FORWARDED));
+					rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_EMERG_FORWARDED));
+					rate_ctr_inc(rate_ctr_group_get_ctr(cnpool->ctrs, CNPOOL_CTR_EMERG_FORWARDED));
 				}
 				return cnlink;
 			}
@@ -837,24 +839,24 @@ struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 	 * them are usable -- wrap to the start. */
 	cnlink = round_robin_next ? : round_robin_first;
 	if (!cnlink) {
-		//TODO rate_ctr_inc(rate_ctr_group_get_ctr(bsc_gsmnet->bsc_ctrs, BSC_CTR_MSCPOOL_SUBSCR_NO_MSC));
-		//TODO if (is_emerg)
-		//TODO 	rate_ctr_inc(rate_ctr_group_get_ctr(bsc_gsmnet->bsc_ctrs, BSC_CTR_MSCPOOL_EMERG_LOST));
+		rate_ctr_inc(rate_ctr_group_get_ctr(cnpool->ctrs, CNPOOL_CTR_SUBSCR_NO_CNLINK));
+		if (map->l3.is_emerg)
+			rate_ctr_inc(rate_ctr_group_get_ctr(cnpool->ctrs, CNPOOL_CTR_EMERG_LOST));
 		return NULL;
 	}
 
 	LOGP(DCN, LOGL_DEBUG, "New subscriber MI=%s: CN link round-robin selects %s %d\n",
 	     osmo_mobile_identity_to_str_c(OTC_SELECT, &map->l3.mi), cnpool->peer_name, cnlink->nr);
 
-	//TODO if (is_null_nri)
-	//TODO 	rate_ctr_inc(rate_ctr_group_get_ctr(msc_target->msc_ctrs, MSC_CTR_MSCPOOL_SUBSCR_REATTACH));
-	//TODO else
-	//TODO 	rate_ctr_inc(rate_ctr_group_get_ctr(msc_target->msc_ctrs, MSC_CTR_MSCPOOL_SUBSCR_NEW));
+	if (is_null_nri)
+		rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_SUBSCR_REATTACH));
+	else
+		rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_SUBSCR_NEW));
 
-	//TODO if (map->l3.is_emerg) {
-	//TODO 	rate_ctr_inc(rate_ctr_group_get_ctr(msc_target->msc_ctrs, MSC_CTR_MSCPOOL_EMERG_FORWARDED));
-	//TODO 	rate_ctr_inc(rate_ctr_group_get_ctr(bsc_gsmnet->bsc_ctrs, BSC_CTR_MSCPOOL_EMERG_FORWARDED));
-	//TODO }
+	if (map->l3.is_emerg) {
+		rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_EMERG_FORWARDED));
+		rate_ctr_inc(rate_ctr_group_get_ctr(cnpool->ctrs, CNPOOL_CTR_EMERG_FORWARDED));
+	}
 
 	/* A CN link was picked by round-robin, so update the next round-robin nr to pick */
 	if (map->l3.is_emerg)
@@ -864,3 +866,81 @@ struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 	return cnlink;
 #undef LOG_NRI
 }
+
+static const struct rate_ctr_desc cnlink_ctr_description[] = {
+
+	/* Indicators for CN pool usage */
+	[CNLINK_CTR_CNPOOL_SUBSCR_NEW] = {
+		"cnpool:subscr:new",
+		"Complete Layer 3 requests assigned to this CN link by round-robin (no NRI was assigned yet).",
+	},
+	[CNLINK_CTR_CNPOOL_SUBSCR_REATTACH] = {
+		"cnpool:subscr:reattach",
+		"Complete Layer 3 requests assigned to this CN link by round-robin because the subscriber indicates a"
+		" NULL-NRI (previously assigned by another CN link).",
+	},
+	[CNLINK_CTR_CNPOOL_SUBSCR_KNOWN] = {
+		"cnpool:subscr:known",
+		"Complete Layer 3 requests directed to this CN link because the subscriber indicates an NRI of this CN link.",
+	},
+	[CNLINK_CTR_CNPOOL_SUBSCR_PAGED] = {
+		"cnpool:subscr:paged",
+		"Paging Response directed to this CN link because the subscriber was recently paged by this CN link.",
+	},
+	[CNLINK_CTR_CNPOOL_SUBSCR_ATTACH_LOST] = {
+		"cnpool:subscr:attach_lost",
+		"A subscriber indicates an NRI value matching this CN link, but the CN link is not connected:"
+		" a re-attach to another CN link (if available) was forced, with possible service failure.",
+	},
+	[CNLINK_CTR_CNPOOL_EMERG_FORWARDED] = {
+		"cnpool:emerg:forwarded",
+		"Emergency call requests forwarded to this CN link.",
+	},
+};
+
+const struct rate_ctr_group_desc msc_ctrg_desc = {
+	"msc",
+	"MSC",
+	OSMO_STATS_CLASS_GLOBAL,
+	ARRAY_SIZE(cnlink_ctr_description),
+	cnlink_ctr_description,
+};
+
+const struct rate_ctr_group_desc sgsn_ctrg_desc = {
+	"sgsn",
+	"SGSN",
+	OSMO_STATS_CLASS_GLOBAL,
+	ARRAY_SIZE(cnlink_ctr_description),
+	cnlink_ctr_description,
+};
+
+static const struct rate_ctr_desc cnpool_ctr_description[] = {
+	[CNPOOL_CTR_SUBSCR_NO_CNLINK] = {
+		"cnpool:subscr:no_cnlink",
+		"Complete Layer 3 requests lost because no connected CN link is found available",
+	},
+	[CNPOOL_CTR_EMERG_FORWARDED] = {
+		"cnpool:emerg:forwarded",
+		"Emergency call requests forwarded to a CN link (see also per-CN-link counters)",
+	},
+	[CNPOOL_CTR_EMERG_LOST] = {
+		"cnpool:emerg:lost",
+		"Emergency call requests lost because no CN link was found available",
+	},
+};
+
+const struct rate_ctr_group_desc iucs_ctrg_desc = {
+	"iucs",
+	"IuCS",
+	OSMO_STATS_CLASS_GLOBAL,
+	ARRAY_SIZE(cnpool_ctr_description),
+	cnpool_ctr_description,
+};
+
+const struct rate_ctr_group_desc iups_ctrg_desc = {
+	"iups",
+	"IuPS",
+	OSMO_STATS_CLASS_GLOBAL,
+	ARRAY_SIZE(cnpool_ctr_description),
+	cnpool_ctr_description,
+};
