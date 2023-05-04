@@ -45,6 +45,7 @@
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/ranap_rab_ass.h>
+#include <osmocom/hnbgw/ps_rab_ass_fsm.h>
 #include <osmocom/hnbgw/ps_rab_fsm.h>
 
 #include <osmocom/hnbgw/hnbgw_rua.h>
@@ -55,13 +56,6 @@
 
 #define LOG_PS_RAB_ASS(RAB_ASS, LOGL, FMT, ARGS...) \
 	LOGPFSML((RAB_ASS) ? (RAB_ASS)->fi : NULL, LOGL, FMT, ##ARGS)
-
-enum ps_rab_ass_fsm_event {
-	PS_RAB_ASS_EV_LOCAL_F_TEIDS_RX,
-	PS_RAB_ASS_EV_RAB_ASS_RESP,
-	PS_RAB_ASS_EV_RAB_ESTABLISHED,
-	PS_RAB_ASS_EV_RAB_FAIL,
-};
 
 static const struct value_string ps_rab_ass_fsm_event_names[] = {
 	OSMO_VALUE_STRING(PS_RAB_ASS_EV_LOCAL_F_TEIDS_RX),
