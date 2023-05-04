@@ -5,6 +5,7 @@
 #include <osmocom/core/hashtable.h>
 #include <osmocom/core/write_queue.h>
 #include <osmocom/core/timer.h>
+#include <osmocom/core/rate_ctr.h>
 #include <osmocom/sigtran/sccp_sap.h>
 #include <osmocom/sigtran/osmo_ss7.h>
 #include <osmocom/ctrl/control_if.h>
@@ -135,6 +136,12 @@ struct hnbgw_cnpool {
 	/* Emergency calls potentially select a different set of MSCs, so to not mess up the normal round-robin
 	 * behavior, emergency calls need a separate round-robin counter. */
 	unsigned int round_robin_next_emerg_nr;
+
+	/* rate counter group that child hnbgw_cnlinks should use (points to msc_ctrg_desc or sgsn_ctrg_desc) */
+	const struct rate_ctr_group_desc *cnlink_ctrg_desc;
+
+	/* Running counters for this pool */
+	struct rate_ctr_group *ctrs;
 };
 
 /* A CN peer, like 'msc 0' or 'sgsn 23' */
@@ -164,6 +171,8 @@ struct hnbgw_cnlink {
 
 	bool allow_attach;
 	bool allow_emerg;
+
+	struct rate_ctr_group *ctrs;
 };
 
 #define LOG_CNLINK(CNLINK, SUBSYS, LEVEL, FMT, ARGS...) \

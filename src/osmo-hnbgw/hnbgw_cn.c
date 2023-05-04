@@ -26,6 +26,7 @@
 #include <osmocom/core/msgb.h>
 #include <osmocom/core/utils.h>
 #include <osmocom/core/timer.h>
+#include <osmocom/core/stats.h>
 
 #include <osmocom/gsm/gsm23236.h>
 
@@ -655,6 +656,7 @@ static struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
 			.nri_ranges = osmo_nri_ranges_alloc(cnlink),
 		},
 		.allow_attach = true,
+		.ctrs = rate_ctr_group_alloc(g_hnbgw, cnpool->cnlink_ctrg_desc, nr),
 	};
 	INIT_LLIST_HEAD(&cnlink->map_list);
 
@@ -724,3 +726,81 @@ char *cnlink_sccp_addr_to_str(struct hnbgw_cnlink *cnlink, const struct osmo_scc
 		return osmo_sccp_addr_dump(addr);
 	return osmo_sccp_inst_addr_to_str_c(OTC_SELECT, sccp, addr);
 }
+
+static const struct rate_ctr_desc cnlink_ctr_description[] = {
+
+	/* Indicators for CN pool usage */
+	[CNLINK_CTR_CNPOOL_SUBSCR_NEW] = {
+		"cnpool:subscr:new",
+		"Complete Layer 3 requests assigned to this CN link by round-robin (no NRI was assigned yet).",
+	},
+	[CNLINK_CTR_CNPOOL_SUBSCR_REATTACH] = {
+		"cnpool:subscr:reattach",
+		"Complete Layer 3 requests assigned to this CN link by round-robin because the subscriber indicates a"
+		" NULL-NRI (previously assigned by another CN link).",
+	},
+	[CNLINK_CTR_CNPOOL_SUBSCR_KNOWN] = {
+		"cnpool:subscr:known",
+		"Complete Layer 3 requests directed to this CN link because the subscriber indicates an NRI of this CN link.",
+	},
+	[CNLINK_CTR_CNPOOL_SUBSCR_PAGED] = {
+		"cnpool:subscr:paged",
+		"Paging Response directed to this CN link because the subscriber was recently paged by this CN link.",
+	},
+	[CNLINK_CTR_CNPOOL_SUBSCR_ATTACH_LOST] = {
+		"cnpool:subscr:attach_lost",
+		"A subscriber indicates an NRI value matching this CN link, but the CN link is not connected:"
+		" a re-attach to another CN link (if available) was forced, with possible service failure.",
+	},
+	[CNLINK_CTR_CNPOOL_EMERG_FORWARDED] = {
+		"cnpool:emerg:forwarded",
+		"Emergency call requests forwarded to this CN link.",
+	},
+};
+
+const struct rate_ctr_group_desc msc_ctrg_desc = {
+	"msc",
+	"MSC",
+	OSMO_STATS_CLASS_GLOBAL,
+	ARRAY_SIZE(cnlink_ctr_description),
+	cnlink_ctr_description,
+};
+
+const struct rate_ctr_group_desc sgsn_ctrg_desc = {
+	"sgsn",
+	"SGSN",
+	OSMO_STATS_CLASS_GLOBAL,
+	ARRAY_SIZE(cnlink_ctr_description),
+	cnlink_ctr_description,
+};
+
+static const struct rate_ctr_desc cnpool_ctr_description[] = {
+	[CNPOOL_CTR_SUBSCR_NO_CNLINK] = {
+		"cnpool:subscr:no_cnlink",
+		"Complete Layer 3 requests lost because no connected CN link is found available",
+	},
+	[CNPOOL_CTR_EMERG_FORWARDED] = {
+		"cnpool:emerg:forwarded",
+		"Emergency call requests forwarded to a CN link (see also per-CN-link counters)",
+	},
+	[CNPOOL_CTR_EMERG_LOST] = {
+		"cnpool:emerg:lost",
+		"Emergency call requests lost because no CN link was found available",
+	},
+};
+
+const struct rate_ctr_group_desc iucs_ctrg_desc = {
+	"iucs",
+	"IuCS",
+	OSMO_STATS_CLASS_GLOBAL,
+	ARRAY_SIZE(cnpool_ctr_description),
+	cnpool_ctr_description,
+};
+
+const struct rate_ctr_group_desc iups_ctrg_desc = {
+	"iups",
+	"IuPS",
+	OSMO_STATS_CLASS_GLOBAL,
+	ARRAY_SIZE(cnpool_ctr_description),
+	cnpool_ctr_description,
+};

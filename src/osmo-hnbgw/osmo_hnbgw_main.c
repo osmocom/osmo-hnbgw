@@ -25,6 +25,7 @@
 
 #include <osmocom/core/application.h>
 #include <osmocom/core/logging.h>
+#include <osmocom/core/stats.h>
 
 #include <osmocom/vty/vty.h>
 #include <osmocom/vty/command.h>
@@ -32,6 +33,7 @@
 #include <osmocom/vty/misc.h>
 #include <osmocom/vty/telnet_interface.h>
 #include <osmocom/vty/ports.h>
+#include <osmocom/vty/stats.h>
 
 #include <osmocom/ctrl/control_vty.h>
 #include <osmocom/ctrl/ports.h>
@@ -194,6 +196,13 @@ int main(int argc, char **argv)
 	if (rc < 0)
 		exit(1);
 
+	osmo_stats_init(g_hnbgw);
+	rc = rate_ctr_init(g_hnbgw);
+	if (rc) {
+		LOGP(DMAIN, LOGL_FATAL, "rate_ctr_init() failed with rc=%d\n", rc);
+		exit(1);
+	}
+
 	osmo_fsm_log_timeouts(true);
 
 	rc = osmo_ss7_init();
@@ -211,6 +220,7 @@ int main(int argc, char **argv)
 	ctrl_vty_init(g_hnbgw);
 	logging_vty_add_cmds();
 	osmo_talloc_vty_add_cmds();
+	osmo_stats_vty_add_cmds();
 
 	/* Handle options after vty_init(), for --version */
 	handle_options(argc, argv);
