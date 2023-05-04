@@ -547,7 +547,15 @@ static void ps_rab_ass_resp_send_if_ready(struct ps_rab_ass *rab_ass)
 			return;
 		}
 
-		/* Replace GTP endpoint */
+		/* Replace GTP endpoint.
+		 * memory: ranap_new_transp_layer_addr() frees previous buffer in transportLayerAddress, if any. The
+		 * entire rab_item is freed along with item_ies.
+		 *
+		 * BTW, If I free this explicitly below with
+		 *   ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_BIT_STRING, &rab_item->transportLayerAddress);
+		 * that causes a leak in talloc_asn1_ctx: "iu_helpers.c:205 contains  20 bytes in  1 blocks".
+		 * I couldn't figure out why, but things are freed properly when leaving it all up to item_ies.
+		 */
 		if (ranap_new_transp_layer_addr(rab_item->transportLayerAddress, &rab->core.local.addr,
 						rab->access.use_x213_nsap) < 0) {
 			ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_SetupOrModifiedItem, &item_ies);
@@ -564,13 +572,13 @@ static void ps_rab_ass_resp_send_if_ready(struct ps_rab_ass *rab_ass)
 
 		teid_be = htonl(rab->core.local.teid);
 		rab_item->iuTransportAssociation->present = RANAP_IuTransportAssociation_PR_gTP_TEI;
+		/* memory: OCTET_STRING_fromBuf() frees previous buffer in gTP_TEI, if any. The entire rab_item is freed
+		 * along with item_ies. */
 		OCTET_STRING_fromBuf(&rab_item->iuTransportAssociation->choice.gTP_TEI,
 				     (const char *)&teid_be, sizeof(teid_be));
 
 		/* Reencode this list item in the RANAP message */
 		rc = ANY_fromType_aper(&list_ie->value, &asn_DEF_RANAP_RAB_SetupOrModifiedItem, rab_item);
-		ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_BIT_STRING, &rab_item->transportLayerAddress);
-		ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_OCTET_STRING, &rab_item->iuTransportAssociation->choice.gTP_TEI);
 		if (rc < 0) {
 			ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_SetupOrModifiedItem, &item_ies);
 			LOG_PS_RAB_ASS(rab_ass, LOGL_ERROR, "Re-encoding RANAP PS RAB-AssignmentResponse failed\n");
