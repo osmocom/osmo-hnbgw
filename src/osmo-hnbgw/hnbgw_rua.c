@@ -540,9 +540,3 @@ int hnbgw_rua_rx(struct hnb_context *hnb, struct msgb *msg)
 
 	return rc;
 }
-
-
-int hnbgw_rua_init(void)
-{
-	return 0;
-}
