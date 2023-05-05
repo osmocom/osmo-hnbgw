@@ -23,6 +23,7 @@
 #include <osmocom/core/msgb.h>
 #include <osmocom/core/utils.h>
 #include <osmocom/netif/stream.h>
+#include <osmocom/gsm/gsm48.h>
 
 #include <osmocom/sigtran/sccp_sap.h>
 #include <osmocom/sigtran/sccp_helpers.h>
@@ -38,7 +39,9 @@
 #include <osmocom/rua/rua_common.h>
 #include <osmocom/rua/rua_ies_defs.h>
 #include <osmocom/hnbgw/context_map.h>
+#include <osmocom/hnbgw/hnbgw_rua.h>
 #include <osmocom/hnbap/HNBAP_CN-DomainIndicator.h>
+#include <osmocom/ranap/ranap_ies_defs.h>
 
 static const char *cn_domain_indicator_to_str(RUA_CN_DomainIndicator_t cN_DomainIndicator)
 {
@@ -189,6 +192,107 @@ static inline const char *rua_procedure_code_name(enum RUA_ProcedureCode val)
 	return get_value_string(rua_procedure_code_names, val);
 }
 
+static int extract_select_args_from_nas_pdu(struct hnbgw_context_map *map,
+					    const uint8_t *nas_pdu, size_t len,
+					    const struct osmo_plmn_id *local_plmn)
+{
+	const struct gsm48_hdr *gh;
+	int8_t pdisc;
+	uint8_t mtype;
+	const struct gsm48_loc_upd_req *lu;
+	struct gsm48_service_request *cm;
+	struct osmo_location_area_id old_lai;
+	int rc;
+
+	/* Get the mobile identity */
+	rc = osmo_mobile_identity_decode_from_l3_buf(&map->l3.mi, nas_pdu, len, false);
+	if (rc) {
+		LOGP(DCN, LOGL_ERROR, "Cannot read Mobile Identity from layer 3 message (rc=%d %s)\n",
+		     rc, strerror(rc < 0 ? -rc : rc));
+		return -EINVAL;
+	}
+
+	/* Get is_emerg and from_other_plmn */
+	if (len < sizeof(*gh)) {
+		LOGP(DCN, LOGL_ERROR, "Layer 3 message too short for header\n");
+		return -EINVAL;
+	}
+
+	gh = (void*)nas_pdu;
+	pdisc = gsm48_hdr_pdisc(gh);
+	mtype = gsm48_hdr_msg_type(gh);
+
+	switch (pdisc) {
+	case GSM48_PDISC_MM:
+
+		switch (mtype) {
+		case GSM48_MT_MM_LOC_UPD_REQUEST:
+			if (len < sizeof(*gh) + sizeof(*lu)) {
+				LOGP(DCN, LOGL_ERROR, "LU Req message too short\n");
+				break;
+			}
+
+			lu = (struct gsm48_loc_upd_req*)gh->data;
+			gsm48_decode_lai2(&lu->lai, &old_lai);
+
+			map->l3.from_other_plmn = (osmo_plmn_cmp(&old_lai.plmn, local_plmn) != 0);
+			LOGP(DCN, LOGL_DEBUG, "LU from_other_plmn=%d\n", map->l3.from_other_plmn);
+			break;
+
+		case GSM48_MT_MM_CM_SERV_REQ:
+			if (len < sizeof(*gh) + sizeof(*cm)) {
+				LOGP(DCN, LOGL_ERROR, "CM Service Req message too short\n");
+				break;
+			}
+			cm = (struct gsm48_service_request *)&gh->data[0];
+			map->l3.is_emerg = (cm->cm_service_type == GSM48_CMSERV_EMERGENCY);
+			LOGP(DCN, LOGL_DEBUG, "CM Service is_emerg=%d\n", map->l3.is_emerg);
+			break;
+
+		default:
+			break;
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int extract_select_args_from_initial_ue_ies(struct hnbgw_context_map *map,
+						   const RANAP_InitialUE_MessageIEs_t *ies)
+{
+	struct osmo_plmn_id plmn;
+
+	if (ies->lai.pLMNidentity.size < 3) {
+		LOGP(DCN, LOGL_ERROR, "Missing PLMN in RANAP InitialUE message\n");
+		return -EINVAL;
+	}
+	osmo_plmn_from_bcd(ies->lai.pLMNidentity.buf, &plmn);
+
+	return extract_select_args_from_nas_pdu(map, ies->nas_pdu.buf, ies->nas_pdu.size, &plmn);
+}
+
+static int extract_select_args(struct hnbgw_context_map *map, struct msgb *ranap_msg)
+{
+	ranap_message *message = hnbgw_decode_ranap_co(ranap_msg);
+	if (!message) {
+		LOGP(DCN, LOGL_ERROR, "Failed to decode RANAP PDU\n");
+		return -EINVAL;
+	}
+
+	switch (message->procedureCode) {
+	case RANAP_ProcedureCode_id_InitialUE_Message:
+		return extract_select_args_from_initial_ue_ies(map, &message->msg.initialUE_MessageIEs);
+	default:
+		LOGP(DCN, LOGL_ERROR, "unexpected RANAP PDU in RUA Connect message: %s\n",
+		     get_value_string(ranap_procedure_code_vals, message->procedureCode));
+		return -ENOTSUP;
+	}
+}
+
 static struct hnbgw_context_map *find_or_create_context_map(struct hnb_context *hnb, uint32_t rua_ctx_id, bool is_ps,
 							    struct msgb *ranap_msg)
 {
@@ -209,7 +313,12 @@ static struct hnbgw_context_map *find_or_create_context_map(struct hnb_context *
 	map = context_map_alloc(hnb, rua_ctx_id, is_ps);
 	OSMO_ASSERT(map);
 
-	/* FUTURE: extract mobile identity and store in map-> */
+	if (extract_select_args(map, ranap_msg)) {
+		LOGP(DCN, LOGL_NOTICE, "Failed to extract Mobile Identity from RUA Connect message's RANAP payload\n");
+		LOGP(DCN, LOGL_DEBUG, "Connect message's RANAP payload: %s\n",
+		     osmo_hexdump_nospc_c(OTC_SELECT, ranap_msg->data, ranap_msg->len));
+		/* still continue to select a hopefully adequate link */
+	}
 
 	cnlink = hnbgw_cnlink_select(map);
 	if (!cnlink) {

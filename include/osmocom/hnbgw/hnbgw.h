@@ -5,6 +5,7 @@
 #include <osmocom/core/hashtable.h>
 #include <osmocom/core/write_queue.h>
 #include <osmocom/core/timer.h>
+#include <osmocom/gsm/gsm48.h>
 #include <osmocom/sigtran/sccp_sap.h>
 #include <osmocom/sigtran/osmo_ss7.h>
 #include <osmocom/ctrl/control_if.h>
