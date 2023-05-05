@@ -189,6 +189,45 @@ static inline const char *rua_procedure_code_name(enum RUA_ProcedureCode val)
 	return get_value_string(rua_procedure_code_names, val);
 }
 
+static struct hnbgw_context_map *find_or_create_context_map(struct hnb_context *hnb, uint32_t rua_ctx_id, bool is_ps,
+							    struct msgb *ranap_msg)
+{
+	struct hnbgw_context_map *map;
+	struct hnbgw_cnpool *cnpool = is_ps ? &g_hnbgw->sccp.cnpool_iups : &g_hnbgw->sccp.cnpool_iucs;
+	struct hnbgw_cnlink *cnlink;
+
+	map = context_map_find_by_rua_ctx_id(hnb, rua_ctx_id, is_ps);
+	if (map) {
+		/* Already established SCCP link. Continue to use that. */
+		return map;
+	}
+
+	/* Establish a new context map. From the RUA Connect, extract a mobile identity, if any, and select a CN link
+	 * based on an NRI found in the mobile identity, if any. */
+
+	/* Allocate a map for logging context */
+	map = context_map_alloc(hnb, rua_ctx_id, is_ps);
+	OSMO_ASSERT(map);
+
+	/* FUTURE: extract mobile identity and store in map-> */
+
+	cnlink = hnbgw_cnlink_select(map);
+	if (!cnlink) {
+		LOG_MAP(map, DCN, LOGL_ERROR, "Failed to select %s link\n", cnpool->pool_name);
+		context_map_free(map);
+		return NULL;
+	}
+
+	if (context_map_set_cnlink(map, cnlink)) {
+		LOG_MAP(map, DCN, LOGL_ERROR, "Failed to establish link to %s\n", cnlink->name);
+		context_map_free(map);
+		return NULL;
+	}
+
+	LOG_MAP(map, DCN, LOGL_INFO, "establishing SCCP link: selected %s\n", cnlink->name);
+	return map;
+}
+
 /* dispatch a RUA connection-oriented message received from a HNB to a context mapping's RUA FSM, so that it is
  * forwarded to the CN via SCCP connection-oriented messages.
  * Connectionless messages are handled in hnbgw_ranap_rx() instead, not here. */
@@ -224,7 +263,7 @@ static int rua_to_scu(struct hnb_context *hnb,
 		memcpy(ranap_msg->l2h, data, len);
 	}
 
-	map = context_map_find_or_create_by_rua_ctx_id(hnb, context_id, is_ps);
+	map = find_or_create_context_map(hnb, context_id, is_ps, ranap_msg);
 	if (!map) {
 		LOGHNB(hnb, DRUA, LOGL_ERROR,
 		       "Failed to create context map for %s: rx RUA %s with %u bytes RANAP data\n",

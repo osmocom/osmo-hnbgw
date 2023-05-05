@@ -52,16 +52,10 @@ enum hnbgw_context_map_state context_map_get_state(struct hnbgw_context_map *map
 	return MAP_S_CONNECTING;
 }
 
-static void context_map_free(struct hnbgw_context_map *map);
-
 /* Map from a HNB + ContextID to the SCCP-side Connection ID */
-struct hnbgw_context_map *context_map_find_or_create_by_rua_ctx_id(struct hnb_context *hnb, uint32_t rua_ctx_id,
-								   bool is_ps)
+struct hnbgw_context_map *context_map_find_by_rua_ctx_id(struct hnb_context *hnb, uint32_t rua_ctx_id, bool is_ps)
 {
 	struct hnbgw_context_map *map;
-	int new_scu_conn_id;
-	struct hnbgw_cnlink *cnlink;
-	struct hnbgw_sccp_inst *hsi;
 
 	llist_for_each_entry(map, &hnb->map_list, hnb_list) {
 		if (map->is_ps != is_ps)
@@ -79,8 +73,12 @@ struct hnbgw_context_map *context_map_find_or_create_by_rua_ctx_id(struct hnb_co
 		/* Already exists */
 		return map;
 	}
+	return NULL;
+}
 
-	/* Does not exist yet, create a new hnbgw_context_map. */
+struct hnbgw_context_map *context_map_alloc(struct hnb_context *hnb, uint32_t rua_ctx_id, bool is_ps)
+{
+	struct hnbgw_context_map *map;
 
 	/* allocate a new map entry now, so we have logging context */
 	map = talloc_zero(hnb, struct hnbgw_context_map);
@@ -92,44 +90,43 @@ struct hnbgw_context_map *context_map_find_or_create_by_rua_ctx_id(struct hnb_co
 
 	map_rua_fsm_alloc(map);
 
-	/* From the RANAP/RUA input, determine which cnlink to use */
-	cnlink = hnbgw_cnlink_select(map);
-	if (!cnlink) {
-		LOG_MAP(map, DCN, LOGL_ERROR, "Failed to select CN link\n");
-		goto free_map_and_exit;
-	}
+	llist_add_tail(&map->hnb_list, &hnb->map_list);
+
+	LOG_MAP(map, DRUA, LOGL_INFO, "New RUA CTX\n");
+	return map;
+}
+
+int context_map_set_cnlink(struct hnbgw_context_map *map, struct hnbgw_cnlink *cnlink_selected)
+{
+	int new_scu_conn_id;
+	struct hnbgw_sccp_inst *hsi;
 
 	/* Allocate new SCCP conn id on the SCCP instance the cnlink is on. */
-	hsi = cnlink->hnbgw_sccp_inst;
+	hsi = cnlink_selected->hnbgw_sccp_inst;
 	if (!hsi) {
 		LOG_MAP(map, DCN, LOGL_ERROR, "Cannot allocate context map: No SCCP instance for CN link %s\n",
-			 cnlink->name);
-		goto free_map_and_exit;
+			 cnlink_selected->name);
+		return -EIO;
 	}
 
 	new_scu_conn_id = osmo_sccp_instance_next_conn_id(hsi->sccp);
 	if (new_scu_conn_id < 0) {
 		LOG_MAP(map, DCN, LOGL_ERROR, "Unable to allocate SCCP conn ID on %s\n", hsi->name);
-		goto free_map_and_exit;
+		return new_scu_conn_id;
 	}
 
 	map_sccp_fsm_alloc(map);
 
-	map->cnlink = cnlink;
+	map->cnlink = cnlink_selected;
 	map->scu_conn_id = new_scu_conn_id;
-	llist_add_tail(&map->hnbgw_cnlink_entry, &cnlink->map_list);
+	llist_add_tail(&map->hnbgw_cnlink_entry, &cnlink_selected->map_list);
 
-	llist_add_tail(&map->hnb_list, &hnb->map_list);
 	hash_add(hsi->hnbgw_context_map_by_conn_id, &map->hnbgw_sccp_inst_entry, new_scu_conn_id);
 
-	LOG_MAP(map, DMAIN, LOGL_INFO, "Creating new Mapping RUA CTX %u <-> SCU Conn ID %s/%u\n",
-		rua_ctx_id, hsi->name, new_scu_conn_id);
+	LOG_MAP(map, DMAIN, LOGL_INFO, "Creating new Mapping RUA CTX %u <-> SCU Conn ID %u to %s on %s\n",
+		map->rua_ctx_id, new_scu_conn_id, cnlink_selected->name, hsi->name);
 
-	return map;
-
-free_map_and_exit:
-	context_map_free(map);
-	return NULL;
+	return 0;
 }
 
 int _map_rua_dispatch(struct hnbgw_context_map *map, uint32_t event, struct msgb *ranap_msg,
@@ -175,7 +172,7 @@ void context_map_hnb_released(struct hnbgw_context_map *map)
 	map_rua_dispatch(map, MAP_RUA_EV_HNB_LINK_LOST, NULL);
 }
 
-static void context_map_free(struct hnbgw_context_map *map)
+void context_map_free(struct hnbgw_context_map *map)
 {
 	/* guard against FSM termination infinitely looping back here */
 	if (map->deallocating) {
