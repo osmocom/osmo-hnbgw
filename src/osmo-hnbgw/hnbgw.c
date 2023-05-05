@@ -349,13 +349,30 @@ const char *umts_cell_id_name(const struct umts_cell_id *ucid)
 
 const char *hnb_context_name(struct hnb_context *ctx)
 {
+	char *result;
 	if (!ctx)
 		return "NULL";
 
+	if (ctx->conn) {
+		char hostbuf_r[INET6_ADDRSTRLEN];
+		char portbuf_r[6];
+		int fd = osmo_stream_srv_get_ofd(ctx->conn)->fd;
+
+		/* get remote addr */
+		if (osmo_sock_get_ip_and_port(fd, hostbuf_r, sizeof(hostbuf_r), portbuf_r, sizeof(portbuf_r), false) == 0)
+			result = talloc_asprintf(OTC_SELECT, "%s:%s", hostbuf_r, portbuf_r);
+		else
+			result = "?";
+	}
+	else {
+		result = "disconnected";
+	}
+
 	if (g_hnbgw->config.log_prefix_hnb_id)
-		return ctx->identity_info;
+		result = talloc_asprintf(OTC_SELECT, "%s %s", result, ctx->identity_info);
 	else
-		return umts_cell_id_name(&ctx->id);
+		result = talloc_asprintf(OTC_SELECT, "%s %s", result, umts_cell_id_name(&ctx->id));
+	return result;
 }
 
 void hnb_context_release_ue_state(struct hnb_context *ctx)

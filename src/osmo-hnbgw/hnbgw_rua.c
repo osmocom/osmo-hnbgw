@@ -236,17 +236,20 @@ static int extract_select_args_from_nas_pdu(struct hnbgw_context_map *map,
 			gsm48_decode_lai2(&lu->lai, &old_lai);
 
 			map->l3.from_other_plmn = (osmo_plmn_cmp(&old_lai.plmn, local_plmn) != 0);
-			LOGP(DCN, LOGL_DEBUG, "LU from_other_plmn=%d\n", map->l3.from_other_plmn);
+			if (map->l3.from_other_plmn)
+				LOGP(DRUA, LOGL_INFO, "LU from other PLMN: old LAI=%s my PLMN=%s\n",
+				     osmo_plmn_name_c(OTC_SELECT, &old_lai.plmn),
+				     osmo_plmn_name_c(OTC_SELECT, local_plmn));
 			break;
 
 		case GSM48_MT_MM_CM_SERV_REQ:
 			if (len < sizeof(*gh) + sizeof(*cm)) {
-				LOGP(DCN, LOGL_ERROR, "CM Service Req message too short\n");
+				LOGP(DRUA, LOGL_ERROR, "CM Service Req message too short\n");
 				break;
 			}
 			cm = (struct gsm48_service_request *)&gh->data[0];
 			map->l3.is_emerg = (cm->cm_service_type == GSM48_CMSERV_EMERGENCY);
-			LOGP(DCN, LOGL_DEBUG, "CM Service is_emerg=%d\n", map->l3.is_emerg);
+			LOGP(DRUA, LOGL_DEBUG, "CM Service is_emerg=%d\n", map->l3.is_emerg);
 			break;
 
 		default:
@@ -333,7 +336,6 @@ static struct hnbgw_context_map *find_or_create_context_map(struct hnb_context *
 		return NULL;
 	}
 
-	LOG_MAP(map, DCN, LOGL_INFO, "establishing SCCP link: selected %s\n", cnlink->name);
 	return map;
 }
 

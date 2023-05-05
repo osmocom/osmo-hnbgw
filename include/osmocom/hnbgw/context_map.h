@@ -6,8 +6,9 @@
 
 #define LOG_MAP(HNB_CTX_MAP, SUBSYS, LEVEL, FMT, ARGS...) \
 	LOGHNB((HNB_CTX_MAP) ? (HNB_CTX_MAP)->hnb_ctx : NULL, \
-	       SUBSYS, LEVEL, "RUA-%u %s MI=%s%s%s: " FMT, \
+	       SUBSYS, LEVEL, "RUA-%u SCCP-%u %s MI=%s%s%s: " FMT, \
 	       (HNB_CTX_MAP) ? (HNB_CTX_MAP)->rua_ctx_id : 0, \
+	       (HNB_CTX_MAP) ? (HNB_CTX_MAP)->scu_conn_id : 0, \
 	       (HNB_CTX_MAP) ? \
 			( (HNB_CTX_MAP)->cnlink ? (HNB_CTX_MAP)->cnlink->name \
 			  : ((HNB_CTX_MAP)->is_ps ? "PS" : "CS") ) \

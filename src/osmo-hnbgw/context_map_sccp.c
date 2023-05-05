@@ -81,7 +81,8 @@ void map_sccp_fsm_alloc(struct hnbgw_context_map *map)
 	struct osmo_fsm_inst *fi = osmo_fsm_inst_alloc(&map_sccp_fsm, map, map, LOGL_DEBUG, NULL);
 	OSMO_ASSERT(fi);
 	osmo_fsm_inst_update_id_f_sanitize(fi, '-', "%s-%s-SCCP-%u", hnb_context_name(map->hnb_ctx),
-					   map->is_ps ? "PS" : "CS", map->scu_conn_id);
+					   map->cnlink ? map->cnlink->name : (map->is_ps ? "PS" : "CS"),
+					   map->scu_conn_id);
 
 	OSMO_ASSERT(map->sccp_fi == NULL);
 	map->sccp_fi = fi;
