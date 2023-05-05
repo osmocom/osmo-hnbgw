@@ -9,3 +9,6 @@ GET_REPLY 3 rate_ctr.abs.msc.0.cnpool:subscr:new 0
 
 GET 4 rate_ctr.abs.sgsn.0.cnpool:emerg:forwarded
 GET_REPLY 4 rate_ctr.abs.sgsn.0.cnpool:emerg:forwarded 0
+
+GET 5 rate_ctr.abs.msc.1.cnpool:subscr:new
+GET_REPLY 5 rate_ctr.abs.msc.1.cnpool:subscr:new 0
