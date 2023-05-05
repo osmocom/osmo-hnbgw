@@ -25,6 +25,7 @@ EXTRA_DIST = \
 	$(srcdir)/package.m4 \
 	$(TESTSUITE) \
 	*.vty \
+	*.ctrl \
 	$(NULL)
 
 TESTSUITE = $(srcdir)/testsuite
@@ -55,6 +56,19 @@ vty-test: $(top_builddir)/src/osmo-hnbgw/osmo-hnbgw
 		-r "$(top_builddir)/src/osmo-hnbgw/osmo-hnbgw \
 		-c $(top_srcdir)/doc/examples/osmo-hnbgw/osmo-hnbgw.cfg" \
 		$(U) $(srcdir)/$(VTY_TEST)
+
+# Run a specific test with: 'make ctrl-test CTRL_TEST=osmo-hnbgw.ctrl'
+CTRL_TEST ?= *.ctrl
+
+# To update the CTRL script from current application behavior,
+# pass -u to ctrl_script_runner.py by doing:
+#   make ctrl-test U=-u
+ctrl-test: $(top_builddir)/src/osmo-hnbgw/osmo-hnbgw
+	osmo_verify_transcript_ctrl.py -v \
+		-p 4262 \
+		-r "$(top_builddir)/src/osmo-hnbgw/osmo-hnbgw \
+		-c $(top_srcdir)/doc/examples/osmo-hnbgw/osmo-hnbgw.cfg" \
+		$(U) $(srcdir)/$(CTRL_TEST)
 
 check-local: atconfig $(TESTSUITE)
 	$(SHELL) '$(TESTSUITE)' $(TESTSUITEFLAGS)
