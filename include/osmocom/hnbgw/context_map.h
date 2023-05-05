@@ -3,12 +3,19 @@
 #include <stdint.h>
 #include <osmocom/core/linuxlist.h>
 #include <osmocom/hnbgw/hnbgw.h>
+#include <osmocom/gsm/gsm48.h>
 
 #define LOG_MAP(HNB_CTX_MAP, SUBSYS, LEVEL, FMT, ARGS...) \
 	LOGHNB((HNB_CTX_MAP) ? (HNB_CTX_MAP)->hnb_ctx : NULL, \
-	       SUBSYS, LEVEL, "RUA-%u %s: " FMT, \
+	       SUBSYS, LEVEL, "RUA-%u %s MI=%s%s%s: " FMT, \
 	       (HNB_CTX_MAP) ? (HNB_CTX_MAP)->rua_ctx_id : 0, \
-	       (HNB_CTX_MAP) ? ((HNB_CTX_MAP)->is_ps ? "PS" : "CS") : "NULL", \
+	       (HNB_CTX_MAP) ? \
+			((HNB_CTX_MAP)->cnlink ? (HNB_CTX_MAP)->cnlink->name \
+			  : ((HNB_CTX_MAP)->is_ps ? "PS" : "CS")) \
+			: "NULL", \
+	       (HNB_CTX_MAP) ? osmo_mobile_identity_to_str_c(OTC_SELECT, &(HNB_CTX_MAP)->l3.mi) : "null", \
+	       (HNB_CTX_MAP) && (HNB_CTX_MAP)->l3.from_other_plmn ? " (from other PLMN)" : "", \
+	       (HNB_CTX_MAP) && (HNB_CTX_MAP)->l3.is_emerg ? " EMERGENCY" : "", \
 	       ##ARGS)
 
 /* All these events' data argument may either be NULL, or point to a RANAP msgb.
@@ -75,6 +82,21 @@ static inline const char *hnbgw_context_map_state_name(enum hnbgw_context_map_st
 struct hnb_context;
 struct hnbgw_cnlink;
 
+struct hnbgw_l3_peek {
+	/* L3 message type, like GSM48_PDISC_MM+GSM48_MT_MM_LOC_UPD_REQUEST... / GSM48_PDISC_MM_GPRS+GSM48_MT_GMM_ATTACH_REQ... */
+	uint8_t gsm48_pdisc;
+	uint8_t gsm48_msg_type;
+	/* The Mobile Identity from MM and GMM messages */
+	struct osmo_mobile_identity mi;
+	/* On PS, the "TMSI Based NRI Container", 10 bit integer, or -1 if not present.
+	 * This is only for PS -- for CS, the NRI is in the TMSI obtained from 'mi' above. */
+	int gmm_nri_container;
+	/* For a CM Service Request for voice call, true if this is for an Emergency Call, false otherwise. */
+	bool is_emerg;
+	/* True if the NAS PDU indicates that the UE was previously attached to a different PLMN than the local PLMN. */
+	bool from_other_plmn;
+};
+
 struct hnbgw_context_map {
 	/* entry in the per-CN list of mappings */
 	struct llist_head hnbgw_cnlink_entry;
@@ -102,6 +124,9 @@ struct hnbgw_context_map {
 
 	/* False for CS, true for PS */
 	bool is_ps;
+
+	/* Information extracted from RUA Connect's RANAP InitialUE message */
+	struct hnbgw_l3_peek l3;
 
 	/* When an FSM is asked to disconnect but must still wait for a response, it may set this flag, to continue to
 	 * disconnect once the response is in. In particular, when SCCP is asked to disconnect after an SCCP Connection

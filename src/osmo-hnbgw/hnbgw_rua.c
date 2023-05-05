@@ -38,7 +38,9 @@
 #include <osmocom/rua/rua_common.h>
 #include <osmocom/rua/rua_ies_defs.h>
 #include <osmocom/hnbgw/context_map.h>
+#include <osmocom/hnbgw/hnbgw_rua.h>
 #include <osmocom/hnbap/HNBAP_CN-DomainIndicator.h>
+#include <osmocom/ranap/ranap_ies_defs.h>
 
 static const char *cn_domain_indicator_to_str(RUA_CN_DomainIndicator_t cN_DomainIndicator)
 {
@@ -208,7 +210,11 @@ static struct hnbgw_context_map *find_or_create_context_map(struct hnb_context *
 	map = context_map_alloc(hnb, rua_ctx_id, is_ps);
 	OSMO_ASSERT(map);
 
-	/* FUTURE: extract mobile identity and store in map-> */
+	if (hnbgw_peek_l3(map, ranap_msg))
+		LOGP(DCN, LOGL_NOTICE, "Failed to extract Mobile Identity from RUA Connect message's RANAP payload\n");
+	/* map->l3 now contains all the interesting information from the NAS PDU, if any.
+	 * If no useful information could be decoded, still continue to select a hopefully adequate link by round robin.
+	 */
 
 	cnlink = hnbgw_cnlink_select(map);
 	if (!cnlink) {

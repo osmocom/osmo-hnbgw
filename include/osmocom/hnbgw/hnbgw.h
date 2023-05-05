@@ -312,3 +312,5 @@ static inline bool hnb_gw_is_gtp_mapping_enabled(void)
 }
 
 struct msgb *hnbgw_ranap_msg_alloc(const char *name);
+
+int hnbgw_peek_l3(struct hnbgw_context_map *map, struct msgb *ranap_msg);

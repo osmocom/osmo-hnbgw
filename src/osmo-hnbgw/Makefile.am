@@ -33,6 +33,7 @@ noinst_LTLIBRARIES = \
 libhnbgw_la_SOURCES = \
 	hnbgw.c \
 	hnbgw_hnbap.c \
+	hnbgw_l3.c \
 	hnbgw_rua.c \
 	hnbgw_ranap.c \
 	hnbgw_vty.c \
