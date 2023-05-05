@@ -24,7 +24,6 @@ EXTRA_DIST = \
 	testsuite.at \
 	$(srcdir)/package.m4 \
 	$(TESTSUITE) \
-	ctrl_test_runner.py \
 	osmo-hnbgw.vty \
 	$(NULL)
 
@@ -39,7 +38,6 @@ python-tests:
 	$(MAKE) vty-test
 	osmotestvty.py -p $(abs_top_srcdir) -w $(abs_top_builddir) -v
 	osmotestconfig.py -p $(abs_top_srcdir) -w $(abs_top_builddir) -v
-#	$(srcdir)/ctrl_test_runner.py -w $(abs_top_builddir) -v
 else
 python-tests:
 	echo "Not running python-based tests (determined at configure-time)"
