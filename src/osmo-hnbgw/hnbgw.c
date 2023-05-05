@@ -341,12 +341,10 @@ static struct hnb_context *hnb_context_alloc(struct osmo_stream_srv_link *link, 
 	return ctx;
 }
 
-static const char *umts_cell_id_name(const struct umts_cell_id *ucid)
+const char *umts_cell_id_name(const struct umts_cell_id *ucid)
 {
-	static __thread char buf[40];
-
-	snprintf(buf, sizeof(buf), "%u-%u-L%u-R%u-S%u", ucid->mcc, ucid->mnc, ucid->lac, ucid->rac, ucid->sac);
-	return buf;
+	return talloc_asprintf(OTC_SELECT, "%u-%u-L%u-R%u-S%u-C%u", ucid->mcc, ucid->mnc, ucid->lac, ucid->rac,
+			       ucid->sac, ucid->cid);
 }
 
 const char *hnb_context_name(struct hnb_context *ctx)
