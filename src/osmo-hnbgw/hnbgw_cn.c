@@ -298,7 +298,7 @@ static int handle_cn_unitdata(struct hnbgw_sccp_user *hsu,
 		return -ENOENT;
 
 	if (param->called_addr.ssn != OSMO_SCCP_SSN_RANAP) {
-		LOGP(DMAIN, LOGL_NOTICE, "N-UNITDATA.ind for unknown SSN %u\n",
+		LOGP(DCN, LOGL_NOTICE, "N-UNITDATA.ind for unknown SSN %u\n",
 			param->called_addr.ssn);
 		return -1;
 	}
@@ -316,7 +316,7 @@ static int handle_cn_conn_conf(struct hnbgw_sccp_user *hsu,
 	if (!map || !map->cnlink)
 		return -ENOENT;
 
-	LOGP(DMAIN, LOGL_DEBUG, "handle_cn_conn_conf() conn_id=%d, addrs: called=%s calling=%s responding=%s\n",
+	LOGP(DCN, LOGL_DEBUG, "handle_cn_conn_conf() conn_id=%d, addrs: called=%s calling=%s responding=%s\n",
 	     param->conn_id,
 	     cnlink_sccp_addr_to_str(map->cnlink, &param->called_addr),
 	     cnlink_sccp_addr_to_str(map->cnlink, &param->calling_addr),
@@ -349,7 +349,7 @@ static int handle_cn_disc_ind(struct hnbgw_sccp_user *hsu,
 	if (!map || !map->cnlink)
 		return -ENOENT;
 
-	LOGP(DMAIN, LOGL_DEBUG, "handle_cn_disc_ind() conn_id=%u responding_addr=%s\n",
+	LOGP(DCN, LOGL_DEBUG, "handle_cn_disc_ind() conn_id=%u responding_addr=%s\n",
 	     param->conn_id,
 	     cnlink_sccp_addr_to_str(map->cnlink, &param->responding_addr));
 
@@ -364,10 +364,10 @@ static int sccp_sap_up(struct osmo_prim_hdr *oph, void *ctx)
 	struct osmo_scu_prim *prim = (struct osmo_scu_prim *) oph;
 	int rc = 0;
 
-	LOGP(DMAIN, LOGL_DEBUG, "sccp_sap_up(%s)\n", osmo_scu_prim_name(oph));
+	LOGP(DCN, LOGL_DEBUG, "sccp_sap_up(%s)\n", osmo_scu_prim_name(oph));
 
 	if (!scu) {
-		LOGP(DMAIN, LOGL_ERROR,
+		LOGP(DCN, LOGL_ERROR,
 		     "sccp_sap_up(): NULL osmo_sccp_user, cannot send prim (sap %u prim %u op %d)\n",
 		     oph->sap, oph->primitive, oph->operation);
 		return -1;
@@ -375,7 +375,7 @@ static int sccp_sap_up(struct osmo_prim_hdr *oph, void *ctx)
 
 	hsu = osmo_sccp_user_get_priv(scu);
 	if (!hsu) {
-		LOGP(DMAIN, LOGL_ERROR,
+		LOGP(DCN, LOGL_ERROR,
 		     "sccp_sap_up(): NULL hnbgw_sccp_user, cannot send prim (sap %u prim %u op %d)\n",
 		     oph->sap, oph->primitive, oph->operation);
 		return -1;
@@ -397,11 +397,11 @@ static int sccp_sap_up(struct osmo_prim_hdr *oph, void *ctx)
 		rc = handle_cn_disc_ind(hsu, &prim->u.disconnect, oph);
 		break;
 	case OSMO_PRIM(OSMO_SCU_PRIM_N_PCSTATE, PRIM_OP_INDICATION):
-		LOGP(DMAIN, LOGL_DEBUG, "Ignoring prim %s from SCCP USER SAP\n",
+		LOGP(DCN, LOGL_DEBUG, "Ignoring prim %s from SCCP USER SAP\n",
 		     osmo_scu_prim_hdr_name_c(OTC_SELECT, oph));
 		break;
 	default:
-		LOGP(DMAIN, LOGL_ERROR,
+		LOGP(DCN, LOGL_ERROR,
 			"Received unknown prim %u from SCCP USER SAP\n",
 			OSMO_PRIM_HDR(oph));
 		break;
@@ -426,7 +426,7 @@ static int resolve_addr_name(struct osmo_sccp_addr *dest, struct osmo_ss7_instan
 	if (!addr_name) {
 		osmo_sccp_make_addr_pc_ssn(dest, default_pc, OSMO_SCCP_SSN_RANAP);
 		if (label)
-			LOGP(DMAIN, LOGL_INFO, "%s remote addr not configured, using default: %s\n", label,
+			LOGP(DCN, LOGL_INFO, "%s remote addr not configured, using default: %s\n", label,
 			     osmo_sccp_addr_name(*ss7, dest));
 		return 0;
 	}
@@ -434,7 +434,7 @@ static int resolve_addr_name(struct osmo_sccp_addr *dest, struct osmo_ss7_instan
 	*ss7 = osmo_sccp_addr_by_name(dest, addr_name);
 	if (!*ss7) {
 		if (label)
-			LOGP(DMAIN, LOGL_ERROR, "%s remote addr: no such SCCP address book entry: '%s'\n",
+			LOGP(DCN, LOGL_ERROR, "%s remote addr: no such SCCP address book entry: '%s'\n",
 			     label, addr_name);
 		return -1;
 	}
@@ -443,14 +443,11 @@ static int resolve_addr_name(struct osmo_sccp_addr *dest, struct osmo_ss7_instan
 
 	if (!addr_has_pc_and_ssn(dest)) {
 		if (label)
-			LOGP(DMAIN, LOGL_ERROR, "Invalid/incomplete %s remote-addr: %s\n",
+			LOGP(DCN, LOGL_ERROR, "Invalid/incomplete %s remote-addr: %s\n",
 			     label, osmo_sccp_addr_name(*ss7, dest));
 		return -1;
 	}
 
-	if (label)
-		LOGP(DRANAP, LOGL_NOTICE, "Remote %s SCCP addr: %s\n",
-		     label, osmo_sccp_addr_name(*ss7, dest));
 	return 0;
 }
 
@@ -512,6 +509,17 @@ static void hnbgw_cnlink_drop_sccp(struct hnbgw_cnlink *cnlink)
 	cnlink->hnbgw_sccp_user = NULL;
 }
 
+static void hnbgw_cnlink_log_self(struct hnbgw_cnlink *cnlink)
+{
+	struct osmo_ss7_instance *ss7 = cnlink->hnbgw_sccp_user->ss7;
+	LOG_CNLINK(cnlink, DCN, LOGL_NOTICE, "using: cs7-%u %s <-> %s %s %s\n",
+		   ss7->cfg.id,
+		   /* printing the entire SCCP address is quite long, rather just print the point-code */
+		   osmo_ss7_pointcode_print(ss7, cnlink->hnbgw_sccp_user->local_addr.pc),
+		   osmo_ss7_pointcode_print2(ss7, cnlink->remote_addr.pc),
+		   cnlink->name, cnlink->use.remote_addr_name ? : "(default remote point-code)");
+}
+
 /* If not present yet, set up all of osmo_ss7_instance, osmo_sccp_instance and hnbgw_sccp_user for the given cnlink.
  * The cs7 instance nr to use is determined by cnlink->remote_addr_name, or cs7 instance 0 if that is not present.
  * Set cnlink->hnbgw_sccp_user to the new SCCP instance. Return 0 on success, negative on error. */
@@ -570,8 +578,9 @@ int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink)
 			if (hsu->ss7 != ss7)
 				continue;
 			cnlink->hnbgw_sccp_user = hsu;
-			LOG_CNLINK(cnlink, DCN, LOGL_NOTICE, "using existing SCCP instance %s on cs7 instance %u\n",
+			LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "using existing SCCP instance %s on cs7 instance %u\n",
 				   hsu->name, ss7->cfg.id);
+			hnbgw_cnlink_log_self(cnlink);
 			return 0;
 		}
 		/* else cnlink->hnbgw_sccp_user stays NULL and is set up below. */
@@ -605,7 +614,7 @@ int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink)
 
 	sccp_user = osmo_sccp_user_bind_pc(sccp, "OsmoHNBGW", sccp_sap_up, OSMO_SCCP_SSN_RANAP, local_pc);
 	if (!sccp_user) {
-		LOGP(DMAIN, LOGL_ERROR, "Failed to init SCCP User\n");
+		LOGP(DCN, LOGL_ERROR, "Failed to init SCCP User\n");
 		return -1;
 	}
 
@@ -622,6 +631,8 @@ int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink)
 	llist_add_tail(&hsu->entry, &g_hnbgw->sccp.users);
 
 	cnlink->hnbgw_sccp_user = hsu;
+
+	hnbgw_cnlink_log_self(cnlink);
 	return 0;
 }
 
@@ -661,6 +672,7 @@ static struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
 	INIT_LLIST_HEAD(&cnlink->map_list);
 
 	llist_add_tail(&cnlink->entry, &cnpool->cnlinks);
+	LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "allocated\n");
 	return cnlink;
 }
 
@@ -831,8 +843,7 @@ struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 		return NULL;
 	}
 
-	LOGP(DCN, LOGL_DEBUG, "New subscriber MI=%s: CN link round-robin selects %s %d\n",
-	     osmo_mobile_identity_to_str_c(OTC_SELECT, &map->l3.mi), cnpool->peer_name, cnlink->nr);
+	LOG_MAP(map, DCN, LOGL_INFO, "CN link round-robin selects %s %d\n", cnpool->peer_name, cnlink->nr);
 
 	if (is_null_nri)
 		rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_SUBSCR_REATTACH));

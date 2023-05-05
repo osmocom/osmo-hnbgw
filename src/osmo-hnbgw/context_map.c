@@ -26,6 +26,8 @@
 
 #include <osmocom/core/timer.h>
 
+#include <osmocom/netif/stream.h>
+
 #include <osmocom/sigtran/sccp_helpers.h>
 
 #include <osmocom/hnbgw/hnbgw_cn.h>
@@ -92,7 +94,7 @@ struct hnbgw_context_map *context_map_alloc(struct hnb_context *hnb, uint32_t ru
 
 	llist_add_tail(&map->hnb_list, &hnb->map_list);
 
-	LOG_MAP(map, DRUA, LOGL_INFO, "New RUA CTX\n");
+	LOG_MAP(map, DRUA, LOGL_DEBUG, "New RUA CTX\n");
 	return map;
 }
 
@@ -123,8 +125,17 @@ int context_map_set_cnlink(struct hnbgw_context_map *map, struct hnbgw_cnlink *c
 
 	hash_add(hsu->hnbgw_context_map_by_conn_id, &map->hnbgw_sccp_user_entry, new_scu_conn_id);
 
-	LOG_MAP(map, DMAIN, LOGL_INFO, "Creating new Mapping RUA CTX %u <-> SCU Conn ID %u to %s on %s\n",
-		map->rua_ctx_id, new_scu_conn_id, cnlink_selected->name, hsu->name);
+	LOGP(DRUA, LOGL_NOTICE, "New conn: %s '%s' RUA-%u <-> SCCP-%u %s%s%s %s l=%s<->r=%s\n",
+	     osmo_sock_get_name2_c(OTC_SELECT, osmo_stream_srv_get_ofd(map->hnb_ctx->conn)->fd),
+	     hnb_context_name(map->hnb_ctx), map->rua_ctx_id,
+	     new_scu_conn_id,
+	     cnlink_selected->name,
+	     cnlink_selected->use.remote_addr_name ? " " : "",
+	     cnlink_selected->use.remote_addr_name ? : "",
+	     hsu->name,
+	     osmo_ss7_pointcode_print(hsu->ss7, hsu->local_addr.pc),
+	     osmo_ss7_pointcode_print2(hsu->ss7, cnlink_selected->remote_addr.pc)
+	    );
 
 	return 0;
 }

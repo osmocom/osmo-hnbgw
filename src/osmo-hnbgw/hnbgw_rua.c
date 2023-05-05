@@ -229,7 +229,6 @@ static struct hnbgw_context_map *find_or_create_context_map(struct hnb_context *
 		return NULL;
 	}
 
-	LOG_MAP(map, DCN, LOGL_INFO, "establishing SCCP link: selected %s\n", cnlink->name);
 	return map;
 }
 
