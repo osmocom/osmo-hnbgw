@@ -38,7 +38,7 @@ if ENABLE_EXT_TESTS
 python-tests:
 	$(MAKE) vty-test
 	osmotestvty.py -p $(abs_top_srcdir) -w $(abs_top_builddir) -v
-#	osmotestconfig.py -p $(abs_top_srcdir) -w $(abs_top_builddir) -v
+	osmotestconfig.py -p $(abs_top_srcdir) -w $(abs_top_builddir) -v
 #	$(srcdir)/ctrl_test_runner.py -w $(abs_top_builddir) -v
 else
 python-tests:
