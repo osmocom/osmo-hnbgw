@@ -37,6 +37,12 @@ extern struct vty_app_info hnbgw_vty_info;
 #define DOMAIN_CS RANAP_CN_DomainIndicator_cs_domain
 #define DOMAIN_PS RANAP_CN_DomainIndicator_ps_domain
 
+extern const struct value_string domain_names[];
+static inline const char *domain_name(RANAP_CN_DomainIndicator_t domain)
+{
+	return get_value_string(domain_names, domain);
+}
+
 enum hnb_ctrl_node {
 	CTRL_NODE_HNB = _LAST_CTRL_NODE,
 	_LAST_CTRL_NODE_HNB
@@ -94,19 +100,6 @@ struct hnbgw_sccp_inst {
 #define LOG_HSI(HNBGW_SCCP_INST, SUBSYS, LEVEL, FMT, ARGS...) \
 	LOGP(SUBSYS, LEVEL, "(%s) " FMT, (HNBGW_SCCP_INST) ? (HNBGW_SCCP_INST)->name : "null", ##ARGS)
 
-enum hnbgw_cnlink_state {
-	/* we have just been initialized or were disconnected */
-	CNLINK_S_NULL,
-	/* establishment of the SUA/SCCP link is pending */
-	CNLINK_S_EST_PEND,
-	/* establishment of the SUA/SCCP link was confirmed */
-	CNLINK_S_EST_CONF,
-	/* we have esnt the RANAP RESET and wait for the ACK */
-	CNLINK_S_EST_RST_TX_WAIT_ACK,
-	/* we have received the RANAP RESET ACK and are active */
-	CNLINK_S_EST_ACTIVE,
-};
-
 /* User provided configuration for struct hnbgw_cnpool. */
 struct hnbgw_cnpool_cfg {
 	uint8_t nri_bitlen;
@@ -157,6 +150,8 @@ struct hnbgw_cnlink {
 	/* backpointer */
 	struct hnbgw_cnpool *pool;
 
+	struct osmo_fsm_inst *fi;
+
 	int nr;
 
 	struct hnbgw_cnlink_cfg vty;
@@ -176,10 +171,6 @@ struct hnbgw_cnlink {
 	/* The SCCP instance for the cs7 instance indicated by remote_addr_name. (Multiple hnbgw_cnlinks may use the
 	 * same hnbgw_sccp_inst -- there is exactly one hnbgw_sccp_inst per configured cs7 instance.) */
 	struct hnbgw_sccp_inst *hnbgw_sccp_inst;
-
-	enum hnbgw_cnlink_state state;
-	/* timer for re-transmitting the RANAP Reset */
-	struct osmo_timer_list T_RafC;
 
 	/* linked list of hnbgw_context_map */
 	struct llist_head map_list;

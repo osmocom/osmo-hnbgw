@@ -42,95 +42,6 @@
 #include <osmocom/hnbgw/context_map.h>
 
 /***********************************************************************
- * Outbound RANAP RESET to CN
- ***********************************************************************/
-
-void hnbgw_cnlink_change_state(struct hnbgw_cnlink *cnlink, enum hnbgw_cnlink_state state);
-
-static int transmit_rst(struct hnbgw_cnlink *cnlink)
-{
-	struct msgb *msg;
-	RANAP_Cause_t cause = {
-		.present = RANAP_Cause_PR_transmissionNetwork,
-		.choice. transmissionNetwork = RANAP_CauseTransmissionNetwork_signalling_transport_resource_failure,
-	};
-
-	if (!cnlink)
-		return -1;
-
-	if (!cnlink->hnbgw_sccp_inst) {
-		LOG_CNLINK(cnlink, DRANAP, LOGL_ERROR, "cannot send RANAP RESET: no CN link\n");
-		return -1;
-	}
-
-	LOG_CNLINK(cnlink, DRANAP, LOGL_NOTICE, "Tx RANAP RESET to %s %s\n",
-		   cnlink_is_cs(cnlink) ? "IuCS" : "IuPS",
-		   osmo_sccp_inst_addr_name(cnlink->hnbgw_sccp_inst->sccp, &cnlink->remote_addr));
-
-	msg = ranap_new_msg_reset(cnlink->pool->domain, &cause);
-
-	return osmo_sccp_tx_unitdata_msg(cnlink->hnbgw_sccp_inst->sccp_user,
-					 &cnlink->local_addr,
-					 &cnlink->remote_addr,
-					 msg);
-}
-
-static int transmit_reset_ack(struct hnbgw_cnlink *cnlink)
-{
-	struct msgb *msg;
-	struct osmo_sccp_instance *sccp = cnlink_sccp(cnlink);
-
-	if (!sccp) {
-		LOG_CNLINK(cnlink, DRANAP, LOGL_ERROR, "cannot send RANAP RESET ACK: no CN link\n");
-		return -1;
-	}
-
-	LOG_CNLINK(cnlink, DRANAP, LOGL_NOTICE, "Tx RANAP RESET ACK %s %s --> %s\n",
-		   cnlink_is_cs(cnlink) ? "IuCS" : "IuPS",
-		   osmo_sccp_inst_addr_to_str_c(OTC_SELECT, cnlink->hnbgw_sccp_inst->sccp, &cnlink->local_addr),
-		   osmo_sccp_inst_addr_to_str_c(OTC_SELECT, cnlink->hnbgw_sccp_inst->sccp, &cnlink->remote_addr));
-
-	msg = ranap_new_msg_reset_ack(cnlink->pool->domain, NULL);
-
-	return osmo_sccp_tx_unitdata_msg(cnlink->hnbgw_sccp_inst->sccp_user,
-					 &cnlink->local_addr,
-					 &cnlink->remote_addr,
-					 msg);
-}
-
-/* Timer callback once T_RafC expires */
-static void cnlink_trafc_cb(void *data)
-{
-	struct hnbgw_cnlink *cnlink = data;
-	OSMO_ASSERT(false);
-
-	transmit_rst(cnlink);
-	hnbgw_cnlink_change_state(cnlink, CNLINK_S_EST_RST_TX_WAIT_ACK);
-	/* The spec states that we should abandon after a configurable
-	 * number of times.  We decide to simply continue trying */
-}
-
-/* change the state of a CN Link */
-void hnbgw_cnlink_change_state(struct hnbgw_cnlink *cnlink, enum hnbgw_cnlink_state state)
-{
-	OSMO_ASSERT(false);
-	switch (state) {
-	case CNLINK_S_NULL:
-	case CNLINK_S_EST_PEND:
-		break;
-	case CNLINK_S_EST_CONF:
-		cnlink_trafc_cb(cnlink);
-		break;
-	case CNLINK_S_EST_RST_TX_WAIT_ACK:
-		osmo_timer_schedule(&cnlink->T_RafC, 5, 0);
-		break;
-	case CNLINK_S_EST_ACTIVE:
-		osmo_timer_del(&cnlink->T_RafC);
-		break;
-	}
-}
-
-/***********************************************************************
  * Incoming primitives from SCCP User SAP
  ***********************************************************************/
 
@@ -146,32 +57,45 @@ static int cn_ranap_rx_reset_cmd(struct hnbgw_cnlink *cnlink,
 	domain = ies.cN_DomainIndicator;
 	ranap_free_reseties(&ies);
 
-	LOG_CNLINK(cnlink, DRANAP, LOGL_NOTICE, "Rx RESET from %s %s, returning ACK\n",
-		   domain == DOMAIN_CS ? "IuCS" : "IuPS",
-		   osmo_sccp_inst_addr_name(cnlink_sccp(cnlink), &unitdata->calling_addr));
+	if (rc) {
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx RESET: cannot decode IEs\n");
+		return -1;
+	}
 
-	/* FIXME: actually reset connections, if any */
+	if (cnlink->pool->domain != domain) {
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx RESET indicates domain %s, but this is %s on domain %s\n",
+			   domain_name(domain), cnlink->name, domain_name(cnlink->pool->domain));
+		return -1;
+	}
 
-	if (transmit_reset_ack(cnlink))
-		LOGP(DRANAP, LOGL_ERROR, "Error: cannot send RESET ACK to %s %s\n",
-		     domain == DOMAIN_CS ? "IuCS" : "IuPS",
-		     osmo_sccp_inst_addr_name(cnlink_sccp(cnlink), &unitdata->calling_addr));
-
-	return rc;
+	cnlink_rx_reset_cmd(cnlink);
+	return 0;
 }
 
 static int cn_ranap_rx_reset_ack(struct hnbgw_cnlink *cnlink,
 				 RANAP_SuccessfulOutcome_t *omsg)
 {
+	RANAP_CN_DomainIndicator_t domain;
 	RANAP_ResetAcknowledgeIEs_t ies;
 	int rc;
 
 	rc = ranap_decode_resetacknowledgeies(&ies, &omsg->value);
-
-	hnbgw_cnlink_change_state(cnlink, CNLINK_S_EST_ACTIVE);
-
+	domain = ies.cN_DomainIndicator;
 	ranap_free_resetacknowledgeies(&ies);
-	return rc;
+
+	if (rc) {
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx RESET ACK: cannot decode IEs\n");
+		return -1;
+	}
+
+	if (cnlink->pool->domain != domain) {
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx RESET ACK indicates domain %s, but this is %s on domain %s\n",
+			   domain_name(domain), cnlink->name, domain_name(cnlink->pool->domain));
+		return -1;
+	}
+
+	cnlink_rx_reset_ack(cnlink);
+	return 0;
 }
 
 static int cn_ranap_rx_paging_cmd(struct hnbgw_cnlink *cnlink,
@@ -673,33 +597,6 @@ void hnbgw_cnpool_start(struct hnbgw_cnpool *cnpool)
 	hnbgw_cnpool_cnlinks_start_or_restart(cnpool);
 }
 
-static struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
-{
-	struct hnbgw_cnlink *cnlink;
-	cnlink = talloc_zero(g_hnbgw, struct hnbgw_cnlink);
-	*cnlink = (struct hnbgw_cnlink){
-		.pool = cnpool,
-		.nr = nr,
-		.vty = {
-			/* VTY config defaults for the new cnlink */
-			.nri_ranges = osmo_nri_ranges_alloc(cnlink),
-		},
-		.name = talloc_asprintf(cnlink, "%s-%d", cnpool->peer_name, nr),
-		.T_RafC = {
-			.cb = cnlink_trafc_cb,
-			.data = cnlink,
-		},
-		.allow_attach = true,
-		.ctrs = rate_ctr_group_alloc(g_hnbgw, cnpool->cnlink_ctrg_desc, nr),
-	};
-	osmo_sccp_addr_set_ssn(&cnlink->local_addr, OSMO_SCCP_SSN_RANAP);
-	INIT_LLIST_HEAD(&cnlink->map_list);
-
-	llist_add_tail(&cnlink->entry, &cnpool->cnlinks);
-	LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "allocated\n");
-	return cnlink;
-}
-
 struct hnbgw_cnlink *cnlink_get_nr(struct hnbgw_cnpool *cnpool, int nr, bool create_if_missing)
 {
 	struct hnbgw_cnlink *cnlink;
@@ -744,7 +641,8 @@ static bool is_cnlink_usable(struct hnbgw_cnlink *cnlink, bool is_emerg)
 		return false;
 	if (!cnlink->hnbgw_sccp_inst || !cnlink->hnbgw_sccp_inst->sccp)
 		return false;
-	// TODO indicator whether the CN link is actually active, akin to bssmap_reset_is_conn_ready()
+	if (!cnlink_is_conn_ready(cnlink))
+		return false;
 	return true;
 }
 

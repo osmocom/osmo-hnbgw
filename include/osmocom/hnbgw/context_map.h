@@ -64,6 +64,8 @@ enum map_sccp_fsm_event {
 	MAP_SCCP_EV_RX_RELEASED,
 	/* The user asks to drop the SCCP connection. */
 	MAP_SCCP_EV_USER_ABORT,
+	/* The CN link has RESET */
+	MAP_SCCP_EV_CN_LINK_LOST,
 };
 
 /* For context_map_get_state(), to combine the RUA and SCCP states, for VTY reporting only. */
@@ -173,6 +175,7 @@ int _map_sccp_dispatch(struct hnbgw_context_map *map, uint32_t event, struct msg
 
 bool map_rua_is_active(struct hnbgw_context_map *map);
 bool map_sccp_is_active(struct hnbgw_context_map *map);
+void context_map_cnlink_lost(struct hnbgw_context_map *map);
 void context_map_check_released(struct hnbgw_context_map *map);
 void context_map_free(struct hnbgw_context_map *map);
 

@@ -31,6 +31,7 @@
 #include <osmocom/hnbgw/vty.h>
 
 #include <osmocom/hnbgw/hnbgw.h>
+#include <osmocom/hnbgw/hnbgw_cn.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/tdefs.h>
 #include <osmocom/sigtran/protocol/sua.h>
@@ -709,6 +710,35 @@ DEFUN_HIDDEN(cnpool_roundrobin_next, cnpool_roundrobin_next_cmd,
 	return CMD_SUCCESS;
 }
 
+DEFUN(cnlink_ranap_reset, cnlink_ranap_reset_cmd,
+      "(msc|sgsn) " CNLINK_NR_RANGE " ranap reset",
+      "Manipulate an IuCS link to an MSC\n"
+      "Manipulate an IuPS link to an SGSN\n"
+      "MSC/SGSN nr\n"
+      "Manipulate RANAP layer of Iu-interface\n"
+      "Flip this CN link to disconnected state and re-send RANAP RESET\n")
+{
+	struct hnbgw_cnpool *cnpool;
+	struct hnbgw_cnlink *cnlink;
+	const char *msc_sgsn = argv[0];
+	int nr = atoi(argv[1]);
+
+	if (!strcmp("msc", msc_sgsn))
+		cnpool = &g_hnbgw->sccp.cnpool_iucs;
+	else
+		cnpool = &g_hnbgw->sccp.cnpool_iups;
+
+	cnlink = cnlink_get_nr(cnpool, nr, false);
+	if (!cnlink) {
+		vty_out(vty, "%% No such %s: nr %d\n", msc_sgsn, nr);
+		return CMD_WARNING;
+	}
+
+	LOG_CNLINK(cnlink, DCN, LOGL_NOTICE, "VTY requests BSSMAP RESET\n");
+	cnlink_resend_reset(cnlink);
+	return CMD_SUCCESS;
+}
+
 #define APPLY_STR "Immediately use configuration modified via telnet VTY, and restart components as needed.\n"
 #define SCCP_RESTART_STR \
       " If 'remote-addr' changed, related SCCP links will be restarted, possibly dropping active UE contexts."
@@ -986,4 +1016,5 @@ void hnbgw_vty_init(void)
 
 	install_element_ve(&show_nri_cmd);
 	install_element(ENABLE_NODE, &cnpool_roundrobin_next_cmd);
+	install_element(ENABLE_NODE, &cnlink_ranap_reset_cmd);
 }

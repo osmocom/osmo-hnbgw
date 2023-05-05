@@ -3,8 +3,14 @@
 #include <osmocom/core/rate_ctr.h>
 #include <osmocom/hnbgw/hnbgw.h>
 
+struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr);
 struct hnbgw_cnlink *hnbgw_cnlink_find_by_addr(const struct hnbgw_sccp_inst *hsi,
 					       const struct osmo_sccp_addr *remote_addr);
+bool cnlink_is_conn_ready(const struct hnbgw_cnlink *cnlink);
+void cnlink_rx_reset_cmd(struct hnbgw_cnlink *cnlink);
+void cnlink_rx_reset_ack(struct hnbgw_cnlink *cnlink);
+void cnlink_resend_reset(struct hnbgw_cnlink *cnlink);
+void cnlink_set_disconnected(struct hnbgw_cnlink *cnlink);
 
 void hnbgw_cnpool_start(struct hnbgw_cnpool *cnpool);
 
