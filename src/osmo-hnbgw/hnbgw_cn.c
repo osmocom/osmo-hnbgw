@@ -702,21 +702,155 @@ struct hnbgw_cnlink *hnbgw_cnlink_find_by_addr(const struct hnbgw_sccp_user *hsu
 	return NULL;
 }
 
+static bool is_cnlink_usable(struct hnbgw_cnlink *cnlink, bool is_emerg)
+{
+	if (is_emerg && !cnlink->allow_emerg)
+		return false;
+	if (!cnlink->hnbgw_sccp_user || !cnlink->hnbgw_sccp_user->sccp_user)
+		return false;
+	// TODO indicator whether the CN link is actually active, akin to bssmap_reset_is_conn_ready()
+	return true;
+}
+
+/* Decide which MSC/SGSN to forward this Complete Layer 3 request to. The current Layer 3 Info is passed in map->l3.
+ * a) If the subscriber was previously paged from a particular CN link, that CN link shall receive the Paging Response.
+ * b) If the message contains an NRI indicating a particular CN link that is currently connected, that CN link shall
+ *    handle this conn.
+ * c) All other cases distribute the messages across connected CN links in a round-robin fashion.
+ */
 struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 {
 	struct hnbgw_cnpool *cnpool = map->is_ps ? &g_hnbgw->sccp.cnpool_iups : &g_hnbgw->sccp.cnpool_iucs;
 	struct hnbgw_cnlink *cnlink;
-	/* FUTURE: soon we will pick one of many configurable CN peers from a pool. There will be more input arguments
-	 * (MI, or TMSI, or NRI decoded from RANAP) and this function will do round robin for new subscribers. */
-	llist_for_each_entry(cnlink, &cnpool->cnlinks, entry) {
-		if (!cnlink->hnbgw_sccp_user || !cnlink->hnbgw_sccp_user->sccp_user)
-			continue;
-		LOG_MAP(map, DCN, LOGL_INFO, "Selected %s / %s\n",
-			cnlink->name,
-			cnlink->hnbgw_sccp_user->name);
-		return cnlink;
+	struct hnbgw_cnlink *round_robin_next = NULL;
+	struct hnbgw_cnlink *round_robin_first = NULL;
+	unsigned int round_robin_next_nr;
+	int16_t nri_v = -1;
+	bool is_null_nri = false;
+	uint8_t nri_bitlen = cnpool->use.nri_bitlen;
+
+#define LOG_NRI(LOGLEVEL, FORMAT, ARGS...) \
+	LOG_MAP(map, DCN, LOGLEVEL, "%s NRI(%dbit)=0x%x=%d: " FORMAT, osmo_mobile_identity_to_str_c(OTC_SELECT, &map->l3.mi), \
+		nri_bitlen, nri_v, nri_v, ##ARGS)
+
+	/* Get the NRI bits either from map->l3.nri, or extract NRI bits from TMSI.
+	 * The NRI possibly indicates which MSC is responsible. */
+	if (map->l3.gmm_nri_container >= 0) {
+		nri_v = map->l3.gmm_nri_container;
+		/* The 'TMSI based NRI container' is always 10 bits long. If the relevant NRI length is configured to be
+		 * less than that, ignore the lower bits. */
+		if (nri_bitlen < 10)
+			nri_v >>= 10 - nri_bitlen;
+	} else if (map->l3.mi.type == GSM_MI_TYPE_TMSI) {
+		if (osmo_tmsi_nri_v_get(&nri_v, map->l3.mi.tmsi, nri_bitlen)) {
+			LOG_NRI(LOGL_ERROR, "Unable to retrieve NRI from TMSI 0x%x, nri_bitlen == %u\n", map->l3.mi.tmsi,
+				nri_bitlen);
+			nri_v = -1;
+		}
 	}
-	return NULL;
+
+	if (map->l3.from_other_plmn && nri_v >= 0) {
+		/* If a subscriber was previously attached to a different PLMN, it might still send the other
+		 * PLMN's TMSI identity in an IMSI Attach. The LU sends a LAI indicating the previous PLMN. If
+		 * it mismatches our PLMN, ignore the NRI. */
+		LOG_NRI(LOGL_DEBUG,
+			"This Complete Layer 3 message indicates a switch from another PLMN. Ignoring the NRI.\n");
+		nri_v = -1;
+	}
+
+	if (nri_v >= 0)
+		is_null_nri = osmo_nri_v_matches_ranges(nri_v, cnpool->use.null_nri_ranges);
+	if (is_null_nri)
+		LOG_NRI(LOGL_DEBUG, "this is a NULL-NRI\n");
+
+	/* Iterate CN links to find one that matches the extracted NRI, and the next round-robin target for the case no
+	 * NRI match is found. */
+	round_robin_next_nr = (map->l3.is_emerg ? cnpool->round_robin_next_emerg_nr : cnpool->round_robin_next_nr);
+	llist_for_each_entry(cnlink, &cnpool->cnlinks, entry) {
+		bool nri_matches_cnlink = (nri_v >= 0 && osmo_nri_v_matches_ranges(nri_v, cnlink->use.nri_ranges));
+
+		if (!is_cnlink_usable(cnlink, map->l3.is_emerg)) {
+			if (nri_matches_cnlink) {
+				LOG_NRI(LOGL_DEBUG, "NRI matches %s %d, but this %s is currently not connected\n",
+					cnpool->peer_name, cnlink->nr, cnpool->peer_name);
+				rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_SUBSCR_ATTACH_LOST));
+			}
+			continue;
+		}
+
+		/* Return CN link if it matches this NRI, with some debug logging. */
+		if (nri_matches_cnlink) {
+			if (is_null_nri) {
+				LOG_NRI(LOGL_DEBUG, "NRI matches %s %d, but this NRI is also configured as NULL-NRI\n",
+					cnpool->peer_name, cnlink->nr);
+			} else {
+				LOG_NRI(LOGL_INFO, "NRI match selects %s %d\n", cnpool->peer_name, cnlink->nr);
+				rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_SUBSCR_KNOWN));
+				if (map->l3.is_emerg) {
+					rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_EMERG_FORWARDED));
+					rate_ctr_inc(rate_ctr_group_get_ctr(cnpool->ctrs, CNPOOL_CTR_EMERG_FORWARDED));
+				}
+				return cnlink;
+			}
+		}
+
+		/* Figure out the next round-robin MSC. The MSCs may appear unsorted in net->mscs. Make sure to linearly
+		 * round robin the MSCs by number: pick the lowest msc->nr >= round_robin_next_nr, and also remember the
+		 * lowest available msc->nr to wrap back to that in case no next MSC is left.
+		 *
+		 * MSCs configured with `no allow-attach` do not accept new subscribers and hence must not be picked by
+		 * round-robin. Such an MSC still provides service for already attached subscribers: those that
+		 * successfully performed IMSI-Attach and have a TMSI with an NRI pointing at that MSC. We only avoid
+		 * adding IMSI-Attach of new subscribers. The idea is that the MSC is in a mode of off-loading
+		 * subscribers, and the MSC decides when each subscriber is off-loaded, by assigning the NULL-NRI in a
+		 * new TMSI (at the next periodical LU). So until the MSC decides to offload, an attached subscriber
+		 * remains attached to that MSC and is free to use its services.
+		 */
+		if (!cnlink->allow_attach)
+			continue;
+		/* Find the allowed cnlink with the lowest nr */
+		if (!round_robin_first || cnlink->nr < round_robin_first->nr)
+			round_robin_first = cnlink;
+		/* Find the allowed cnlink with the lowest nr >= round_robin_next_nr */
+		if (cnlink->nr >= round_robin_next_nr
+		    && (!round_robin_next || cnlink->nr < round_robin_next->nr))
+			round_robin_next = cnlink;
+	}
+
+	if (nri_v >= 0 && !is_null_nri)
+		LOG_NRI(LOGL_DEBUG, "No %s found for this NRI, doing round-robin\n", cnpool->peer_name);
+
+	/* No dedicated CN link found. Choose by round-robin.
+	 * If round_robin_next is NULL, there are either no more CN links at/after round_robin_next_nr, or none of
+	 * them are usable -- wrap to the start. */
+	cnlink = round_robin_next ? : round_robin_first;
+	if (!cnlink) {
+		rate_ctr_inc(rate_ctr_group_get_ctr(cnpool->ctrs, CNPOOL_CTR_SUBSCR_NO_CNLINK));
+		if (map->l3.is_emerg)
+			rate_ctr_inc(rate_ctr_group_get_ctr(cnpool->ctrs, CNPOOL_CTR_EMERG_LOST));
+		return NULL;
+	}
+
+	LOGP(DCN, LOGL_DEBUG, "New subscriber MI=%s: CN link round-robin selects %s %d\n",
+	     osmo_mobile_identity_to_str_c(OTC_SELECT, &map->l3.mi), cnpool->peer_name, cnlink->nr);
+
+	if (is_null_nri)
+		rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_SUBSCR_REATTACH));
+	else
+		rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_SUBSCR_NEW));
+
+	if (map->l3.is_emerg) {
+		rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_EMERG_FORWARDED));
+		rate_ctr_inc(rate_ctr_group_get_ctr(cnpool->ctrs, CNPOOL_CTR_EMERG_FORWARDED));
+	}
+
+	/* A CN link was picked by round-robin, so update the next round-robin nr to pick */
+	if (map->l3.is_emerg)
+		cnpool->round_robin_next_emerg_nr = cnlink->nr + 1;
+	else
+		cnpool->round_robin_next_nr = cnlink->nr + 1;
+	return cnlink;
+#undef LOG_NRI
 }
 
 char *cnlink_sccp_addr_to_str(struct hnbgw_cnlink *cnlink, const struct osmo_sccp_addr *addr)
