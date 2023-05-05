@@ -73,7 +73,7 @@ static const struct osmo_tdef_state_timeout map_sccp_fsm_timeouts[32] = {
 #define map_sccp_fsm_state_chg(state) \
 	OSMO_ASSERT(osmo_tdef_fsm_inst_state_chg(fi, state, \
 						 map_sccp_fsm_timeouts, \
-						 cmap_T_defs, \
+						 hnbgw_T_defs, \
 						 5) == 0)
 
 void map_sccp_fsm_alloc(struct hnbgw_context_map *map)
