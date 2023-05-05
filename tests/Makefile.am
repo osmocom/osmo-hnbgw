@@ -78,7 +78,7 @@ CTRL_TEST ?= *.ctrl
 ctrl-test: $(top_builddir)/src/osmo-hnbgw/osmo-hnbgw
 	osmo_verify_transcript_ctrl.py -v \
 		-p 4262 \
-		-r "$(top_builddir)/src/osmo-hnbgw/osmo-hnbgw -c $(top_srcdir)/doc/examples/osmo-hnbgw/osmo-hnbgw.cfg" \
+		-r "$(top_builddir)/src/osmo-hnbgw/osmo-hnbgw -c $(top_srcdir)/doc/examples/osmo-hnbgw/osmo-hnbgw-cnpool.cfg" \
 		$(U) $(srcdir)/$(CTRL_TEST)
 
 check-local: atconfig $(TESTSUITE)
