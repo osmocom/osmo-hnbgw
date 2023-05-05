@@ -136,8 +136,9 @@ enum hnbgw_context_map_state context_map_get_state(struct hnbgw_context_map *map
 enum hnbgw_context_map_state map_rua_get_state(struct hnbgw_context_map *map);
 enum hnbgw_context_map_state map_sccp_get_state(struct hnbgw_context_map *map);
 
-struct hnbgw_context_map *context_map_find_or_create_by_rua_ctx_id(struct hnb_context *hnb, uint32_t rua_ctx_id,
-								   bool is_ps);
+struct hnbgw_context_map *context_map_find_by_rua_ctx_id(struct hnb_context *hnb, uint32_t rua_ctx_id, bool is_ps);
+struct hnbgw_context_map *context_map_alloc(struct hnb_context *hnb, uint32_t rua_ctx_id, bool is_ps);
+int context_map_set_cnlink(struct hnbgw_context_map *map, struct hnbgw_cnlink *cnlink_selected);
 
 void map_rua_fsm_alloc(struct hnbgw_context_map *map);
 void map_sccp_fsm_alloc(struct hnbgw_context_map *map);
