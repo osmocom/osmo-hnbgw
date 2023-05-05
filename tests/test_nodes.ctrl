@@ -1,0 +1,11 @@
+GET 1 rate_ctr.abs.iucs.0.cnpool:subscr:no_cnlink
+GET_REPLY 1 rate_ctr.abs.iucs.0.cnpool:subscr:no_cnlink 0
+
+GET 2 rate_ctr.abs.iups.0.cnpool:emerg:lost
+GET_REPLY 2 rate_ctr.abs.iups.0.cnpool:emerg:lost 0
+
+GET 3 rate_ctr.abs.msc.0.cnpool:subscr:new
+GET_REPLY 3 rate_ctr.abs.msc.0.cnpool:subscr:new 0
+
+GET 4 rate_ctr.abs.sgsn.0.cnpool:emerg:forwarded
+GET_REPLY 4 rate_ctr.abs.sgsn.0.cnpool:emerg:forwarded 0
