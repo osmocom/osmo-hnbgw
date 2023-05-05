@@ -133,22 +133,38 @@ static int destruct_ranap_cn_rx_co_ies(ranap_message *ranap_message_p)
 	return 0;
 }
 
+/* Decode RANAP message with convenient memory freeing: just talloc_free() the returned pointer..
+ * Allocate a ranap_message from OTC_SELECT, decode RANAP msgb into it, attach a talloc destructor that calls
+ * ranap_cn_rx_co_free() upon talloc_free(), and return the decoded ranap_message. */
+ranap_message *hnbgw_decode_ranap_co(struct msgb *ranap_msg)
+{
+	int rc;
+	ranap_message *message;
+
+	if (!msg_has_l2_data(ranap_msg))
+		return NULL;
+	message = talloc_zero(OTC_SELECT, ranap_message);
+	rc = ranap_cn_rx_co_decode2(message, msgb_l2(ranap_msg), msgb_l2len(ranap_msg));
+	if (rc != 0) {
+		talloc_free(message);
+		return NULL;
+	}
+	talloc_set_destructor(message, destruct_ranap_cn_rx_co_ies);
+	return message;
+}
+
 /* Dispatch RANAP message to SCCP, if any. */
 static int handle_rx_rua(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 {
 	struct hnbgw_context_map *map = fi->priv;
-	int rc;
 	if (!msg_has_l2_data(ranap_msg))
 		return 0;
 
 	/* See if it is a RAB Assignment Response message from RUA to SCCP, where we need to change the user plane
 	 * information, for RTP mapping via MGW, or GTP mapping via UPF. */
 	if (!map->is_ps) {
-		ranap_message *message = talloc_zero(OTC_SELECT, ranap_message);
-		rc = ranap_cn_rx_co_decode2(message, msgb_l2(ranap_msg), msgb_l2len(ranap_msg));
-		if (rc == 0) {
-			talloc_set_destructor(message, destruct_ranap_cn_rx_co_ies);
-
+		ranap_message *message = hnbgw_decode_ranap_co(ranap_msg);
+		if (message) {
 			LOGPFSML(fi, LOGL_DEBUG, "rx from RUA: RANAP %s\n",
 				 get_value_string(ranap_procedure_code_vals, message->procedureCode));
 
@@ -161,11 +177,8 @@ static int handle_rx_rua(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 #if ENABLE_PFCP
 	} else if (hnb_gw_is_gtp_mapping_enabled()) {
 		/* map->is_ps == true and PFCP is enabled in osmo-hnbgw.cfg */
-		ranap_message *message = talloc_zero(OTC_SELECT, ranap_message);
-		rc = ranap_cn_rx_co_decode2(message, msgb_l2(ranap_msg), msgb_l2len(ranap_msg));
-		if (rc == 0) {
-			talloc_set_destructor(message, destruct_ranap_cn_rx_co_ies);
-
+		ranap_message *message = hnbgw_decode_ranap_co(ranap_msg);
+		if (message) {
 			LOGPFSML(fi, LOGL_DEBUG, "rx from RUA: RANAP %s\n",
 				 get_value_string(ranap_procedure_code_vals, message->procedureCode));
 
