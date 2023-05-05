@@ -31,20 +31,15 @@ struct osmo_tdef mgw_fsm_T_defs[] = {
 	{ }
 };
 
-struct osmo_tdef ps_T_defs[] = {
-	{.T = -1002, .default_val = 10, .desc = "Timeout for the HNB to respond to PS RAB Assignment Request" },
-	{ }
-};
-
-struct osmo_tdef cmap_T_defs[] = {
+struct osmo_tdef hnbgw_T_defs[] = {
 	{.T = -31, .default_val = 5, .desc = "Timeout for discarding a partially released context map (RUA <-> SCCP)" },
+	{.T = -1002, .default_val = 10, .desc = "Timeout for the HNB to respond to PS RAB Assignment Request" },
 	{ }
 };
 
 struct osmo_tdef_group hnbgw_tdef_group[] = {
 	{.name = "mgw", .tdefs = mgw_fsm_T_defs, .desc = "MGW (Media Gateway) interface" },
-	{.name = "ps", .tdefs = ps_T_defs, .desc = "timers for Packet Switched domain" },
-	{.name = "cmap", .tdefs = cmap_T_defs, .desc = "timers for context maps (RUA <-> SCCP)" },
+	{.name = "hnbgw", .tdefs = hnbgw_T_defs, .desc = "Timers" },
 #if ENABLE_PFCP
 	{.name = "pfcp", .tdefs = osmo_pfcp_tdefs, .desc = "PFCP timers" },
 #endif

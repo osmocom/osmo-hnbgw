@@ -802,6 +802,15 @@ DEFUN(cfg_pfcp_local_port, cfg_pfcp_local_port_cmd,
 
 #endif /* ENABLE_PFCP */
 
+DEFUN_DEPRECATED(cfg_hnbgw_timer_ps, cfg_hnbgw_timer_ps_cmd,
+		 "timer ps " OSMO_TDEF_VTY_ARG_SET,
+		 "Configure or show timers\n"
+		 "Deprecated: 'ps' timers are now in 'hnbgw'\n"
+		 OSMO_TDEF_VTY_DOC_SET)
+{
+	return osmo_tdef_vty_set_cmd(vty, hnbgw_T_defs, argv);
+}
+
 /* hnbgw
  *  iucs  } this part
  *   foo  }
@@ -960,6 +969,7 @@ void hnbgw_vty_init(void)
 #endif
 
 	osmo_tdef_vty_groups_init(HNBGW_NODE, hnbgw_tdef_group);
+	install_element(HNBGW_NODE, &cfg_hnbgw_timer_ps_cmd);
 
 	install_element(CONFIG_NODE, &cfg_msc_nr_cmd);
 	install_node(&msc_node, config_write_msc);

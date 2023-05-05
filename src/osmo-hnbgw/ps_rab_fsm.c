@@ -72,7 +72,7 @@ enum pdr_far_id {
 
 
 #define ps_rab_fsm_state_chg(state) \
-	osmo_tdef_fsm_inst_state_chg(fi, state, ps_rab_fsm_timeouts, ps_T_defs, -1)
+	osmo_tdef_fsm_inst_state_chg(fi, state, ps_rab_fsm_timeouts, hnbgw_T_defs, -1)
 
 #define PS_RAB_USE_ACTIVE "active"
 
