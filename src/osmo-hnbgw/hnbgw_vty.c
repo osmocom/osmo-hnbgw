@@ -340,10 +340,12 @@ DEFUN_DEPRECATED(cfg_hnbgw_max_sccp_cr_payload_len, cfg_hnbgw_max_sccp_cr_payloa
       " longer has any effect.\n"
       "ignored\n")
 {
-	vty_out(vty, "%% deprecated, ignored: remove this from your config file: 'sccp cr max-payload-len N'%s",
-		VTY_NEWLINE);
-	/* Still return success to not break osmo-hnbgw startup for users with old config files. */
-	return CMD_SUCCESS;
+	const char *errmsg = "'hnbgw' / 'sccp cr max-payload-len': deprecated, ignored." \
+	     " Instead, use 'cs7 instance N' / 'sccp max-optional-data N' (libosmo-sigtran >1.7.0)";
+	vty_out(vty, "%% %s%s", errmsg, VTY_NEWLINE);
+	LOGP(DLGLOBAL, LOGL_ERROR, "VTY cfg: %s\n", errmsg);
+	/* Users should not be mislead into thinking that this config still works. Abort (when reading .cfg file). */
+	return CMD_WARNING;
 }
 
 DEFUN(cfg_hnbgw_iucs_remote_addr,
