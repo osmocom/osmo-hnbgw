@@ -87,6 +87,7 @@ struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
 	talloc_steal(cnlink, name);
 	osmo_sccp_addr_set_ssn(&cnlink->local_addr, OSMO_SCCP_SSN_RANAP);
 	INIT_LLIST_HEAD(&cnlink->map_list);
+	INIT_LLIST_HEAD(&cnlink->paging);
 
 	llist_add_tail(&cnlink->entry, &cnpool->cnlinks);
 	LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "allocated\n");

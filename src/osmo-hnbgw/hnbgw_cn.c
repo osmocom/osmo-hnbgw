@@ -37,8 +37,10 @@
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/hnbgw_rua.h>
 #include <osmocom/hnbgw/hnbgw_cn.h>
+#include <osmocom/hnbgw/tdefs.h>
 #include <osmocom/ranap/ranap_ies_defs.h>
 #include <osmocom/ranap/ranap_msg_factory.h>
+#include <osmocom/ranap/iu_helpers.h>
 #include <osmocom/hnbgw/context_map.h>
 
 /***********************************************************************
@@ -98,25 +100,151 @@ static int cn_ranap_rx_reset_ack(struct hnbgw_cnlink *cnlink,
 	return 0;
 }
 
+struct cnlink_paging {
+	struct llist_head entry;
+
+	struct osmo_mobile_identity mi;
+	time_t timestamp;
+};
+
+static int cnlink_paging_destructor(struct cnlink_paging *p)
+{
+	llist_del(&p->entry);
+	return 0;
+}
+
+static const char *cnlink_paging_add(struct hnbgw_cnlink *cnlink, const struct osmo_mobile_identity *mi)
+{
+	struct cnlink_paging *p, *p2;
+	struct timespec now;
+	time_t timestamp;
+	unsigned long timeout;
+
+	/* get timestamp */
+	if (osmo_clock_gettime(CLOCK_MONOTONIC, &now) != 0)
+		return "cannot get timestamp";
+
+	timestamp = now.tv_sec;
+
+	/* Prune all paging records that are older than the configured timeout. */
+	timeout = timestamp - osmo_tdef_get(hnbgw_T_defs, 3113, OSMO_TDEF_S, 15);
+
+	llist_for_each_entry_safe(p, p2, &cnlink->paging, entry) {
+		if (p->timestamp >= timeout)
+			continue;
+		talloc_free(p);
+	}
+
+	/* Add new entry */
+	p = talloc_zero(cnlink, struct cnlink_paging);
+	*p = (struct cnlink_paging){
+		.timestamp = now.tv_sec,
+		.mi = *mi,
+	};
+	llist_add_tail(&p->entry, &cnlink->paging);
+	talloc_set_destructor(p, cnlink_paging_destructor);
+
+	LOG_CNLINK(cnlink, DCN, LOGL_INFO, "Rx Paging from CN for %s\n",
+		   osmo_mobile_identity_to_str_c(OTC_SELECT, mi));
+	return NULL;
+}
+
+static const char *omi_from_ranap_ue_id(struct osmo_mobile_identity *mi, const RANAP_PermanentNAS_UE_ID_t *ranap_mi)
+{
+	if (!ranap_mi)
+		return "null UE ID";
+
+	if (ranap_mi->present != RANAP_PermanentNAS_UE_ID_PR_iMSI)
+		return talloc_asprintf(OTC_SELECT, "unsupported UE ID type %u in RANAP Paging", ranap_mi->present);
+
+	if (ranap_mi->choice.iMSI.size > sizeof(mi->imsi))
+		return talloc_asprintf(OTC_SELECT, "invalid IMSI size %d > %zu",
+				       ranap_mi->choice.iMSI.size, sizeof(mi->imsi));
+
+	*mi = (struct osmo_mobile_identity){
+		.type = GSM_MI_TYPE_IMSI,
+	};
+	ranap_bcd_decode(mi->imsi, sizeof(mi->imsi), ranap_mi->choice.iMSI.buf, ranap_mi->choice.iMSI.size);
+	LOGP(DCN, LOGL_DEBUG, "ranap MI %s = %s\n", osmo_hexdump(ranap_mi->choice.iMSI.buf, ranap_mi->choice.iMSI.size),
+	     mi->imsi);
+	return NULL;
+}
+
+static const char *cnlink_paging_add_ranap(struct hnbgw_cnlink *cnlink, RANAP_InitiatingMessage_t *imsg)
+{
+	RANAP_PagingIEs_t ies;
+	struct osmo_mobile_identity mi = {};
+	RANAP_CN_DomainIndicator_t domain;
+	const char *errmsg;
+
+	if (ranap_decode_pagingies(&ies, &imsg->value) < 0)
+		return "decoding RANAP IEs failed";
+
+	domain = ies.cN_DomainIndicator;
+	errmsg = omi_from_ranap_ue_id(&mi, &ies.permanentNAS_UE_ID);
+	/* TODO: also record ies.temporaryUE_ID aka TMSI? */
+	ranap_free_pagingies(&ies);
+	LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "Decoded Paging: %s %s%s%s\n",
+		   domain_name(domain), osmo_mobile_identity_to_str_c(OTC_SELECT, &mi),
+		   errmsg ? " -- MI error: " : "",
+		   errmsg ? : "");
+
+	if (cnlink->pool->domain != domain)
+		return talloc_asprintf(OTC_SELECT, "message indicates domain %s, but this is %s on domain %s\n",
+				       domain_name(domain), cnlink->name, domain_name(cnlink->pool->domain));
+
+	if (errmsg)
+		return errmsg;
+
+	return cnlink_paging_add(cnlink, &mi);
+}
+
+/* If this cnlink has a recent Paging for the given MI, return true and drop the Paging record.
+ * Else return false. */
+static bool cnlink_match_paging_mi(struct hnbgw_cnlink *cnlink, const struct osmo_mobile_identity *mi)
+{
+	struct cnlink_paging *p;
+	llist_for_each_entry(p, &cnlink->paging, entry) {
+		if (osmo_mobile_identity_cmp(&p->mi, mi))
+			continue;
+		talloc_free(p);
+		return true;
+	}
+	return false;
+}
+
+static struct hnbgw_cnlink *cnlink_find_by_paging_mi(struct hnbgw_cnpool *cnpool, const struct osmo_mobile_identity *mi)
+{
+	struct hnbgw_cnlink *cnlink;
+
+	llist_for_each_entry(cnlink, &cnpool->cnlinks, entry) {
+		if (cnlink_match_paging_mi(cnlink, mi))
+		    return cnlink;
+	}
+	return NULL;
+}
+
 static int cn_ranap_rx_paging_cmd(struct hnbgw_cnlink *cnlink,
 				  RANAP_InitiatingMessage_t *imsg,
 				  const uint8_t *data, unsigned int len)
 {
+	const char *errmsg;
 	struct hnb_context *hnb;
-	RANAP_PagingIEs_t ies;
-	int rc;
 
-	rc = ranap_decode_pagingies(&ies, &imsg->value);
-	if (rc < 0)
-		return rc;
+	errmsg = cnlink_paging_add_ranap(cnlink, imsg);
+	if (errmsg) {
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx Paging from CN: %s. Dropping paging record."
+			   " Later on, the Paging Response may be forwarded to the wrong CN peer.\n",
+			   errmsg);
+		return -1;
+	}
 
 	/* FIXME: determine which HNBs to send this Paging command,
 	 * rather than broadcasting to all HNBs */
 	llist_for_each_entry(hnb, &g_hnbgw->hnb_list, list) {
-		rc = rua_tx_udt(hnb, data, len);
+		rua_tx_udt(hnb, data, len);
 	}
 
-	ranap_free_pagingies(&ies);
 	return 0;
 }
 
@@ -662,6 +790,18 @@ struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 	int16_t nri_v = -1;
 	bool is_null_nri = false;
 	uint8_t nri_bitlen = cnpool->use.nri_bitlen;
+
+	/* Match IMSI with previous Paging */
+	if (map->l3.mi.type == GSM_MI_TYPE_IMSI) {
+		cnlink = cnlink_find_by_paging_mi(cnpool, &map->l3.mi);
+		if (cnlink) {
+			LOG_MAP(map, DCN, LOGL_INFO, "CN link paging record selects %s %d\n", cnpool->peer_name,
+				cnlink->nr);
+			rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_SUBSCR_PAGED));
+			return cnlink;
+		}
+		/* If there is no IMSI match, go on with other ways */
+	}
 
 #define LOG_NRI(LOGLEVEL, FORMAT, ARGS...) \
 	LOG_MAP(map, DCN, LOGLEVEL, "%s NRI(%dbit)=0x%x=%d: " FORMAT, osmo_mobile_identity_to_str_c(OTC_SELECT, &map->l3.mi), \
