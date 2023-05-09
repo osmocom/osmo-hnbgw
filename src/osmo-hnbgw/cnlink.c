@@ -87,6 +87,7 @@ struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
 	};
 	talloc_steal(cnlink, name);
 	INIT_LLIST_HEAD(&cnlink->map_list);
+	INIT_LLIST_HEAD(&cnlink->paging);
 
 	llist_add_tail(&cnlink->entry, &cnpool->cnlinks);
 	LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "allocated\n");

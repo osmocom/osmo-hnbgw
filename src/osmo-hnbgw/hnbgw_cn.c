@@ -23,6 +23,8 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
+#include <asn1c/asn1helpers.h>
+
 #include <osmocom/core/msgb.h>
 #include <osmocom/core/utils.h>
 #include <osmocom/core/timer.h>
@@ -37,8 +39,10 @@
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/hnbgw_rua.h>
 #include <osmocom/hnbgw/hnbgw_cn.h>
+#include <osmocom/hnbgw/tdefs.h>
 #include <osmocom/ranap/ranap_ies_defs.h>
 #include <osmocom/ranap/ranap_msg_factory.h>
+#include <osmocom/ranap/iu_helpers.h>
 #include <osmocom/hnbgw/context_map.h>
 
 /***********************************************************************
@@ -98,25 +102,212 @@ static int cn_ranap_rx_reset_ack(struct hnbgw_cnlink *cnlink,
 	return 0;
 }
 
+struct cnlink_paging {
+	struct llist_head entry;
+
+	struct osmo_mobile_identity mi;
+	struct osmo_mobile_identity mi2;
+	time_t timestamp;
+};
+
+static int cnlink_paging_destructor(struct cnlink_paging *p)
+{
+	llist_del(&p->entry);
+	return 0;
+}
+
+/* Return current timestamp in *timestamp, and the oldest still valid timestamp according to T3113 timeout. */
+static const char *cnlink_paging_gettime(time_t *timestamp_p, time_t *timeout_p)
+{
+	struct timespec now;
+	time_t timestamp;
+
+	/* get timestamp */
+	if (osmo_clock_gettime(CLOCK_MONOTONIC, &now) != 0)
+		return "cannot get timestamp";
+	timestamp = now.tv_sec;
+
+	if (timestamp_p)
+		*timestamp_p = timestamp;
+	if (timeout_p)
+		*timeout_p = timestamp - osmo_tdef_get(hnbgw_T_defs, 3113, OSMO_TDEF_S, 15);
+	return NULL;
+}
+
+static const char *cnlink_paging_add(struct hnbgw_cnlink *cnlink, const struct osmo_mobile_identity *mi,
+				     const struct osmo_mobile_identity *mi2)
+{
+	struct cnlink_paging *p, *p2;
+	time_t timestamp;
+	time_t timeout;
+	const char *errmsg;
+
+	errmsg = cnlink_paging_gettime(&timestamp, &timeout);
+	if (errmsg)
+		return errmsg;
+
+	/* Prune all paging records that are older than the configured timeout. */
+	llist_for_each_entry_safe(p, p2, &cnlink->paging, entry) {
+		if (p->timestamp >= timeout)
+			continue;
+		talloc_free(p);
+	}
+
+	/* Add new entry */
+	p = talloc_zero(cnlink, struct cnlink_paging);
+	*p = (struct cnlink_paging){
+		.timestamp = timestamp,
+		.mi = *mi,
+		.mi2 = *mi2,
+	};
+	llist_add_tail(&p->entry, &cnlink->paging);
+	talloc_set_destructor(p, cnlink_paging_destructor);
+
+	LOG_CNLINK(cnlink, DCN, LOGL_INFO, "Rx Paging from CN for %s %s\n",
+		   osmo_mobile_identity_to_str_c(OTC_SELECT, mi),
+		   osmo_mobile_identity_to_str_c(OTC_SELECT, mi2));
+	return NULL;
+}
+
+static const char *omi_from_ranap_ue_id(struct osmo_mobile_identity *mi, const RANAP_PermanentNAS_UE_ID_t *ranap_mi)
+{
+	if (!ranap_mi)
+		return "null UE ID";
+
+	if (ranap_mi->present != RANAP_PermanentNAS_UE_ID_PR_iMSI)
+		return talloc_asprintf(OTC_SELECT, "unsupported UE ID type %u in RANAP Paging", ranap_mi->present);
+
+	if (ranap_mi->choice.iMSI.size > sizeof(mi->imsi))
+		return talloc_asprintf(OTC_SELECT, "invalid IMSI size %d > %zu",
+				       ranap_mi->choice.iMSI.size, sizeof(mi->imsi));
+
+	*mi = (struct osmo_mobile_identity){
+		.type = GSM_MI_TYPE_IMSI,
+	};
+	ranap_bcd_decode(mi->imsi, sizeof(mi->imsi), ranap_mi->choice.iMSI.buf, ranap_mi->choice.iMSI.size);
+	LOGP(DCN, LOGL_DEBUG, "ranap MI %s = %s\n", osmo_hexdump(ranap_mi->choice.iMSI.buf, ranap_mi->choice.iMSI.size),
+	     mi->imsi);
+	return NULL;
+}
+
+static const char *omi_from_ranap_temp_ue_id(struct osmo_mobile_identity *mi, const RANAP_TemporaryUE_ID_t *ranap_tmsi)
+{
+	const OCTET_STRING_t *tmsi_str;
+
+	if (!ranap_tmsi)
+		return "null UE ID";
+
+	switch (ranap_tmsi->present) {
+	case RANAP_TemporaryUE_ID_PR_tMSI:
+		tmsi_str = &ranap_tmsi->choice.tMSI;
+		break;
+	case RANAP_TemporaryUE_ID_PR_p_TMSI:
+		tmsi_str = &ranap_tmsi->choice.p_TMSI;
+		break;
+	default:
+		return talloc_asprintf(OTC_SELECT, "unsupported Temporary UE ID type %u in RANAP Paging", ranap_tmsi->present);
+	}
+
+	*mi = (struct osmo_mobile_identity){
+		.type = GSM_MI_TYPE_TMSI,
+		.tmsi = asn1str_to_u32(tmsi_str),
+	};
+	LOGP(DCN, LOGL_DEBUG, "ranap temp UE ID = %s\n", osmo_mobile_identity_to_str_c(OTC_SELECT, mi));
+	return NULL;
+}
+
+static const char *cnlink_paging_add_ranap(struct hnbgw_cnlink *cnlink, RANAP_InitiatingMessage_t *imsg)
+{
+	RANAP_PagingIEs_t ies;
+	struct osmo_mobile_identity mi = {};
+	struct osmo_mobile_identity mi2 = {};
+	RANAP_CN_DomainIndicator_t domain;
+	const char *errmsg;
+
+	if (ranap_decode_pagingies(&ies, &imsg->value) < 0)
+		return "decoding RANAP IEs failed";
+
+	domain = ies.cN_DomainIndicator;
+	errmsg = omi_from_ranap_ue_id(&mi, &ies.permanentNAS_UE_ID);
+
+	if (!errmsg && (ies.presenceMask & PAGINGIES_RANAP_TEMPORARYUE_ID_PRESENT))
+		errmsg = omi_from_ranap_temp_ue_id(&mi2, &ies.temporaryUE_ID);
+
+	ranap_free_pagingies(&ies);
+	LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "Decoded Paging: %s %s %s%s%s\n",
+		   ranap_domain_name(domain), osmo_mobile_identity_to_str_c(OTC_SELECT, &mi),
+		   mi2.type ? osmo_mobile_identity_to_str_c(OTC_SELECT, &mi2) : "-",
+		   errmsg ? " -- MI error: " : "",
+		   errmsg ? : "");
+
+	if (cnlink->pool->domain != domain)
+		return talloc_asprintf(OTC_SELECT, "message indicates domain %s, but this is %s on domain %s\n",
+				       ranap_domain_name(domain), cnlink->name, ranap_domain_name(cnlink->pool->domain));
+
+	if (errmsg)
+		return errmsg;
+
+	return cnlink_paging_add(cnlink, &mi, &mi2);
+}
+
+/* If this cnlink has a recent Paging for the given MI, return true and drop the Paging record.
+ * Else return false. */
+static bool cnlink_match_paging_mi(struct hnbgw_cnlink *cnlink, const struct osmo_mobile_identity *mi, time_t timeout)
+{
+	struct cnlink_paging *p, *p2;
+	llist_for_each_entry_safe(p, p2, &cnlink->paging, entry) {
+		if (p->timestamp < timeout) {
+			talloc_free(p);
+			continue;
+		}
+		if (osmo_mobile_identity_cmp(&p->mi, mi)
+		    && osmo_mobile_identity_cmp(&p->mi2, mi))
+			continue;
+		talloc_free(p);
+		return true;
+	}
+	return false;
+}
+
+static struct hnbgw_cnlink *cnlink_find_by_paging_mi(struct hnbgw_cnpool *cnpool, const struct osmo_mobile_identity *mi)
+{
+	struct hnbgw_cnlink *cnlink;
+	time_t timeout = 0;
+	const char *errmsg;
+
+	errmsg = cnlink_paging_gettime(NULL, &timeout);
+	if (errmsg)
+		LOGP(DCN, LOGL_ERROR, "%s\n", errmsg);
+
+	llist_for_each_entry(cnlink, &cnpool->cnlinks, entry) {
+		if (!cnlink_match_paging_mi(cnlink, mi, timeout))
+			continue;
+		return cnlink;
+	}
+	return NULL;
+}
+
 static int cn_ranap_rx_paging_cmd(struct hnbgw_cnlink *cnlink,
 				  RANAP_InitiatingMessage_t *imsg,
 				  const uint8_t *data, unsigned int len)
 {
+	const char *errmsg;
 	struct hnb_context *hnb;
-	RANAP_PagingIEs_t ies;
-	int rc;
 
-	rc = ranap_decode_pagingies(&ies, &imsg->value);
-	if (rc < 0)
-		return rc;
+	errmsg = cnlink_paging_add_ranap(cnlink, imsg);
+	if (errmsg) {
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx Paging from CN: %s. Dropping paging record."
+			   " Later on, the Paging Response may be forwarded to the wrong CN peer.\n",
+			   errmsg);
+		return -1;
+	}
 
 	/* FIXME: determine which HNBs to send this Paging command,
 	 * rather than broadcasting to all HNBs */
 	llist_for_each_entry(hnb, &g_hnbgw->hnb_list, list) {
-		rc = rua_tx_udt(hnb, data, len);
+		rua_tx_udt(hnb, data, len);
 	}
 
-	ranap_free_pagingies(&ies);
 	return 0;
 }
 
@@ -314,6 +505,122 @@ static int handle_cn_disc_ind(struct hnbgw_sccp_user *hsu,
 	return map_sccp_dispatch(map, MAP_SCCP_EV_RX_RELEASED, oph->msg);
 }
 
+static struct hnbgw_cnlink *_cnlink_find_by_remote_pc(struct hnbgw_cnpool *cnpool, struct osmo_ss7_instance *cs7, uint32_t pc)
+{
+	struct hnbgw_cnlink *cnlink;
+	llist_for_each_entry(cnlink, &cnpool->cnlinks, entry) {
+		if (!cnlink->hnbgw_sccp_user)
+			continue;
+		if (cnlink->hnbgw_sccp_user->ss7 != cs7)
+			continue;
+		if ((cnlink->remote_addr.presence & OSMO_SCCP_ADDR_T_PC) == 0)
+			continue;
+		if (cnlink->remote_addr.pc != pc)
+			continue;
+		return cnlink;
+	}
+	return NULL;
+}
+
+/* Find a cnlink by its remote sigtran point code on a given cs7 instance. */
+static struct hnbgw_cnlink *cnlink_find_by_remote_pc(struct osmo_ss7_instance *cs7, uint32_t pc)
+{
+	struct hnbgw_cnlink *cnlink;
+	cnlink = _cnlink_find_by_remote_pc(&g_hnbgw->sccp.cnpool_iucs, cs7, pc);
+	if (!cnlink)
+		cnlink = _cnlink_find_by_remote_pc(&g_hnbgw->sccp.cnpool_iups, cs7, pc);
+	return cnlink;
+}
+
+static void handle_pcstate_ind(struct hnbgw_sccp_user *hsu, const struct osmo_scu_pcstate_param *pcst)
+{
+	struct hnbgw_cnlink *cnlink;
+	bool connected;
+	bool disconnected;
+	struct osmo_ss7_instance *cs7 = hsu->ss7;
+
+	LOGP(DCN, LOGL_DEBUG, "N-PCSTATE ind: affected_pc=%u sp_status=%s remote_sccp_status=%s\n",
+	     pcst->affected_pc, osmo_sccp_sp_status_name(pcst->sp_status),
+	     osmo_sccp_rem_sccp_status_name(pcst->remote_sccp_status));
+
+	/* If we don't care about that point-code, ignore PCSTATE. */
+	cnlink = cnlink_find_by_remote_pc(cs7, pcst->affected_pc);
+	if (!cnlink)
+		return;
+
+	/* See if this marks the point code to have become available, or to have been lost.
+	 *
+	 * I want to detect two events:
+	 * - connection event (both indicators say PC is reachable).
+	 * - disconnection event (at least one indicator says the PC is not reachable).
+	 *
+	 * There are two separate incoming indicators with various possible values -- the incoming events can be:
+	 *
+	 * - neither connection nor disconnection indicated -- just indicating congestion
+	 *   connected == false, disconnected == false --> do nothing.
+	 * - both incoming values indicate that we are connected
+	 *   --> trigger connected
+	 * - both indicate we are disconnected
+	 *   --> trigger disconnected
+	 * - one value indicates 'connected', the other indicates 'disconnected'
+	 *   --> trigger disconnected
+	 *
+	 * Congestion could imply that we're connected, but it does not indicate that a PC's reachability changed, so no need to
+	 * trigger on that.
+	 */
+	connected = false;
+	disconnected = false;
+
+	switch (pcst->sp_status) {
+	case OSMO_SCCP_SP_S_ACCESSIBLE:
+		connected = true;
+		break;
+	case OSMO_SCCP_SP_S_INACCESSIBLE:
+		disconnected = true;
+		break;
+	default:
+	case OSMO_SCCP_SP_S_CONGESTED:
+		/* Neither connecting nor disconnecting */
+		break;
+	}
+
+	switch (pcst->remote_sccp_status) {
+	case OSMO_SCCP_REM_SCCP_S_AVAILABLE:
+		if (!disconnected)
+			connected = true;
+		break;
+	case OSMO_SCCP_REM_SCCP_S_UNAVAILABLE_UNKNOWN:
+	case OSMO_SCCP_REM_SCCP_S_UNEQUIPPED:
+	case OSMO_SCCP_REM_SCCP_S_INACCESSIBLE:
+		disconnected = true;
+		connected = false;
+		break;
+	default:
+	case OSMO_SCCP_REM_SCCP_S_CONGESTED:
+		/* Neither connecting nor disconnecting */
+		break;
+	}
+
+	if (disconnected && cnlink_is_conn_ready(cnlink)) {
+		LOG_CNLINK(cnlink, DCN, LOGL_NOTICE,
+			   "now unreachable: N-PCSTATE ind: pc=%u sp_status=%s remote_sccp_status=%s\n",
+			   pcst->affected_pc,
+			   osmo_sccp_sp_status_name(pcst->sp_status),
+			   osmo_sccp_rem_sccp_status_name(pcst->remote_sccp_status));
+		/* A previously usable cnlink has disconnected. Kick it back to DISC state. */
+		cnlink_set_disconnected(cnlink);
+	} else if (connected && !cnlink_is_conn_ready(cnlink)) {
+		LOG_CNLINK(cnlink, DCN, LOGL_NOTICE,
+			   "now available: N-PCSTATE ind: pc=%u sp_status=%s remote_sccp_status=%s\n",
+			   pcst->affected_pc,
+			   osmo_sccp_sp_status_name(pcst->sp_status),
+			   osmo_sccp_rem_sccp_status_name(pcst->remote_sccp_status));
+		/* A previously unusable cnlink has become reachable. Trigger immediate RANAP RESET -- we would resend a
+		 * RESET either way, but we might as well do it now to speed up connecting. */
+		cnlink_resend_reset(cnlink);
+	}
+}
+
 /* Entry point for primitives coming up from SCCP User SAP */
 static int sccp_sap_up(struct osmo_prim_hdr *oph, void *ctx)
 {
@@ -355,9 +662,9 @@ static int sccp_sap_up(struct osmo_prim_hdr *oph, void *ctx)
 		rc = handle_cn_disc_ind(hsu, &prim->u.disconnect, oph);
 		break;
 	case OSMO_PRIM(OSMO_SCU_PRIM_N_PCSTATE, PRIM_OP_INDICATION):
-		LOGP(DCN, LOGL_DEBUG, "Ignoring prim %s from SCCP USER SAP\n",
-		     osmo_scu_prim_hdr_name_c(OTC_SELECT, oph));
+		handle_pcstate_ind(hsu, &prim->u.pcstate);
 		break;
+
 	default:
 		LOGP(DCN, LOGL_ERROR,
 			"Received unknown prim %u from SCCP USER SAP\n",
@@ -677,6 +984,18 @@ struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 	int16_t nri_v = -1;
 	bool is_null_nri = false;
 	uint8_t nri_bitlen = cnpool->use.nri_bitlen;
+
+	/* Match IMSI with previous Paging */
+	if (map->l3.gsm48_msg_type == GSM48_MT_RR_PAG_RESP) {
+		cnlink = cnlink_find_by_paging_mi(cnpool, &map->l3.mi);
+		if (cnlink) {
+			LOG_MAP(map, DCN, LOGL_INFO, "CN link paging record selects %s %d\n", cnpool->peer_name,
+				cnlink->nr);
+			rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_SUBSCR_PAGED));
+			return cnlink;
+		}
+		/* If there is no match, go on with other ways */
+	}
 
 #define LOG_NRI(LOGLEVEL, FORMAT, ARGS...) \
 	LOG_MAP(map, DCN, LOGLEVEL, "%s NRI(%dbit)=0x%x=%d: " FORMAT, osmo_mobile_identity_to_str_c(OTC_SELECT, &map->l3.mi), \

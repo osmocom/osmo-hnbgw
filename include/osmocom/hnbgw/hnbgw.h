@@ -180,6 +180,7 @@ struct hnbgw_cnlink {
 
 	bool allow_attach;
 	bool allow_emerg;
+	struct llist_head paging;
 
 	struct rate_ctr_group *ctrs;
 };
