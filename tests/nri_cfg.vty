@@ -6,6 +6,10 @@ hnbgw
  iups
   nri bitlen 10
   % No NULL-NRI entries
+msc 0
+ % no NRI mappings
+sgsn 0
+ % no NRI mappings
 
 OsmoHNBGW> enable
 OsmoHNBGW# configure terminal
@@ -89,6 +93,8 @@ msc 1
  nri add 200 300
  nri add 512 767
  nri add 1024 1025
+sgsn 0
+ % no NRI mappings
 
 OsmoHNBGW(config)# ### msc and sgsn have separate scopes of NRI, i.e. overlaps are no problem
 OsmoHNBGW(config)# sgsn 0

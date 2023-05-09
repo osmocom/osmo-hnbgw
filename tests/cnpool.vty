@@ -1,4 +1,26 @@
 OsmoHNBGW> enable
+OsmoHNBGW# list
+...
+  (msc|sgsn) <0-1000> ranap reset
+...
+OsmoHNBGW# msc?
+  msc  Manipulate an IuCS link to an MSC
+OsmoHNBGW# msc ?
+  <0-1000>  MSC/SGSN nr
+OsmoHNBGW# msc 0 ?
+  ranap  Manipulate RANAP layer of Iu-interface
+OsmoHNBGW# msc 0 ranap ?
+  reset  Flip this CN link to disconnected state and re-send RANAP RESET
+
+OsmoHNBGW# sgsn?
+  sgsn  Manipulate an IuPS link to an SGSN
+OsmoHNBGW# sgsn ?
+  <0-1000>  MSC/SGSN nr
+OsmoHNBGW# sgsn 0 ?
+  ranap  Manipulate RANAP layer of Iu-interface
+OsmoHNBGW# sgsn 0 ranap ?
+  reset  Flip this CN link to disconnected state and re-send RANAP RESET
+
 OsmoHNBGW# configure terminal
 
 OsmoHNBGW(config)# ### Define some cs7 address book entries to play with
@@ -272,6 +294,8 @@ OsmoHNBGW(config)# show running-config
 ...
 hnbgw
 ...
+msc 0
+ remote-addr addr-msc-0
 msc 1
 msc 2
  remote-addr addr-msc2
@@ -279,6 +303,8 @@ msc 2
 msc 3
  remote-addr addr-msc3
  allow-emergency
+sgsn 0
+ remote-addr addr-sgsn-0
 sgsn 1
 sgsn 2
  remote-addr addr-sgsn2
@@ -302,11 +328,15 @@ OsmoHNBGW(config)# show running-config
 ...
 hnbgw
 ...
+msc 0
+ remote-addr addr-msc-0
 msc 1
 msc 2
  remote-addr addr-msc2
 msc 3
  remote-addr addr-msc4
+sgsn 0
+ remote-addr addr-sgsn-0
 sgsn 1
 sgsn 2
  remote-addr addr-sgsn4
@@ -339,20 +369,20 @@ OsmoHNBGW(config-hnbgw)# show running-config
 ...
 hnbgw
 ...
+msc 0
+ remote-addr addr-msc0
 msc 1
 msc 2
  remote-addr addr-msc2
 msc 3
  remote-addr addr-msc4
-msc 0
- remote-addr addr-msc0
+sgsn 0
+ remote-addr addr-sgsn0
 sgsn 1
 sgsn 2
  remote-addr addr-sgsn4
 sgsn 3
  remote-addr addr-sgsn3
-sgsn 0
- remote-addr addr-sgsn0
 ...
 
 
