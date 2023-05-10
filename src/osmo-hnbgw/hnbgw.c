@@ -491,13 +491,13 @@ struct msgb *hnbgw_ranap_msg_alloc(const char *name)
 	return ranap_msg;
 }
 
-static const char * const hnbgw_copyright =
-	"OsmoHNBGW - Osmocom Home Node B Gateway implementation\r\n"
-	"Copyright (C) 2016-2023 by sysmocom s.f.m.c. GmbH <info@sysmocom.de>\r\n"
-	"Contributions by Daniel Willmann, Harald Welte, Neels Hofmeyr\r\n"
-	"License AGPLv3+: GNU AGPL version 3 or later <http://gnu.org/licenses/agpl-3.0.html>\r\n"
-	"This is free software: you are free to change and redistribute it.\r\n"
-	"There is NO WARRANTY, to the extent permitted by law.\r\n";
+#define HNBGW_COPYRIGHT \
+	"OsmoHNBGW - Osmocom Home Node B Gateway implementation\r\n" \
+	"Copyright (C) 2016-2023 by sysmocom s.f.m.c. GmbH <info@sysmocom.de>\r\n" \
+	"Contributions by Daniel Willmann, Harald Welte, Neels Hofmeyr\r\n" \
+	"License AGPLv3+: GNU AGPL version 3 or later <http://gnu.org/licenses/agpl-3.0.html>\r\n" \
+	"This is free software: you are free to change and redistribute it.\r\n" \
+	"There is NO WARRANTY, to the extent permitted by law.\r\n"
 
 static const struct log_info_cat hnbgw_log_cat[] = {
 	[DMAIN] = {
@@ -546,5 +546,5 @@ struct vty_app_info hnbgw_vty_info = {
 	.name = "OsmoHNBGW",
 	.version = PACKAGE_VERSION,
 	.go_parent_cb = hnbgw_vty_go_parent,
-	.copyright = hnbgw_copyright,
+	.copyright = HNBGW_COPYRIGHT,
 };
