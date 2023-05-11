@@ -25,6 +25,7 @@
 
 #include <osmocom/sigtran/sccp_helpers.h>
 
+#include <asn1c/asn1helpers.h>
 #include <osmocom/ranap/ranap_ies_defs.h>
 #include <osmocom/ranap/ranap_msg_factory.h>
 
@@ -127,6 +128,9 @@ static void tx_reset(struct hnbgw_cnlink *cnlink)
 		.present = RANAP_Cause_PR_transmissionNetwork,
 		.choice. transmissionNetwork = RANAP_CauseTransmissionNetwork_signalling_transport_resource_failure,
 	};
+	RANAP_GlobalRNC_ID_t grnc_id;
+	RANAP_GlobalRNC_ID_t *use_grnc_id = NULL;
+	uint8_t plmn_buf[3];
 
 	if (!cnlink)
 		return;
@@ -140,7 +144,20 @@ static void tx_reset(struct hnbgw_cnlink *cnlink)
 		   cnlink_is_cs(cnlink) ? "IuCS" : "IuPS",
 		   osmo_sccp_inst_addr_name(cnlink->hnbgw_sccp_inst->sccp, &cnlink->remote_addr));
 
-	msg = ranap_new_msg_reset(cnlink->pool->domain, &cause);
+	/* If no PLMN is configured, omit the Global RNC Id from the RESET message */
+	if (g_hnbgw->config.plmn.mcc) {
+		osmo_plmn_to_bcd(plmn_buf, &g_hnbgw->config.plmn);
+		grnc_id = (RANAP_GlobalRNC_ID_t){
+			.pLMNidentity = {
+				.buf = plmn_buf,
+				.size = 3,
+			},
+			.rNC_ID = g_hnbgw->config.rnc_id,
+		};
+		use_grnc_id = &grnc_id;
+	}
+
+	msg = ranap_new_msg_reset2(cnlink->pool->domain, &cause, use_grnc_id);
 
 	osmo_sccp_tx_unitdata_msg(cnlink->hnbgw_sccp_inst->sccp_user,
 				  &cnlink->local_addr,

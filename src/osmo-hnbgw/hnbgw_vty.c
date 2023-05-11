@@ -281,6 +281,28 @@ DEFUN(show_talloc, show_talloc_cmd, "show talloc", SHOW_STR "Display talloc info
 	return CMD_SUCCESS;
 }
 
+DEFUN(cfg_hnbgw_plmn, cfg_hnbgw_plmn_cmd,
+      "plmn <1-999> <0-999>",
+      "Configure the HNBGW's PLMN. The PLMN is transmitted in RANAP RESET towards the CN.\n"
+      "MCC, Mobile Country Code\n"
+      "MNC, Mobile Network Code\n")
+{
+	struct osmo_plmn_id plmn;
+
+	if (osmo_mcc_from_str(argv[0], &plmn.mcc)) {
+		vty_out(vty, "%% Error decoding MCC: %s%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	if (osmo_mnc_from_str(argv[1], &plmn.mnc, &plmn.mnc_3_digits)) {
+		vty_out(vty, "%% Error decoding MNC: %s%s", argv[1], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	g_hnbgw->config.plmn = plmn;
+	return CMD_SUCCESS;
+}
+
 DEFUN(cfg_hnbgw_rnc_id, cfg_hnbgw_rnc_id_cmd,
       "rnc-id <0-65535>",
       "Configure the HNBGW's RNC Id, the common RNC Id used for all connected hNodeB. It is sent to"
@@ -950,6 +972,7 @@ void hnbgw_vty_init(void)
 	install_element(CONFIG_NODE, &cfg_hnbgw_cmd);
 	install_node(&hnbgw_node, config_write_hnbgw);
 
+	install_element(HNBGW_NODE, &cfg_hnbgw_plmn_cmd);
 	install_element(HNBGW_NODE, &cfg_hnbgw_rnc_id_cmd);
 	install_element(HNBGW_NODE, &cfg_hnbgw_log_prefix_cmd);
 	install_element(HNBGW_NODE, &cfg_hnbgw_max_sccp_cr_payload_len_cmd);
