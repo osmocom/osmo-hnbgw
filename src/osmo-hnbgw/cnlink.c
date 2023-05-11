@@ -185,6 +185,9 @@ static void tx_reset_ack(struct hnbgw_cnlink *cnlink)
 {
 	struct msgb *msg;
 	struct osmo_sccp_instance *sccp = cnlink_sccp(cnlink);
+	RANAP_GlobalRNC_ID_t grnc_id;
+	RANAP_GlobalRNC_ID_t *use_grnc_id = NULL;
+	uint8_t plmn_buf[3];
 
 	if (!sccp) {
 		LOG_CNLINK(cnlink, DRANAP, LOGL_ERROR, "cannot send RANAP RESET ACK: no CN link\n");
@@ -196,7 +199,32 @@ static void tx_reset_ack(struct hnbgw_cnlink *cnlink)
 		   cnlink_sccp_addr_to_str(cnlink, &cnlink->hnbgw_sccp_user->local_addr),
 		   cnlink_sccp_addr_to_str(cnlink, &cnlink->remote_addr));
 
-	msg = ranap_new_msg_reset_ack(cnlink->pool->domain, NULL);
+	if (g_hnbgw->config.plmn.mcc) {
+		osmo_plmn_to_bcd(plmn_buf, &g_hnbgw->config.plmn);
+		grnc_id = (RANAP_GlobalRNC_ID_t){
+			.pLMNidentity = {
+				.buf = plmn_buf,
+				.size = 3,
+			},
+			.rNC_ID = g_hnbgw->config.rnc_id,
+		};
+		use_grnc_id = &grnc_id;
+	} else {
+		/* If no PLMN is configured, omit the Global RNC Id from the RESET ACK message.
+		 *
+		 * According to 3GPP TS 25.413 8.26.2.1, "The RNC shall include the Global RNC-ID IE in the RESET
+		 * ACKNOWLEDGE message", so it should be considered a mandatory IE when coming from us, the RNC.
+		 *
+		 * But osmo-hnbgw < v1.5 worked well with osmo-hnbgw.cfg files that have no PLMN configured, and we are
+		 * trying to stay backwards compatible for those users. Such a site should still work, but they should
+		 * now see these error logs and can adjust the config.
+		 */
+		LOG_CNLINK(cnlink, DRANAP, LOGL_ERROR,
+			   "No local PLMN is configured, so outgoing RESET ACKNOWLEDGE messages omit the mandatory"
+			   " Global RNC-ID IE. You should set a 'hnbgw' / 'plmn' in your config file (since v1.5)\n");
+	}
+
+	msg = ranap_new_msg_reset_ack(cnlink->pool->domain, use_grnc_id);
 
 	osmo_sccp_tx_unitdata_msg(cnlink->hnbgw_sccp_user->sccp_user,
 				  &cnlink->hnbgw_sccp_user->local_addr,
