@@ -11,11 +11,52 @@ OsmoHNBGW(config)# hnbgw?
 OsmoHNBGW(config)# hnbgw
 OsmoHNBGW(config-hnbgw)# list
 ...
+  plmn <1-999> <0-999>
   rnc-id <0-65535>
   log-prefix (hnb-id|umts-cell-id)
   iuh
   iucs
   iups
+...
+
+OsmoHNBGW(config-hnbgw)# plmn?
+  plmn  Configure the HNBGW's PLMN. The PLMN is transmitted in RANAP RESET towards the CN.
+OsmoHNBGW(config-hnbgw)# plmn ?
+  <1-999>  MCC, Mobile Country Code
+OsmoHNBGW(config-hnbgw)# plmn 1 ?
+  <0-999>  MNC, Mobile Network Code
+OsmoHNBGW(config-hnbgw)# show running-config
+... !plmn
+OsmoHNBGW(config-hnbgw)# plmn 001 01
+OsmoHNBGW(config-hnbgw)# show running-config
+...
+hnbgw
+...
+ plmn 001 01
+...
+
+OsmoHNBGW(config-hnbgw)# plmn 001 001
+OsmoHNBGW(config-hnbgw)# show running-config
+...
+hnbgw
+...
+ plmn 001 001
+...
+
+OsmoHNBGW(config-hnbgw)# plmn 999 999
+OsmoHNBGW(config-hnbgw)# show running-config
+...
+hnbgw
+...
+ plmn 999 999
+...
+
+OsmoHNBGW(config-hnbgw)# plmn 23 42
+OsmoHNBGW(config-hnbgw)# show running-config
+...
+hnbgw
+...
+ plmn 023 42
 ...
 
 OsmoHNBGW(config-hnbgw)# rnc-id?

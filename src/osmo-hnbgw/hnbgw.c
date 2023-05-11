@@ -57,6 +57,9 @@ void g_hnbgw_alloc(void *ctx)
 	g_hnbgw->config.iuh_local_port = IUH_DEFAULT_SCTP_PORT;
 	g_hnbgw->config.log_prefix_hnb_id = true;
 
+	/* Set zero PLMN to detect a missing PLMN when transmitting RESET */
+	g_hnbgw->config.plmn = (struct osmo_plmn_id){ 0, 0, false };
+
 	g_hnbgw->next_ue_ctx_id = 23;
 	INIT_LLIST_HEAD(&g_hnbgw->hnb_list);
 	INIT_LLIST_HEAD(&g_hnbgw->ue_list);
