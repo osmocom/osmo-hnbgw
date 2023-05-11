@@ -279,15 +279,21 @@ static int peek_l3_nas(struct hnbgw_context_map *map, const uint8_t *nas_pdu, si
 
 static int peek_l3_initial_ue(struct hnbgw_context_map *map, const RANAP_InitialUE_MessageIEs_t *ies)
 {
-	struct osmo_plmn_id plmn;
+	struct osmo_plmn_id local_plmn;
 
-	if (ies->lai.pLMNidentity.size < 3) {
-		LOGP(DCN, LOGL_ERROR, "Missing PLMN in RANAP InitialUE message\n");
-		return -EINVAL;
+	if (g_hnbgw->config.plmn.mcc) {
+		/* The user has configured a PLMN */
+		local_plmn = g_hnbgw->config.plmn;
+	} else {
+		/* The user has not configured a PLMN, guess from the InitialUE message's LAI IE's PLMN */
+		if (ies->lai.pLMNidentity.size < 3) {
+			LOGP(DCN, LOGL_ERROR, "Missing PLMN in RANAP InitialUE message\n");
+			return -EINVAL;
+		}
+		osmo_plmn_from_bcd(ies->lai.pLMNidentity.buf, &local_plmn);
 	}
-	osmo_plmn_from_bcd(ies->lai.pLMNidentity.buf, &plmn);
 
-	return peek_l3_nas(map, ies->nas_pdu.buf, ies->nas_pdu.size, &plmn);
+	return peek_l3_nas(map, ies->nas_pdu.buf, ies->nas_pdu.size, &local_plmn);
 }
 
 /* Extract a Layer 3 message (NAS PDU) from the RANAP message, and put the info obtained in map->l3. This is relevant
