@@ -25,11 +25,16 @@ OsmoHNBGW(config-hnbgw)# rnc-id ?
   <0-65535>  RNC Id value
 
 OsmoHNBGW(config-hnbgw)# show running-config
-... !rnc-id
+...
+hnbgw
+...
+ rnc-id 23
+...
 
 OsmoHNBGW(config-hnbgw)# rnc-id 42
-OsmoHNBGW(config-hnbgw)# ### ERROR! We don't write back the rnc-id
 OsmoHNBGW(config-hnbgw)# show running-config
 ...
 hnbgw
-... !rnc-id
+...
+ rnc-id 42
+...

@@ -416,9 +416,13 @@ DEFUN(cfg_pfcp_local_port, cfg_pfcp_local_port_cmd,
 static int config_write_hnbgw(struct vty *vty)
 {
 	vty_out(vty, "hnbgw%s", VTY_NEWLINE);
+
+	vty_out(vty, " rnc-id %u%s", g_hnbgw->config.rnc_id, VTY_NEWLINE);
+
 	vty_out(vty, " log-prefix %s%s", g_hnbgw->config.log_prefix_hnb_id ? "hnb-id" : "umts-cell-id",
 		VTY_NEWLINE);
 	osmo_tdef_vty_groups_write(vty, " ");
+
 	return CMD_SUCCESS;
 }
 
