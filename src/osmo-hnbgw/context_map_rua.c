@@ -314,7 +314,6 @@ void map_rua_fsm_cleanup(struct osmo_fsm_inst *fi, enum osmo_fsm_term_cause caus
 {
 	struct hnbgw_context_map *map = fi->priv;
 	map->rua_fi = NULL;
-	context_map_check_released(map);
 }
 
 #define S(x) (1 << (x))
