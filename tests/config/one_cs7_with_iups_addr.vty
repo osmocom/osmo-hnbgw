@@ -3,12 +3,12 @@ OsmoHNBGW> enable
 OsmoHNBGW# show cs7 config
 cs7 instance 0
  point-code 1.1.1
- asp asp-clnt-OsmoHNBGW 2905 0 m3ua
+ asp asp-clnt-msc-0 2905 0 m3ua
   local-ip localhost
   remote-ip localhost
   sctp-role client
- as as-clnt-OsmoHNBGW m3ua
-  asp asp-clnt-OsmoHNBGW
+ as as-clnt-msc-0 m3ua
+  asp asp-clnt-msc-0
   routing-key 0 1.1.1
  sccp-address my-sgsn
   routing-indicator PC
@@ -17,9 +17,9 @@ cs7 instance 0
 OsmoHNBGW# ### only IuPS was configured to go to remote-PC = 1.4.2, IuCS auto-configured to remote-PC = 0.23.1
 OsmoHNBGW# show cnlink
 IuCS: OsmoHNBGW:RI=SSN_PC,PC=1.1.1,SSN=RANAP <-> RI=SSN_PC,PC=0.23.1,SSN=RANAP
-      SS7 route: pc=0=0.0.0 mask=0x0=0.0.0 via AS as-clnt-OsmoHNBGW proto=m3ua ASP asp-clnt-OsmoHNBGW
-IuPS: OsmoHNBGW:RI=SSN_PC,PC=1.1.1,SSN=RANAP <-> my-sgsn:RI=SSN_PC,PC=1.4.2,SSN=RANAP
-      SS7 route: pc=0=0.0.0 mask=0x0=0.0.0 via AS as-clnt-OsmoHNBGW proto=m3ua ASP asp-clnt-OsmoHNBGW
+      SS7 route: pc=0=0.0.0 mask=0x0=0.0.0 via AS as-clnt-msc-0 proto=m3ua ASP asp-clnt-msc-0
+IuPS: OsmoHNBGW:RI=SSN_PC,PC=1.1.1,SSN=RANAP <-> my-sgsn=RI=SSN_PC,PC=1.4.2,SSN=RANAP
+      SS7 route: pc=0=0.0.0 mask=0x0=0.0.0 via AS as-clnt-msc-0 proto=m3ua ASP asp-clnt-msc-0
 
 OsmoHNBGW# show running-config
 ...

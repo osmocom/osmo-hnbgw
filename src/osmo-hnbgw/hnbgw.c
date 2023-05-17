@@ -51,6 +51,7 @@ void g_hnbgw_alloc(void *ctx)
 	g_hnbgw->next_ue_ctx_id = 23;
 	INIT_LLIST_HEAD(&g_hnbgw->hnb_list);
 	INIT_LLIST_HEAD(&g_hnbgw->ue_list);
+	INIT_LLIST_HEAD(&g_hnbgw->sccp.users);
 
 	g_hnbgw->mgw_pool = mgcp_client_pool_alloc(g_hnbgw);
 	g_hnbgw->config.mgcp_client = talloc_zero(g_hnbgw, struct mgcp_client_conf);

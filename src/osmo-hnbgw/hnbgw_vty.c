@@ -29,6 +29,7 @@
 #include <osmocom/hnbgw/vty.h>
 
 #include <osmocom/hnbgw/hnbgw.h>
+#include <osmocom/hnbgw/hnbgw_cn.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/tdefs.h>
 #include <osmocom/sigtran/protocol/sua.h>
@@ -108,36 +109,51 @@ int hnbgw_vty_go_parent(struct vty *vty)
 	return vty->node;
 }
 
+static void _show_cnlink(struct vty *vty, struct hnbgw_cnlink *cnlink)
+{
+	struct osmo_ss7_route *rt;
+	struct osmo_ss7_instance *ss7;
+
+	if (!cnlink) {
+		vty_out(vty, "NULL%s", VTY_NEWLINE);
+		return;
+	}
+
+	if (!cnlink->hnbgw_sccp_user) {
+		vty_out(vty, "no SCCP state%s", VTY_NEWLINE);
+		return;
+	}
+
+	ss7 = cnlink->hnbgw_sccp_user->ss7;
+	if (!ss7) {
+		vty_out(vty, "no cs7 instance%s", VTY_NEWLINE);
+		return;
+	}
+
+	if (!cnlink->hnbgw_sccp_user->sccp_user) {
+		vty_out(vty, "no SCCP user%s", VTY_NEWLINE);
+		return;
+	}
+
+	vty_out(vty, "%s <->",
+		osmo_sccp_user_name(cnlink->hnbgw_sccp_user->sccp_user));
+	vty_out(vty, " %s%s%s%s",
+		cnlink->remote_addr_name ? : "",
+		cnlink->remote_addr_name ? "=" : "",
+		cnlink_sccp_addr_to_str(cnlink, &cnlink->remote_addr),
+		VTY_NEWLINE);
+
+	rt = osmo_ss7_route_lookup(ss7, cnlink->remote_addr.pc);
+	vty_out(vty, "      SS7 route: %s%s", osmo_ss7_route_name(rt, true), VTY_NEWLINE);
+}
+
 DEFUN(show_cnlink, show_cnlink_cmd, "show cnlink",
       SHOW_STR "Display information on core network link\n")
 {
-	struct osmo_ss7_route *rt;
-	struct osmo_ss7_instance *ss7 = osmo_sccp_get_ss7(g_hnbgw->sccp.client);
-#define GUARD(STR) \
-	STR ? STR : "", \
-	STR ? ":" : ""
-
-	vty_out(vty, "IuCS: %s <->",
-		osmo_sccp_user_name(g_hnbgw->sccp.cnlink->sccp_user));
-	vty_out(vty, " %s%s%s%s",
-		GUARD(g_hnbgw->config.iucs_remote_addr_name),
-		osmo_sccp_inst_addr_name(g_hnbgw->sccp.client, &g_hnbgw->sccp.iucs_remote_addr),
-		VTY_NEWLINE);
-
-	rt = osmo_ss7_route_lookup(ss7, g_hnbgw->sccp.iucs_remote_addr.pc);
-	vty_out(vty, "      SS7 route: %s%s", osmo_ss7_route_name(rt, true), VTY_NEWLINE);
-
-	vty_out(vty, "IuPS: %s <->",
-		osmo_sccp_user_name(g_hnbgw->sccp.cnlink->sccp_user));
-	vty_out(vty, " %s%s%s%s",
-		GUARD(g_hnbgw->config.iups_remote_addr_name),
-		osmo_sccp_inst_addr_name(g_hnbgw->sccp.client, &g_hnbgw->sccp.iups_remote_addr),
-		VTY_NEWLINE);
-
-	rt = osmo_ss7_route_lookup(ss7, g_hnbgw->sccp.iups_remote_addr.pc);
-	vty_out(vty, "      SS7 route: %s%s", osmo_ss7_route_name(rt, true), VTY_NEWLINE);
-
-#undef GUARD
+	vty_out(vty, "IuCS: ");
+	_show_cnlink(vty, g_hnbgw->sccp.cnlink_iucs);
+	vty_out(vty, "IuPS: ");
+	_show_cnlink(vty, g_hnbgw->sccp.cnlink_iups);
 	return CMD_SUCCESS;
 }
 
