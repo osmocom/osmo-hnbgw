@@ -41,60 +41,6 @@
 #include <osmocom/ranap/ranap_msg_factory.h>
 #include <osmocom/hnbgw/context_map.h>
 
-#if 0
-this code will soon move to new file cnlink.c
-static int transmit_rst(struct hnbgw_cnlink *cnlink)
-{
-	struct msgb *msg;
-	RANAP_Cause_t cause = {
-		.present = RANAP_Cause_PR_transmissionNetwork,
-		.choice. transmissionNetwork = RANAP_CauseTransmissionNetwork_signalling_transport_resource_failure,
-	};
-
-	if (!cnlink)
-		return -1;
-
-	if (!cnlink->hnbgw_sccp_user) {
-		LOG_CNLINK(cnlink, DRANAP, LOGL_ERROR, "cannot send RANAP RESET: no CN link\n");
-		return -1;
-	}
-
-	LOG_CNLINK(cnlink, DRANAP, LOGL_NOTICE, "Tx RANAP RESET to %s %s\n",
-		   cnlink_is_cs(cnlink) ? "IuCS" : "IuPS",
-		   osmo_sccp_inst_addr_name(cnlink->hnbgw_sccp_user->sccp, &cnlink->remote_addr));
-
-	msg = ranap_new_msg_reset(cnlink->pool->domain, &cause);
-
-	return osmo_sccp_tx_unitdata_msg(cnlink->hnbgw_sccp_user->sccp_user,
-					 &cnlink->local_addr,
-					 &cnlink->remote_addr,
-					 msg);
-}
-#endif
-
-static int transmit_reset_ack(struct hnbgw_cnlink *cnlink)
-{
-	struct msgb *msg;
-	struct osmo_sccp_instance *sccp = cnlink_sccp(cnlink);
-
-	if (!sccp) {
-		LOG_CNLINK(cnlink, DRANAP, LOGL_ERROR, "cannot send RANAP RESET ACK: no CN link\n");
-		return -1;
-	}
-
-	LOG_CNLINK(cnlink, DRANAP, LOGL_NOTICE, "Tx RANAP RESET ACK %s %s --> %s\n",
-		   cnlink_is_cs(cnlink) ? "IuCS" : "IuPS",
-		   cnlink_sccp_addr_to_str(cnlink, &cnlink->hnbgw_sccp_user->local_addr),
-		   cnlink_sccp_addr_to_str(cnlink, &cnlink->remote_addr));
-
-	msg = ranap_new_msg_reset_ack(cnlink->pool->domain, NULL);
-
-	return osmo_sccp_tx_unitdata_msg(cnlink->hnbgw_sccp_user->sccp_user,
-					 &cnlink->hnbgw_sccp_user->local_addr,
-					 &cnlink->remote_addr,
-					 msg);
-}
-
 /***********************************************************************
  * Incoming primitives from SCCP User SAP
  ***********************************************************************/
@@ -111,33 +57,45 @@ static int cn_ranap_rx_reset_cmd(struct hnbgw_cnlink *cnlink,
 	domain = ies.cN_DomainIndicator;
 	ranap_free_reseties(&ies);
 
-	LOG_CNLINK(cnlink, DRANAP, LOGL_NOTICE, "Rx RESET from %s %s, returning ACK\n",
-		   domain == DOMAIN_CS ? "IuCS" : "IuPS",
-		   osmo_sccp_inst_addr_name(cnlink_sccp(cnlink), &unitdata->calling_addr));
+	if (rc) {
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx RESET: cannot decode IEs\n");
+		return -1;
+	}
 
-	/* FIXME: actually reset connections, if any */
+	if (cnlink->pool->domain != domain) {
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx RESET indicates domain %s, but this is %s on domain %s\n",
+			   ranap_domain_name(domain), cnlink->name, ranap_domain_name(cnlink->pool->domain));
+		return -1;
+	}
 
-	if (transmit_reset_ack(cnlink))
-		LOGP(DRANAP, LOGL_ERROR, "Error: cannot send RESET ACK to %s %s\n",
-		     domain == DOMAIN_CS ? "IuCS" : "IuPS",
-		     osmo_sccp_inst_addr_name(cnlink_sccp(cnlink), &unitdata->calling_addr));
-
-	return rc;
+	cnlink_rx_reset_cmd(cnlink);
+	return 0;
 }
 
 static int cn_ranap_rx_reset_ack(struct hnbgw_cnlink *cnlink,
 				 RANAP_SuccessfulOutcome_t *omsg)
 {
+	RANAP_CN_DomainIndicator_t domain;
 	RANAP_ResetAcknowledgeIEs_t ies;
 	int rc;
 
 	rc = ranap_decode_resetacknowledgeies(&ies, &omsg->value);
-
-	/* FUTURE: will do something useful in commit 'detect in/active CN links by RANAP RESET'
-	 * Id3eefdea889a736fd5957b80280fa45b9547b792 */
-
+	domain = ies.cN_DomainIndicator;
 	ranap_free_resetacknowledgeies(&ies);
-	return rc;
+
+	if (rc) {
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx RESET ACK: cannot decode IEs\n");
+		return -1;
+	}
+
+	if (cnlink->pool->domain != domain) {
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx RESET ACK indicates domain %s, but this is %s on domain %s\n",
+			   ranap_domain_name(domain), cnlink->name, ranap_domain_name(cnlink->pool->domain));
+		return -1;
+	}
+
+	cnlink_rx_reset_ack(cnlink);
+	return 0;
 }
 
 static int cn_ranap_rx_paging_cmd(struct hnbgw_cnlink *cnlink,
@@ -652,28 +610,6 @@ void hnbgw_cnpool_start(struct hnbgw_cnpool *cnpool)
 	if (llist_empty(&cnpool->cnlinks))
 		cnlink_get_nr(cnpool, 0, true);
 	hnbgw_cnpool_cnlinks_start_or_restart(cnpool);
-}
-
-static struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
-{
-	struct hnbgw_cnlink *cnlink;
-	cnlink = talloc_zero(g_hnbgw, struct hnbgw_cnlink);
-	*cnlink = (struct hnbgw_cnlink){
-		.name = talloc_asprintf(cnlink, "%s-%d", cnpool->peer_name, nr),
-		.pool = cnpool,
-		.nr = nr,
-		.vty = {
-			/* VTY config defaults for the new cnlink */
-			.nri_ranges = osmo_nri_ranges_alloc(cnlink),
-		},
-		.allow_attach = true,
-		.ctrs = rate_ctr_group_alloc(g_hnbgw, cnpool->cnlink_ctrg_desc, nr),
-	};
-	INIT_LLIST_HEAD(&cnlink->map_list);
-
-	llist_add_tail(&cnlink->entry, &cnpool->cnlinks);
-	LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "allocated\n");
-	return cnlink;
 }
 
 struct hnbgw_cnlink *cnlink_get_nr(struct hnbgw_cnpool *cnpool, int nr, bool create_if_missing)

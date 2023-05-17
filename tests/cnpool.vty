@@ -1,4 +1,26 @@
 OsmoHNBGW> enable
+OsmoHNBGW# list
+...
+  (msc|sgsn) <0-1000> ranap reset
+...
+OsmoHNBGW# msc?
+  msc  Manipulate an IuCS link to an MSC
+OsmoHNBGW# msc ?
+  <0-1000>  MSC/SGSN nr
+OsmoHNBGW# msc 0 ?
+  ranap  Manipulate RANAP layer of Iu-interface
+OsmoHNBGW# msc 0 ranap ?
+  reset  Flip this CN link to disconnected state and re-send RANAP RESET
+
+OsmoHNBGW# sgsn?
+  sgsn  Manipulate an IuPS link to an SGSN
+OsmoHNBGW# sgsn ?
+  <0-1000>  MSC/SGSN nr
+OsmoHNBGW# sgsn 0 ?
+  ranap  Manipulate RANAP layer of Iu-interface
+OsmoHNBGW# sgsn 0 ranap ?
+  reset  Flip this CN link to disconnected state and re-send RANAP RESET
+
 OsmoHNBGW# configure terminal
 
 OsmoHNBGW(config)# ### cnpool doc strings

@@ -158,6 +158,8 @@ struct hnbgw_cnlink {
 	/* backpointer to CS or PS CN pool. */
 	struct hnbgw_cnpool *pool;
 
+	struct osmo_fsm_inst *fi;
+
 	int nr;
 
 	struct hnbgw_cnlink_cfg vty;

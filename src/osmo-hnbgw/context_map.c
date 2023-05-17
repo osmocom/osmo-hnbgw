@@ -133,6 +133,7 @@ int context_map_set_cnlink(struct hnbgw_context_map *map, struct hnbgw_cnlink *c
 	     cnlink_selected->use.remote_addr_name ? " " : "",
 	     cnlink_selected->use.remote_addr_name ? : "",
 	     hsu->name,
+	     /* printing the entire SCCP address is quite long, rather just print the point-code */
 	     osmo_ss7_pointcode_print(hsu->ss7, hsu->local_addr.pc),
 	     osmo_ss7_pointcode_print2(hsu->ss7, cnlink_selected->remote_addr.pc)
 	    );
