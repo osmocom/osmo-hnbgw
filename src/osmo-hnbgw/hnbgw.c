@@ -41,6 +41,12 @@
 
 struct hnbgw *g_hnbgw = NULL;
 
+const struct value_string ranap_domain_names[] = {
+	{ DOMAIN_CS, "CS" },
+	{ DOMAIN_PS, "PS" },
+	{}
+};
+
 void g_hnbgw_alloc(void *ctx)
 {
 	OSMO_ASSERT(!g_hnbgw);
