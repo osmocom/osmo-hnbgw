@@ -61,24 +61,9 @@ struct umts_cell_id {
 	uint32_t cid;	/*!< Cell ID */
 };
 
-enum hnbgw_cnlink_state {
-	/* we have just been initialized or were disconnected */
-	CNLINK_S_NULL,
-	/* establishment of the SUA/SCCP link is pending */
-	CNLINK_S_EST_PEND,
-	/* establishment of the SUA/SCCP link was confirmed */
-	CNLINK_S_EST_CONF,
-	/* we have esnt the RANAP RESET and wait for the ACK */
-	CNLINK_S_EST_RST_TX_WAIT_ACK,
-	/* we have received the RANAP RESET ACK and are active */
-	CNLINK_S_EST_ACTIVE,
-};
-
 struct hnbgw_cnlink {
 	struct llist_head list;
-	enum hnbgw_cnlink_state state;
-	/* timer for re-transmitting the RANAP Reset */
-	struct osmo_timer_list T_RafC;
+
 	/* reference to the SCCP User SAP by which we communicate */
 	struct osmo_sccp_instance *sccp;
 	struct osmo_sccp_user *sccp_user;

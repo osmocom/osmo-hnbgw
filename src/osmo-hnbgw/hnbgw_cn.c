@@ -37,14 +37,9 @@
 #include <osmocom/ranap/ranap_msg_factory.h>
 #include <osmocom/hnbgw/context_map.h>
 
-/***********************************************************************
- * Outbound RANAP RESET to CN
- ***********************************************************************/
-
-void hnbgw_cnlink_change_state(struct hnbgw_cnlink *cnlink, enum hnbgw_cnlink_state state);
-
-static int transmit_rst(RANAP_CN_DomainIndicator_t domain,
-			struct osmo_sccp_addr *remote_addr)
+#if 0
+this code will soon move to new file cnlink.c
+static int transmit_rst(struct hnbgw_cnlink *cnlink)
 {
 	struct msgb *msg;
 	RANAP_Cause_t cause = {
@@ -63,6 +58,7 @@ static int transmit_rst(RANAP_CN_DomainIndicator_t domain,
 					 remote_addr,
 					 msg);
 }
+#endif
 
 static int transmit_reset_ack(RANAP_CN_DomainIndicator_t domain,
 			      const struct osmo_sccp_addr *remote_addr)
@@ -79,35 +75,6 @@ static int transmit_reset_ack(RANAP_CN_DomainIndicator_t domain,
 					 &g_hnbgw->sccp.local_addr,
 					 remote_addr,
 					 msg);
-}
-
-/* Timer callback once T_RafC expires */
-static void cnlink_trafc_cb(void *unused)
-{
-	transmit_rst(RANAP_CN_DomainIndicator_cs_domain, &g_hnbgw->sccp.iucs_remote_addr);
-	transmit_rst(RANAP_CN_DomainIndicator_ps_domain, &g_hnbgw->sccp.iups_remote_addr);
-	hnbgw_cnlink_change_state(g_hnbgw->sccp.cnlink, CNLINK_S_EST_RST_TX_WAIT_ACK);
-	/* The spec states that we should abandon after a configurable
-	 * number of times.  We decide to simply continue trying */
-}
-
-/* change the state of a CN Link */
-void hnbgw_cnlink_change_state(struct hnbgw_cnlink *cnlink, enum hnbgw_cnlink_state state)
-{
-	switch (state) {
-	case CNLINK_S_NULL:
-	case CNLINK_S_EST_PEND:
-		break;
-	case CNLINK_S_EST_CONF:
-		cnlink_trafc_cb(NULL);
-		break;
-	case CNLINK_S_EST_RST_TX_WAIT_ACK:
-		osmo_timer_schedule(&cnlink->T_RafC, 5, 0);
-		break;
-	case CNLINK_S_EST_ACTIVE:
-		osmo_timer_del(&cnlink->T_RafC);
-		break;
-	}
 }
 
 /***********************************************************************
@@ -148,7 +115,8 @@ static int cn_ranap_rx_reset_ack(struct hnbgw_cnlink *cnlink,
 
 	rc = ranap_decode_resetacknowledgeies(&ies, &omsg->value);
 
-	hnbgw_cnlink_change_state(cnlink, CNLINK_S_EST_ACTIVE);
+	/* FUTURE: will do something useful in commit 'detect in/active CN links by RANAP RESET'
+	 * Id3eefdea889a736fd5957b80280fa45b9547b792 */
 
 	ranap_free_resetacknowledgeies(&ies);
 	return rc;
@@ -527,7 +495,6 @@ int hnbgw_cnlink_init(const char *stp_host, uint16_t stp_port, const char *local
 
 	cnlink = talloc_zero(g_hnbgw, struct hnbgw_cnlink);
 	INIT_LLIST_HEAD(&cnlink->map_list);
-	cnlink->T_RafC.cb = cnlink_trafc_cb;
 	cnlink->next_conn_id = 1000;
 
 	cnlink->sccp_user = osmo_sccp_user_bind_pc(g_hnbgw->sccp.client, "OsmoHNBGW", sccp_sap_up,
