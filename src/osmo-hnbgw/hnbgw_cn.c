@@ -656,7 +656,8 @@ static bool is_cnlink_usable(struct hnbgw_cnlink *cnlink, bool is_emerg)
 		return false;
 	if (!cnlink->hnbgw_sccp_user || !cnlink->hnbgw_sccp_user->sccp_user)
 		return false;
-	// TODO indicator whether the CN link is actually active, akin to bssmap_reset_is_conn_ready()
+	if (!cnlink_is_conn_ready(cnlink))
+		return false;
 	return true;
 }
 
