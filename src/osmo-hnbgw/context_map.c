@@ -247,12 +247,3 @@ void context_map_free(struct hnbgw_context_map *map)
 	LOG_MAP(map, DMAIN, LOGL_INFO, "Deallocating\n");
 	talloc_free(map);
 }
-
-void context_map_check_released(struct hnbgw_context_map *map)
-{
-	if (map_rua_is_active(map) || map_sccp_is_active(map)) {
-		/* still active, do not release yet. */
-		return;
-	}
-	context_map_free(map);
-}

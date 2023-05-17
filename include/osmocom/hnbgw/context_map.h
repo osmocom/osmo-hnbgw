@@ -156,6 +156,6 @@ int _map_sccp_dispatch(struct hnbgw_context_map *map, uint32_t event, struct msg
 
 bool map_rua_is_active(struct hnbgw_context_map *map);
 bool map_sccp_is_active(struct hnbgw_context_map *map);
-void context_map_check_released(struct hnbgw_context_map *map);
+void context_map_free(struct hnbgw_context_map *map);
 
 unsigned int msg_has_l2_data(const struct msgb *msg);

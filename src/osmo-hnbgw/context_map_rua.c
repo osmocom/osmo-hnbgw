@@ -294,13 +294,13 @@ static void map_rua_connected_action(struct osmo_fsm_inst *fi, uint32_t event, v
 static void map_rua_disconnected_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state)
 {
 	struct hnbgw_context_map *map = fi->priv;
-	/* For sanity, always tell SCCP to disconnect, if it hasn't done so. Dispatching MAP_SCCP_EV_RAN_DISC may send
-	 * SCCP into MAP_RUA_ST_DISCONNECTED, which calls context_map_check_released() and frees the hnbgw_context_map,
-	 * so don't free it a second time. If SCCP stays active, calling context_map_check_released() has no effect. */
+	/* From RUA's POV, we can now free the hnbgw_context_map.
+	 * If SCCP is still active, tell it to disconnect -- in that case the SCCP side will call context_map_free().
+	 * If SCCP is no longer active, free this map. */
 	if (map_sccp_is_active(map))
 		map_sccp_dispatch(map, MAP_SCCP_EV_RAN_DISC, NULL);
 	else
-		context_map_check_released(map);
+		context_map_free(map);
 }
 
 static void map_rua_disconnected_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
