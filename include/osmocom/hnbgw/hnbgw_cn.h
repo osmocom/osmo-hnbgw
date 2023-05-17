@@ -3,6 +3,7 @@
 #include <osmocom/core/rate_ctr.h>
 #include <osmocom/hnbgw/hnbgw.h>
 
+struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr);
 struct hnbgw_cnlink *hnbgw_cnlink_find_by_addr(const struct hnbgw_sccp_user *hsu,
 					       const struct osmo_sccp_addr *remote_addr);
 struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map);
@@ -13,6 +14,12 @@ void hnbgw_cnpool_cnlinks_start_or_restart(struct hnbgw_cnpool *cnpool);
 int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink);
 
 char *cnlink_sccp_addr_to_str(struct hnbgw_cnlink *cnlink, const struct osmo_sccp_addr *addr);
+
+bool cnlink_is_conn_ready(const struct hnbgw_cnlink *cnlink);
+void cnlink_rx_reset_cmd(struct hnbgw_cnlink *cnlink);
+void cnlink_rx_reset_ack(struct hnbgw_cnlink *cnlink);
+void cnlink_resend_reset(struct hnbgw_cnlink *cnlink);
+void cnlink_set_disconnected(struct hnbgw_cnlink *cnlink);
 
 enum hnbgw_cnpool_ctr {
 	/* TODO: basic counters completely missing
