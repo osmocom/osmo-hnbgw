@@ -36,6 +36,12 @@ extern struct vty_app_info hnbgw_vty_info;
 #define DOMAIN_CS RANAP_CN_DomainIndicator_cs_domain
 #define DOMAIN_PS RANAP_CN_DomainIndicator_ps_domain
 
+extern const struct value_string ranap_domain_names[];
+static inline const char *ranap_domain_name(RANAP_CN_DomainIndicator_t domain)
+{
+	return get_value_string(ranap_domain_names, domain);
+}
+
 enum hnb_ctrl_node {
 	CTRL_NODE_HNB = _LAST_CTRL_NODE,
 	_LAST_CTRL_NODE_HNB

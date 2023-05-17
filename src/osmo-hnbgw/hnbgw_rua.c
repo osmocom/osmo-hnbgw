@@ -42,18 +42,6 @@
 #include <osmocom/hnbap/HNBAP_CN-DomainIndicator.h>
 #include <osmocom/ranap/ranap_ies_defs.h>
 
-static const char *cn_domain_indicator_to_str(RUA_CN_DomainIndicator_t cN_DomainIndicator)
-{
-	switch (cN_DomainIndicator) {
-	case RUA_CN_DomainIndicator_cs_domain:
-		return "IuCS";
-	case RUA_CN_DomainIndicator_ps_domain:
-		return "IuPS";
-	default:
-		return "(unknown-domain)";
-	}
-}
-
 static int hnbgw_rua_tx(struct hnb_context *ctx, struct msgb *msg)
 {
 	if (!msg)
@@ -371,7 +359,7 @@ static int rua_rx_init_connect(struct msgb *msg, ANY_t *in)
 	context_id = asn1bitstr_to_u24(&ies.context_ID);
 
 	LOGHNB(hnb, DRUA, LOGL_DEBUG, "RUA %s Connect.req(ctx=0x%x, %s)\n",
-		cn_domain_indicator_to_str(ies.cN_DomainIndicator), context_id,
+		ranap_domain_name(ies.cN_DomainIndicator), context_id,
 		ies.establishment_Cause == RUA_Establishment_Cause_emergency_call ? "emergency" : "normal");
 
 	rc = rua_to_scu(hnb, ies.cN_DomainIndicator, RUA_ProcedureCode_id_Connect,
