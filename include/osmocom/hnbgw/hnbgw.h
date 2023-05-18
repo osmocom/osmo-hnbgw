@@ -71,6 +71,7 @@ struct umts_cell_id {
 	uint16_t sac;	/*!< Service Area Code */
 	uint32_t cid;	/*!< Cell ID */
 };
+const char *umts_cell_id_name(const struct umts_cell_id *ucid);
 
 struct hnbgw_context_map;
 
