@@ -2,6 +2,17 @@ OsmoHNBGW> enable
 OsmoHNBGW# configure terminal
 
 OsmoHNBGW(config)# ### cnpool doc strings
+OsmoHNBGW(config)# list
+...
+  apply sccp
+...
+
+OsmoHNBGW(config)# apply?
+  apply  Immediately use configuration modified via telnet VTY, and restart components as needed.
+
+OsmoHNBGW(config)# apply ?
+  sccp  For telnet VTY: apply all SCCP and NRI config changes made to any CN pools and CN links in the running osmo-hnbgw process. If 'remote-addr' changed, related SCCP links will be restarted, possibly dropping active UE contexts. This is run implicitly on program startup, only useful to apply changes made later via telnet VTY.
+
 OsmoHNBGW(config)# hnbgw
 OsmoHNBGW(config-hnbgw)# list
 ...
@@ -13,6 +24,79 @@ OsmoHNBGW(config-hnbgw)# iucs?
 OsmoHNBGW(config-hnbgw)# iups?
   iups  Configure IuPS options
 
+OsmoHNBGW(config-hnbgw)# iucs
+
+OsmoHNBGW(config-hnbgw-iucs)# list
+...
+  nri bitlen <1-15>
+  nri null add <0-32767> [<0-32767>]
+  nri null del <0-32767> [<0-32767>]
+...
+
+OsmoHNBGW(config-hnbgw-iucs)# nri?
+  nri  Mapping of Network Resource Indicators to this CN peer, for CN pooling
+
+OsmoHNBGW(config-hnbgw-iucs)# nri ?
+  bitlen  Set number of bits that an NRI has, to extract from TMSI identities (always starting just after the TMSI's most significant octet).
+  null    Define NULL-NRI values that cause re-assignment of an MS to a different CN peer, for CN pooling.
+
+OsmoHNBGW(config-hnbgw-iucs)# nri bitlen ?
+  <1-15>  bit count (default: 10)
+
+OsmoHNBGW(config-hnbgw-iucs)# nri null ?
+  add  Add NULL-NRI value (or range)
+  del  Remove NRI value or range from the NRI mapping for this CN link
+
+OsmoHNBGW(config-hnbgw-iucs)# nri null add ?
+  <0-32767>  First value of the NRI value range, should not surpass the configured 'nri bitlen'.
+
+OsmoHNBGW(config-hnbgw-iucs)# nri null add 0 ?
+  [<0-32767>]  Last value of the NRI value range, should not surpass the configured 'nri bitlen' and be larger than the first value; if omitted, apply only the first value.
+
+OsmoHNBGW(config-hnbgw-iucs)# nri null del ?
+  <0-32767>  First value of the NRI value range, should not surpass the configured 'nri bitlen'.
+
+OsmoHNBGW(config-hnbgw-iucs)# nri null del 0 ?
+  [<0-32767>]  Last value of the NRI value range, should not surpass the configured 'nri bitlen' and be larger than the first value; if omitted, apply only the first value.
+
+OsmoHNBGW(config-hnbgw-iucs)# exit
+
+OsmoHNBGW(config-hnbgw)# iups
+
+OsmoHNBGW(config-hnbgw-iups)# list
+...
+  nri bitlen <1-15>
+  nri null add <0-32767> [<0-32767>]
+  nri null del <0-32767> [<0-32767>]
+...
+
+OsmoHNBGW(config-hnbgw-iups)# nri?
+  nri  Mapping of Network Resource Indicators to this CN peer, for CN pooling
+
+OsmoHNBGW(config-hnbgw-iups)# nri ?
+  bitlen  Set number of bits that an NRI has, to extract from TMSI identities (always starting just after the TMSI's most significant octet).
+  null    Define NULL-NRI values that cause re-assignment of an MS to a different CN peer, for CN pooling.
+
+OsmoHNBGW(config-hnbgw-iups)# nri bitlen ?
+  <1-15>  bit count (default: 10)
+
+OsmoHNBGW(config-hnbgw-iups)# nri null ?
+  add  Add NULL-NRI value (or range)
+  del  Remove NRI value or range from the NRI mapping for this CN link
+
+OsmoHNBGW(config-hnbgw-iups)# nri null add ?
+  <0-32767>  First value of the NRI value range, should not surpass the configured 'nri bitlen'.
+
+OsmoHNBGW(config-hnbgw-iups)# nri null add 0 ?
+  [<0-32767>]  Last value of the NRI value range, should not surpass the configured 'nri bitlen' and be larger than the first value; if omitted, apply only the first value.
+
+OsmoHNBGW(config-hnbgw-iups)# nri null del ?
+  <0-32767>  First value of the NRI value range, should not surpass the configured 'nri bitlen'.
+
+OsmoHNBGW(config-hnbgw-iups)# nri null del 0 ?
+  [<0-32767>]  Last value of the NRI value range, should not surpass the configured 'nri bitlen' and be larger than the first value; if omitted, apply only the first value.
+
+OsmoHNBGW(config-hnbgw-iups)# exit
 OsmoHNBGW(config-hnbgw)# exit
 
 OsmoHNBGW(config)# msc?
@@ -37,7 +121,14 @@ OsmoHNBGW(config)# msc 1
 OsmoHNBGW(config-msc)# list
 ...
   remote-addr NAME
+  nri add <0-32767> [<0-32767>]
+  nri del <0-32767> [<0-32767>]
+  show nri
   apply sccp
+  allow-attach
+  no allow-attach
+  allow-emergency
+  no allow-emergency
 ...
 
 OsmoHNBGW(config-msc)# remote-addr?
@@ -45,10 +136,24 @@ OsmoHNBGW(config-msc)# remote-addr?
 OsmoHNBGW(config-msc)# remote-addr ?
   NAME  SCCP address book entry name (see 'cs7 instance' / 'sccp-address')
 
+OsmoHNBGW(config-msc)# show nri?
+  nri  Mapping of Network Resource Indicators to this CN peer, for CN pooling
+
 OsmoHNBGW(config-msc)# apply?
   apply  Immediately use configuration modified via telnet VTY, and restart components as needed.
+
 OsmoHNBGW(config-msc)# apply ?
   sccp  For telnet VTY: apply SCCP and NRI config changes made to this CN link in the running osmo-hnbgw process. If 'remote-addr' changed, related SCCP links will be restarted, possibly dropping active UE contexts. This is run implicitly on program startup, only useful to apply changes made later via telnet VTY.
+
+OsmoHNBGW(config-msc)# allow-attach?
+  allow-attach  Allow this CN link to attach new subscribers (default).
+
+OsmoHNBGW(config-msc)# allow-emergency?
+  allow-emergency  Allow CM ServiceRequests with type emergency on this CN link
+
+OsmoHNBGW(config-msc)# no ?
+  allow-attach     Do not assign new subscribers to this CN link. Useful if an CN link in an CN link pool is configured to off-load subscribers. The CN link will still be operational for already IMSI-Attached subscribers, but the NAS node selection function will skip this CN link for new subscribers
+  allow-emergency  Do not serve CM ServiceRequests with type emergency on this CN link
 
 OsmoHNBGW(config-msc)# exit
 
@@ -57,7 +162,14 @@ OsmoHNBGW(config)# sgsn 1
 OsmoHNBGW(config-sgsn)# list
 ...
   remote-addr NAME
+  nri add <0-32767> [<0-32767>]
+  nri del <0-32767> [<0-32767>]
+  show nri
   apply sccp
+  allow-attach
+  no allow-attach
+  allow-emergency
+  no allow-emergency
 ...
 
 OsmoHNBGW(config-sgsn)# remote-addr?
@@ -65,10 +177,24 @@ OsmoHNBGW(config-sgsn)# remote-addr?
 OsmoHNBGW(config-sgsn)# remote-addr ?
   NAME  SCCP address book entry name (see 'cs7 instance' / 'sccp-address')
 
+OsmoHNBGW(config-sgsn)# show nri?
+  nri  Mapping of Network Resource Indicators to this CN peer, for CN pooling
+
 OsmoHNBGW(config-sgsn)# apply?
   apply  Immediately use configuration modified via telnet VTY, and restart components as needed.
+
 OsmoHNBGW(config-sgsn)# apply ?
   sccp  For telnet VTY: apply SCCP and NRI config changes made to this CN link in the running osmo-hnbgw process. If 'remote-addr' changed, related SCCP links will be restarted, possibly dropping active UE contexts. This is run implicitly on program startup, only useful to apply changes made later via telnet VTY.
+
+OsmoHNBGW(config-sgsn)# allow-attach?
+  allow-attach  Allow this CN link to attach new subscribers (default).
+
+OsmoHNBGW(config-sgsn)# allow-emergency?
+  allow-emergency  Allow CM ServiceRequests with type emergency on this CN link
+
+OsmoHNBGW(config-sgsn)# no ?
+  allow-attach     Do not assign new subscribers to this CN link. Useful if an CN link in an CN link pool is configured to off-load subscribers. The CN link will still be operational for already IMSI-Attached subscribers, but the NAS node selection function will skip this CN link for new subscribers
+  allow-emergency  Do not serve CM ServiceRequests with type emergency on this CN link
 
 OsmoHNBGW(config-sgsn)# exit
 
@@ -85,10 +211,12 @@ OsmoHNBGW(config)# ### Add {msc,sgsn}x{2,3}
 
 OsmoHNBGW(config)# msc 2
 OsmoHNBGW(config-msc)# remote-addr addr-msc2
+OsmoHNBGW(config-msc)# no allow-attach
 OsmoHNBGW(config-msc)# exit
 
 OsmoHNBGW(config)# msc 3
 OsmoHNBGW(config-msc)# remote-addr addr-msc3
+OsmoHNBGW(config-msc)# allow-emergency
 OsmoHNBGW(config-msc)# exit
 
 OsmoHNBGW(config)# sgsn 2
@@ -105,8 +233,10 @@ msc 0
 msc 1
 msc 2
  remote-addr addr-msc2
+ no allow-attach
 msc 3
  remote-addr addr-msc3
+ allow-emergency
 sgsn 0
 sgsn 1
 sgsn 2
@@ -116,8 +246,12 @@ sgsn 3
 ...
 
 OsmoHNBGW(config)# ### Re-entering existing nodes works (does not create new ones)
+OsmoHNBGW(config)# msc 2
+OsmoHNBGW(config-msc)# allow-attach
+OsmoHNBGW(config-msc)# exit
 OsmoHNBGW(config)# msc 3
 OsmoHNBGW(config-msc)# remote-addr addr-msc4
+OsmoHNBGW(config-msc)# no allow-emergency
 OsmoHNBGW(config-msc)# exit
 OsmoHNBGW(config)# sgsn 2
 OsmoHNBGW(config-sgsn)# remote-addr addr-sgsn4

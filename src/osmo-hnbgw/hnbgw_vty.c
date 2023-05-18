@@ -26,6 +26,8 @@
 #include <osmocom/vty/command.h>
 #include <osmocom/vty/tdef_vty.h>
 
+#include <osmocom/gsm/gsm23236.h>
+
 #include <osmocom/hnbgw/vty.h>
 
 #include <osmocom/hnbgw/hnbgw.h>
@@ -346,6 +348,69 @@ DEFUN_DEPRECATED(cfg_hnbgw_max_sccp_cr_payload_len, cfg_hnbgw_max_sccp_cr_payloa
 	return CMD_WARNING;
 }
 
+#define NRI_STR "Mapping of Network Resource Indicators to this CN peer, for CN pooling\n"
+#define NULL_NRI_STR "Define NULL-NRI values that cause re-assignment of an MS to a different CN peer, for CN pooling.\n"
+#define NRI_FIRST_LAST_STR "First value of the NRI value range, should not surpass the configured 'nri bitlen'.\n" \
+       "Last value of the NRI value range, should not surpass the configured 'nri bitlen' and be larger than the" \
+       " first value; if omitted, apply only the first value.\n"
+#define NRI_ARGS_TO_STR_FMT "%s%s%s"
+#define NRI_ARGS_TO_STR_ARGS(ARGC, ARGV) ARGV[0], (ARGC > 1) ? ".." : "", (ARGC > 1) ? ARGV[1] : ""
+
+#define NRI_WARN(CNLINK, FORMAT, args...) do { \
+		vty_out(vty, "%% Warning: %s %d: " FORMAT "%s", CNLINK->pool->peer_name, CNLINK->nr, ##args, \
+			VTY_NEWLINE); \
+		LOGP(DCN, LOGL_ERROR, "%s %d: " FORMAT "\n", CNLINK->pool->peer_name, CNLINK->nr, ##args); \
+	} while (0)
+
+
+/* hnbgw/iucs/nri ... AND hnbgw/iups/nri ... */
+DEFUN(cfg_hnbgw_cnpool_nri_bitlen,
+      cfg_hnbgw_cnpool_nri_bitlen_cmd,
+      "nri bitlen <1-15>",
+      NRI_STR
+      "Set number of bits that an NRI has, to extract from TMSI identities (always starting just after the TMSI's most significant octet).\n"
+      "bit count (default: " OSMO_STRINGIFY_VAL(OSMO_NRI_BITLEN_DEFAULT) ")\n")
+{
+	struct hnbgw_cnpool *cnpool = vty->index;
+	cnpool->vty.nri_bitlen = atoi(argv[0]);
+	return CMD_SUCCESS;
+}
+
+/* hnbgw/iucs/nri ... AND hnbgw/iups/nri ... */
+DEFUN(cfg_hnbgw_cnpool_nri_null_add, cfg_hnbgw_cnpool_nri_null_add_cmd,
+      "nri null add <0-32767> [<0-32767>]",
+      NRI_STR NULL_NRI_STR "Add NULL-NRI value (or range)\n"
+      NRI_FIRST_LAST_STR)
+{
+	int rc;
+	const char *message;
+	struct hnbgw_cnpool *cnpool = vty->index;
+	rc = osmo_nri_ranges_vty_add(&message, NULL, cnpool->vty.null_nri_ranges, argc, argv, cnpool->vty.nri_bitlen);
+	if (message)
+		vty_out(vty, "%% %s: " NRI_ARGS_TO_STR_FMT, message, NRI_ARGS_TO_STR_ARGS(argc, argv));
+	if (rc < 0)
+		return CMD_WARNING;
+	return CMD_SUCCESS;
+}
+
+/* hnbgw/iucs/nri ... AND hnbgw/iups/nri ... */
+DEFUN(cfg_hnbgw_cnpool_nri_null_del, cfg_hnbgw_cnpool_nri_null_del_cmd,
+      "nri null del <0-32767> [<0-32767>]",
+      NRI_STR NULL_NRI_STR "Remove NRI value or range from the NRI mapping for this CN link\n"
+      NRI_FIRST_LAST_STR)
+{
+	int rc;
+	const char *message;
+	struct hnbgw_cnpool *cnpool = vty->index;
+	rc = osmo_nri_ranges_vty_del(&message, NULL, cnpool->vty.null_nri_ranges, argc, argv);
+	if (message)
+		vty_out(vty, "%% %s: " NRI_ARGS_TO_STR_FMT "%s", message, NRI_ARGS_TO_STR_ARGS(argc, argv),
+			VTY_NEWLINE);
+	if (rc < 0)
+		return CMD_WARNING;
+	return CMD_SUCCESS;
+}
+
 /* Legacy from when there was only one IuCS and one IuPS peer. Instead, there are now 'msc 123' / 'sgsn 123' sub nodes.
  * To yield legacy behavior, set the first cnlink config in this pool ('msc 0' / 'sgsn 0'). */
 DEFUN_DEPRECATED(cfg_hnbgw_cnpool_remote_addr,
@@ -436,6 +501,215 @@ DEFUN(cfg_cnlink_remote_addr,
 	return CMD_SUCCESS;
 }
 
+DEFUN_ATTR(cfg_cnlink_nri_add, cfg_cnlink_nri_add_cmd,
+	   "nri add <0-32767> [<0-32767>]",
+	   NRI_STR "Add NRI value or range to the NRI mapping for this CN link\n"
+	   NRI_FIRST_LAST_STR,
+	   CMD_ATTR_IMMEDIATE)
+{
+	struct hnbgw_cnlink *cnlink = vty->index;
+	struct hnbgw_cnlink *other_cnlink;
+	bool before;
+	int rc;
+	const char *message;
+	struct osmo_nri_range added_range;
+
+	rc = osmo_nri_ranges_vty_add(&message, &added_range, cnlink->vty.nri_ranges, argc, argv, cnlink->pool->vty.nri_bitlen);
+	if (message)
+		NRI_WARN(cnlink, "%s: " NRI_ARGS_TO_STR_FMT, message, NRI_ARGS_TO_STR_ARGS(argc, argv));
+	if (rc < 0)
+		return CMD_WARNING;
+
+	/* Issue a warning about NRI range overlaps (but still allow them).
+	 * Overlapping ranges will map to whichever CN link comes fist in the llist,
+	 * which is not necessarily in the order of increasing cnlink->nr. */
+	before = true;
+	llist_for_each_entry(other_cnlink, &cnlink->pool->cnlinks, entry) {
+		if (other_cnlink == cnlink) {
+			before = false;
+			continue;
+		}
+		if (osmo_nri_range_overlaps_ranges(&added_range, other_cnlink->vty.nri_ranges)) {
+			NRI_WARN(cnlink, "NRI range [%d..%d] overlaps between %s %d and %s %d."
+				 " For overlaps, %s %d has higher priority than %s %d",
+				 added_range.first, added_range.last, cnlink->pool->peer_name, cnlink->nr,
+				 other_cnlink->pool->peer_name, other_cnlink->nr,
+				 (before ? other_cnlink : cnlink)->pool->peer_name,
+				 (before ? other_cnlink : cnlink)->nr,
+				 (before ? cnlink : other_cnlink)->pool->peer_name,
+				 (before ? cnlink : other_cnlink)->nr);
+		}
+	}
+	return CMD_SUCCESS;
+}
+
+DEFUN_ATTR(cfg_cnlink_nri_del, cfg_cnlink_nri_del_cmd,
+	   "nri del <0-32767> [<0-32767>]",
+	   NRI_STR "Remove NRI value or range from the NRI mapping for this CN link\n"
+	   NRI_FIRST_LAST_STR,
+	   CMD_ATTR_IMMEDIATE)
+{
+	struct hnbgw_cnlink *cnlink = vty->index;
+	int rc;
+	const char *message;
+
+	rc = osmo_nri_ranges_vty_del(&message, NULL, cnlink->vty.nri_ranges, argc, argv);
+	if (message)
+		NRI_WARN(cnlink, "%s: " NRI_ARGS_TO_STR_FMT, message, NRI_ARGS_TO_STR_ARGS(argc, argv));
+	if (rc < 0)
+		return CMD_WARNING;
+	return CMD_SUCCESS;
+}
+
+DEFUN_ATTR(cfg_cnlink_allow_attach, cfg_cnlink_allow_attach_cmd,
+	   "allow-attach",
+	   "Allow this CN link to attach new subscribers (default).\n",
+	   CMD_ATTR_IMMEDIATE)
+{
+	struct hnbgw_cnlink *cnlink = vty->index;
+	cnlink->allow_attach = true;
+	return CMD_SUCCESS;
+}
+
+DEFUN_ATTR(cfg_cnlink_no_allow_attach, cfg_cnlink_no_allow_attach_cmd,
+	   "no allow-attach",
+	   NO_STR
+	   "Do not assign new subscribers to this CN link."
+	   " Useful if an CN link in an CN link pool is configured to off-load subscribers."
+	   " The CN link will still be operational for already IMSI-Attached subscribers,"
+	   " but the NAS node selection function will skip this CN link for new subscribers\n",
+	   CMD_ATTR_IMMEDIATE)
+{
+	struct hnbgw_cnlink *cnlink = vty->index;
+	cnlink->allow_attach = false;
+	return CMD_SUCCESS;
+}
+
+DEFUN_ATTR(cfg_cnlink_allow_emerg,
+	   cfg_cnlink_allow_emerg_cmd,
+	   "allow-emergency",
+	   "Allow CM ServiceRequests with type emergency on this CN link\n",
+	   CMD_ATTR_IMMEDIATE)
+{
+	struct hnbgw_cnlink *cnlink = vty->index;
+	cnlink->allow_emerg = true;
+	return CMD_SUCCESS;
+}
+
+DEFUN_ATTR(cfg_cnlink_no_allow_emerg,
+	   cfg_cnlink_no_allow_emerg_cmd,
+	   "no allow-emergency",
+	   NO_STR
+	   "Do not serve CM ServiceRequests with type emergency on this CN link\n",
+	   CMD_ATTR_IMMEDIATE)
+{
+	struct hnbgw_cnlink *cnlink = vty->index;
+	cnlink->allow_emerg = false;
+	return CMD_SUCCESS;
+}
+
+static void cnlink_write_nri(struct vty *vty, struct hnbgw_cnlink *cnlink, bool verbose)
+{
+	struct osmo_nri_range *r;
+
+	if (verbose) {
+		vty_out(vty, "%s %d%s", cnlink->pool->peer_name, cnlink->nr, VTY_NEWLINE);
+		if (llist_empty(&cnlink->vty.nri_ranges->entries)) {
+			vty_out(vty, " %% no NRI mappings%s", VTY_NEWLINE);
+			return;
+		}
+	}
+
+	llist_for_each_entry(r, &cnlink->vty.nri_ranges->entries, entry) {
+		if (osmo_nri_range_validate(r, 255))
+			vty_out(vty, " %% INVALID RANGE:");
+		vty_out(vty, " nri add %d", r->first);
+		if (r->first != r->last)
+			vty_out(vty, " %d", r->last);
+		vty_out(vty, "%s", VTY_NEWLINE);
+	}
+
+	if (!cnlink->allow_attach)
+		vty_out(vty, " no allow-attach%s", VTY_NEWLINE);
+	if (cnlink->allow_emerg)
+		vty_out(vty, " allow-emergency%s", VTY_NEWLINE);
+}
+
+DEFUN(cfg_cnlink_show_nri, cfg_cnlink_show_nri_cmd,
+      "show nri",
+      SHOW_STR NRI_STR)
+{
+	struct hnbgw_cnlink *cnlink = vty->index;
+	cnlink_write_nri(vty, cnlink, true);
+	return CMD_SUCCESS;
+}
+
+void cnlinks_write_nri(struct vty *vty, struct hnbgw_cnpool *cnpool, bool verbose)
+{
+	struct hnbgw_cnlink *cnlink;
+	llist_for_each_entry(cnlink, &cnpool->cnlinks, entry)
+		cnlink_write_nri(vty, cnlink, verbose);
+}
+
+void cnpool_write_nri(struct vty *vty, struct hnbgw_cnpool *cnpool, bool verbose)
+{
+	struct osmo_nri_range *r;
+
+	if (verbose)
+		vty_out(vty, " %s%s", cnpool->pool_name, VTY_NEWLINE);
+
+	if (verbose || cnpool->vty.nri_bitlen != OSMO_NRI_BITLEN_DEFAULT)
+		vty_out(vty, "  nri bitlen %u%s", cnpool->vty.nri_bitlen, VTY_NEWLINE);
+
+	llist_for_each_entry(r, &cnpool->vty.null_nri_ranges->entries, entry) {
+		vty_out(vty, "  nri null add %d", r->first);
+		if (r->first != r->last)
+			vty_out(vty, " %d", r->last);
+		vty_out(vty, "%s", VTY_NEWLINE);
+	}
+	if (verbose && llist_empty(&cnpool->vty.null_nri_ranges->entries))
+		vty_out(vty, "  %% No NULL-NRI entries%s", VTY_NEWLINE);
+}
+
+DEFUN(show_nri, show_nri_cmd,
+      "show nri",
+      SHOW_STR NRI_STR)
+{
+	/* hnbgw
+	 *  iucs
+	 *   nri null add ...
+	 */
+	vty_out(vty, "hnbgw%s", VTY_NEWLINE);
+	cnpool_write_nri(vty, &g_hnbgw->sccp.cnpool_iucs, true);
+	cnpool_write_nri(vty, &g_hnbgw->sccp.cnpool_iups, true);
+
+	/* msc 0
+	 *   nri add ...
+	 */
+	cnlinks_write_nri(vty, &g_hnbgw->sccp.cnpool_iucs, true);
+	cnlinks_write_nri(vty, &g_hnbgw->sccp.cnpool_iups, true);
+	return CMD_SUCCESS;
+}
+
+/* Hidden since it exists only for use by ttcn3 tests */
+DEFUN_HIDDEN(cnpool_roundrobin_next, cnpool_roundrobin_next_cmd,
+	     "cnpool roundrobin next (msc|sgsn) " CNLINK_NR_RANGE,
+	     "CN pooling: load balancing across multiple CN links.\n"
+	     "Adjust current state of the CN link round-robin algorithm (for testing).\n"
+	     "Set the CN link nr to direct the next new subscriber to (for testing).\n"
+	     "Set next MSC or next SGSN number\n"
+	     "CN link number, as in the config file; if the number does not exist,"
+	     " the round-robin continues to the next valid number.\n")
+{
+	struct hnbgw_cnpool *cnpool;
+	if (!strcmp("msc", argv[0]))
+		cnpool = &g_hnbgw->sccp.cnpool_iucs;
+	else
+		cnpool = &g_hnbgw->sccp.cnpool_iups;
+	cnpool->round_robin_next_nr = atoi(argv[1]);
+	return CMD_SUCCESS;
+}
+
 #define APPLY_STR "Immediately use configuration modified via telnet VTY, and restart components as needed.\n"
 #define SCCP_RESTART_STR \
       " If 'remote-addr' changed, related SCCP links will be restarted, possibly dropping active UE contexts."
@@ -518,6 +792,21 @@ DEFUN(cfg_pfcp_local_port, cfg_pfcp_local_port_cmd,
 
 #endif /* ENABLE_PFCP */
 
+/* hnbgw
+ *  iucs  } this part
+ *   foo  }
+ */
+static void _config_write_cnpool(struct vty *vty, struct hnbgw_cnpool *cnpool)
+{
+	if (cnpool->vty.nri_bitlen == OSMO_NRI_BITLEN_DEFAULT
+	    && llist_empty(&cnpool->vty.null_nri_ranges->entries))
+		return;
+
+	vty_out(vty, " %s%s", cnpool->pool_name, VTY_NEWLINE);
+
+	cnpool_write_nri(vty, cnpool, false);
+}
+
 static int config_write_hnbgw(struct vty *vty)
 {
 	vty_out(vty, "hnbgw%s", VTY_NEWLINE);
@@ -527,6 +816,9 @@ static int config_write_hnbgw(struct vty *vty)
 	vty_out(vty, " log-prefix %s%s", g_hnbgw->config.log_prefix_hnb_id ? "hnb-id" : "umts-cell-id",
 		VTY_NEWLINE);
 	osmo_tdef_vty_groups_write(vty, " ");
+
+	_config_write_cnpool(vty, &g_hnbgw->sccp.cnpool_iucs);
+	_config_write_cnpool(vty, &g_hnbgw->sccp.cnpool_iups);
 
 	return CMD_SUCCESS;
 }
@@ -564,7 +856,7 @@ static void _config_write_cnlink(struct vty *vty, struct hnbgw_cnpool *cnpool)
 		vty_out(vty, "%s %d%s", cnpool->peer_name, cnlink->nr, VTY_NEWLINE);
 		if (cnlink->vty.remote_addr_name)
 			vty_out(vty, " remote-addr %s%s", cnlink->vty.remote_addr_name, VTY_NEWLINE);
-		/* FUTURE: NRI config */
+		cnlink_write_nri(vty, cnlink, false);
 	}
 }
 
@@ -596,7 +888,14 @@ static int config_write_hnbgw_pfcp(struct vty *vty)
 static void install_cnlink_elements(int node)
 {
 	install_element(node, &cfg_cnlink_remote_addr_cmd);
+	install_element(node, &cfg_cnlink_nri_add_cmd);
+	install_element(node, &cfg_cnlink_nri_del_cmd);
+	install_element(node, &cfg_cnlink_show_nri_cmd);
 	install_element(node, &cfg_cnlink_apply_sccp_cmd);
+	install_element(node, &cfg_cnlink_allow_attach_cmd);
+	install_element(node, &cfg_cnlink_no_allow_attach_cmd);
+	install_element(node, &cfg_cnlink_allow_emerg_cmd);
+	install_element(node, &cfg_cnlink_no_allow_emerg_cmd);
 }
 
 void hnbgw_vty_init(void)
@@ -617,9 +916,15 @@ void hnbgw_vty_init(void)
 
 	install_element(HNBGW_NODE, &cfg_hnbgw_iucs_cmd);
 	install_node(&iucs_node, NULL);
+	install_element(IUCS_NODE, &cfg_hnbgw_cnpool_nri_bitlen_cmd);
+	install_element(IUCS_NODE, &cfg_hnbgw_cnpool_nri_null_add_cmd);
+	install_element(IUCS_NODE, &cfg_hnbgw_cnpool_nri_null_del_cmd);
 
 	install_element(HNBGW_NODE, &cfg_hnbgw_iups_cmd);
 	install_node(&iups_node, NULL);
+	install_element(IUPS_NODE, &cfg_hnbgw_cnpool_nri_bitlen_cmd);
+	install_element(IUPS_NODE, &cfg_hnbgw_cnpool_nri_null_add_cmd);
+	install_element(IUPS_NODE, &cfg_hnbgw_cnpool_nri_null_del_cmd);
 
 	/* deprecated: 'remote-addr' outside of 'msc 123' redirects to 'msc 0' / same for 'sgsn' */
 	install_element(IUCS_NODE, &cfg_hnbgw_cnpool_remote_addr_cmd);
@@ -646,6 +951,8 @@ void hnbgw_vty_init(void)
 	install_element(PFCP_NODE, &cfg_pfcp_remote_addr_cmd);
 #endif
 
+	osmo_tdef_vty_groups_init(HNBGW_NODE, hnbgw_tdef_group);
+
 	install_element(CONFIG_NODE, &cfg_msc_nr_cmd);
 	install_node(&msc_node, config_write_msc);
 	install_cnlink_elements(MSC_NODE);
@@ -657,5 +964,6 @@ void hnbgw_vty_init(void)
 	/* global 'apply sccp' command. There are two more on MSC_NODE and SGSN_NODE from install_cnlink_elements(). */
 	install_element(CONFIG_NODE, &cfg_config_apply_sccp_cmd);
 
-	osmo_tdef_vty_groups_init(HNBGW_NODE, hnbgw_tdef_group);
+	install_element_ve(&show_nri_cmd);
+	install_element(ENABLE_NODE, &cnpool_roundrobin_next_cmd);
 }

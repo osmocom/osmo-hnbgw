@@ -101,9 +101,8 @@ struct hnbgw_sccp_user {
 
 /* User provided configuration for struct hnbgw_cnpool. */
 struct hnbgw_cnpool_cfg {
-	/* FUTURE: This will be added here shortly:
-	 * - global NRI config: bitlen and NULL-NRI.
-	 */
+	uint8_t nri_bitlen;
+	struct osmo_nri_ranges *null_nri_ranges;
 };
 
 /* User provided configuration for struct hnbgw_cnlink. */
@@ -112,9 +111,7 @@ struct hnbgw_cnlink_cfg {
 	 * use. */
 	char *remote_addr_name;
 
-	/* FUTURE: This will be added here shortly:
-	 * - per peer NRI config: NRI ranges assigned to this peer.
-	 */
+	struct osmo_nri_ranges *nri_ranges;
 };
 
 /* Collection of CN peers to distribute UE connections across. MSCs for DOMAIN_CS, SGSNs for DOMAIN_PS. */
@@ -134,9 +131,10 @@ struct hnbgw_cnpool {
 	/* List of struct hnbgw_cnlink */
 	struct llist_head cnlinks;
 
-	/* FUTURE: This will be added here shortly:
-	 * - round robin state for new conns
-	 */
+	unsigned int round_robin_next_nr;
+	/* Emergency calls potentially select a different set of MSCs, so to not mess up the normal round-robin
+	 * behavior, emergency calls need a separate round-robin counter. */
+	unsigned int round_robin_next_emerg_nr;
 };
 
 /* A CN peer, like 'msc 0' or 'sgsn 23' */
@@ -163,6 +161,9 @@ struct hnbgw_cnlink {
 
 	/* linked list of hnbgw_context_map */
 	struct llist_head map_list;
+
+	bool allow_attach;
+	bool allow_emerg;
 };
 
 #define LOG_CNLINK(CNLINK, SUBSYS, LEVEL, FMT, ARGS...) \

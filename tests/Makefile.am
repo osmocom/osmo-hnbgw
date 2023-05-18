@@ -25,7 +25,7 @@ EXTRA_DIST = \
 	$(srcdir)/package.m4 \
 	$(TESTSUITE) \
 	osmo-hnbgw-vty-test.cfg \
-	osmo-hnbgw.vty \
+	$(srcdir)/*.vty \
 	$(srcdir)/config/*.cfg \
 	$(srcdir)/config/*.vty \
 	$(srcdir)/config/run_tests.sh \
