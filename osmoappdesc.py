@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# (C) 2021 by sysmocom - s.m.f.c. GmbH <info@sysmocom.de>
+# (C) 2021 by sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
