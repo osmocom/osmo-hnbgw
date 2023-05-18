@@ -104,30 +104,7 @@ DEFUN(cfg_hnbgw_mgcp, cfg_hnbgw_mgcp_cmd,
 
 int hnbgw_vty_go_parent(struct vty *vty)
 {
-	switch (vty->node) {
-	case IUH_NODE:
-	case IUCS_NODE:
-	case IUPS_NODE:
-		vty->node = HNBGW_NODE;
-		vty->index = NULL;
-		break;
-	case MGCP_NODE:
-		vty->node = HNBGW_NODE;
-		vty->index = NULL;
-		break;
-	case HNBGW_NODE:
-		vty->node = CONFIG_NODE;
-		vty->index = NULL;
-		break;
-	case CONFIG_NODE:
-		vty->node = ENABLE_NODE;
-		vty->index = NULL;
-		break;
-	default:
-		osmo_ss7_vty_go_parent(vty);
-		break;
-	}
-
+	osmo_ss7_vty_go_parent(vty);
 	return vty->node;
 }
 
