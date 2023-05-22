@@ -1,0 +1,46 @@
+OsmoHNBGW> enable
+
+OsmoHNBGW# ### ASP and AS were auto-configured
+OsmoHNBGW# show cs7 config
+cs7 instance 0
+ point-code 1.1.1
+ asp asp-clnt-OsmoHNBGW 2905 0 m3ua
+  local-ip localhost
+  remote-ip localhost
+  sctp-role client
+ as as-clnt-OsmoHNBGW m3ua
+  asp asp-clnt-OsmoHNBGW
+  routing-key 0 1.1.1
+ sccp-address my-msc
+  routing-indicator PC
+  point-code 1.2.3
+ sccp-address my-sgsn
+  routing-indicator PC
+  point-code 1.4.2
+
+OsmoHNBGW# ### IuCS and IuPS were explicitly pointed to specific remote point-codes, using cs7 instance 0 addresses
+OsmoHNBGW# show cnlink
+IuCS: OsmoHNBGW:RI=SSN_PC,PC=1.1.1,SSN=RANAP <-> my-msc:RI=SSN_PC,PC=1.2.3,SSN=RANAP
+      SS7 route: pc=0=0.0.0 mask=0x0=0.0.0 via AS as-clnt-OsmoHNBGW proto=m3ua ASP asp-clnt-OsmoHNBGW
+IuPS: OsmoHNBGW:RI=SSN_PC,PC=1.1.1,SSN=RANAP <-> my-sgsn:RI=SSN_PC,PC=1.4.2,SSN=RANAP
+      SS7 route: pc=0=0.0.0 mask=0x0=0.0.0 via AS as-clnt-OsmoHNBGW proto=m3ua ASP asp-clnt-OsmoHNBGW
+
+OsmoHNBGW# show running-config
+...
+cs7 instance 0
+ point-code 1.1.1
+ sccp-address my-msc
+  routing-indicator PC
+  point-code 1.2.3
+ sccp-address my-sgsn
+  routing-indicator PC
+  point-code 1.4.2
+hnbgw
+ rnc-id 23
+ log-prefix hnb-id
+ iuh
+ iucs
+  remote-addr my-msc
+ iups
+  remote-addr my-sgsn
+...

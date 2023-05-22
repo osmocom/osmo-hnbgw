@@ -26,6 +26,9 @@ EXTRA_DIST = \
 	$(TESTSUITE) \
 	osmo-hnbgw-vty-test.cfg \
 	osmo-hnbgw.vty \
+	$(srcdir)/config/*.cfg \
+	$(srcdir)/config/*.vty \
+	$(srcdir)/config/run_tests.sh \
 	$(NULL)
 
 TESTSUITE = $(srcdir)/testsuite
@@ -37,6 +40,7 @@ DISTCLEANFILES = \
 if ENABLE_EXT_TESTS
 python-tests:
 	$(MAKE) vty-test
+	$(MAKE) config-tests
 	osmotestvty.py -p $(abs_top_srcdir) -w $(abs_top_builddir) -v
 	osmotestconfig.py -p $(abs_top_srcdir) -w $(abs_top_builddir) -v
 else
@@ -56,6 +60,13 @@ vty-test: $(top_builddir)/src/osmo-hnbgw/osmo-hnbgw
 		-r "$(top_builddir)/src/osmo-hnbgw/osmo-hnbgw \
 		-c $(srcdir)/osmo-hnbgw-vty-test.cfg" \
 		$(U) $(srcdir)/$(VTY_TEST)
+
+# Test each config/*.cfg file with the corresponding config/*.vty transcript test.
+# Each config test runs an osmo-hnbgw process to talk to, so they must not run concurrently.
+# To prevent 'make -j N' from running these tests in parallel, call a script with a linear for-loop.
+.PHONY: config-tests
+config-tests:
+	$(srcdir)/config/run_tests.sh "$(top_builddir)/src/osmo-hnbgw/osmo-hnbgw" "$(srcdir)/config/" $U
 
 check-local: atconfig $(TESTSUITE)
 	$(SHELL) '$(TESTSUITE)' $(TESTSUITEFLAGS)
