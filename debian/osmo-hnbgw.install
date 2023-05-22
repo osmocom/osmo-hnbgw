@@ -3,3 +3,4 @@ lib/systemd/system/osmo-hnbgw.service
 usr/bin/osmo-hnbgw
 usr/share/doc/osmo-hnbgw/examples/osmo-hnbgw/osmo-hnbgw.cfg usr/share/doc/osmo-hnbgw/examples
 usr/share/doc/osmo-hnbgw/examples/osmo-hnbgw/osmo-hnbgw-pfcp.cfg usr/share/doc/osmo-hnbgw/examples
+usr/share/doc/osmo-hnbgw/examples/osmo-hnbgw/osmo-hnbgw-cs7.cfg usr/share/doc/osmo-hnbgw/examples
