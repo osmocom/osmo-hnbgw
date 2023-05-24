@@ -55,6 +55,9 @@ enum map_sccp_fsm_event {
 	MAP_SCCP_EV_RAN_LINK_LOST,
 	/* Receiving an SCCP RLSD from CN, or libosmo-sigtran tells us about SCCP connection timeout. All done. */
 	MAP_SCCP_EV_RX_RELEASED,
+	/* The human admin asks to drop the current SCCP connection, by telnet VTY 'apply sccp' in presence of SCCP
+	 * config changes. */
+	MAP_SCCP_EV_USER_ABORT,
 };
 
 /* For context_map_get_state(), to combine the RUA and SCCP states, for VTY reporting only. */
