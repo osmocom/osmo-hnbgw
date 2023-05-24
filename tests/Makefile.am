@@ -24,6 +24,7 @@ EXTRA_DIST = \
 	testsuite.at \
 	$(srcdir)/package.m4 \
 	$(TESTSUITE) \
+	osmo-hnbgw-vty-test.cfg \
 	osmo-hnbgw.vty \
 	$(NULL)
 
@@ -53,7 +54,7 @@ vty-test: $(top_builddir)/src/osmo-hnbgw/osmo-hnbgw
 	osmo_verify_transcript_vty.py -v \
 		-n OsmoHNBGW -p 4261 \
 		-r "$(top_builddir)/src/osmo-hnbgw/osmo-hnbgw \
-		-c $(top_srcdir)/doc/examples/osmo-hnbgw/osmo-hnbgw.cfg" \
+		-c $(srcdir)/osmo-hnbgw-vty-test.cfg" \
 		$(U) $(srcdir)/$(VTY_TEST)
 
 check-local: atconfig $(TESTSUITE)
