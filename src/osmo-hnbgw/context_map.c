@@ -57,7 +57,7 @@ struct hnbgw_context_map *context_map_find_or_create_by_rua_ctx_id(struct hnb_co
 								   bool is_ps)
 {
 	struct hnbgw_context_map *map;
-	uint32_t new_scu_conn_id;
+	int new_scu_conn_id;
 	struct hnbgw_cnlink *cnlink;
 	struct hnbgw_sccp_user *hsu;
 
