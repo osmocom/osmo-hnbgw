@@ -117,6 +117,8 @@ int context_map_set_cnlink(struct hnbgw_context_map *map, struct hnbgw_cnlink *c
 
 	map->cnlink = cnlink_selected;
 	map->scu_conn_id = new_scu_conn_id;
+	map_sccp_fsm_alloc(map);
+
 	llist_add_tail(&map->hnbgw_cnlink_entry, &cnlink_selected->map_list);
 
 	hash_add(hsu->hnbgw_context_map_by_conn_id, &map->hnbgw_sccp_user_entry, new_scu_conn_id);
