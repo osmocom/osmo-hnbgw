@@ -7,6 +7,7 @@ cs7 instance 0
  asp asp-clnt-msc-0 2905 0 m3ua
   local-ip localhost
   remote-ip localhost
+  role asp
   sctp-role client
  as as-clnt-msc-0 m3ua
   asp asp-clnt-msc-0
@@ -19,6 +20,7 @@ cs7 instance 1
  asp asp-clnt-sgsn-0 2905 0 m3ua
   local-ip localhost
   remote-ip localhost
+  role asp
   sctp-role client
  as as-clnt-sgsn-0 m3ua
   asp asp-clnt-sgsn-0
