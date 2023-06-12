@@ -262,6 +262,7 @@ static void map_rua_tx_disconnect(struct osmo_fsm_inst *fi)
 		.present = RUA_Cause_PR_radioNetwork,
 		.choice.radioNetwork = RUA_CauseRadioNetwork_network_release,
 	};
+	LOGPFSML(fi, LOGL_INFO, "Tx RUA Disconnect\n");
 	if (rua_tx_disc(map->hnb_ctx, map->is_ps, map->rua_ctx_id, &rua_cause, NULL, 0))
 		LOGPFSML(fi, LOGL_ERROR, "Failed to send Disconnect to RUA\n");
 }
