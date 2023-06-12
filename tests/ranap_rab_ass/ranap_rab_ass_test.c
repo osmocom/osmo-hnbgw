@@ -33,8 +33,50 @@
 #include <osmocom/ranap/ranap_common_cn.h>
 #include <osmocom/ranap/ranap_common_ran.h>
 
+#include "asn1helpers.h"
+#include <osmocom/hnbap/hnbap_common.h>
+
 static void *msgb_ctx;
 extern void *talloc_asn1_ctx;
+
+int xer_decode_consume_cb(const void *buffer, size_t size, void *application_specific_key)
+{
+	// don't know if the buffer is nul terminated
+	const uint8_t *b = buffer;
+	for (size_t i = 0; i < size; i++)
+		printf("%c", b[i]);
+	return 9;
+}
+
+static void foo(void)
+{
+	const char *data_hex =
+		"0001005e0000070003001c0640313030303542392d30303130393432303530407379736d636f6d00080017500000000000f0000000000000000011000500c0a8c9050009000309f189000b0004000000000006000240200007000164000a00020001";
+	uint8_t data[1024] = {};
+	int len = osmo_hexparse(data_hex, data, sizeof(data));
+	OSMO_ASSERT(len > 0);
+
+	HNBAP_HNBAP_PDU_t _pdu;
+	HNBAP_HNBAP_PDU_t *pdu = &_pdu;
+	asn_dec_rval_t dec_ret;
+
+	/* decode and handle to _hnbgw_hnbap_rx() */
+
+	memset(pdu, 0, sizeof(*pdu));
+	dec_ret = aper_decode(NULL, &asn_DEF_HNBAP_HNBAP_PDU, (void **) &pdu,
+			      data, len, 0, 0);
+	if (dec_ret.code != RC_OK) {
+		printf("Error in ASN.1 decode\n");
+		return;
+	}
+	printf("ok\n");
+
+	asn_enc_rval_t rv;
+	rv = xer_encode(&asn_DEF_HNBAP_HNBAP_PDU, pdu, XER_F_BASIC, xer_decode_consume_cb, NULL);
+	printf("\nrv=%zd\n", rv.encoded);
+
+	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_HNBAP_HNBAP_PDU, pdu);
+}
 
 void test_ranap_rab_ass_req_decode_encode(void)
 {
@@ -403,6 +445,11 @@ void test_cleanup(void)
 
 int main(int argc, char **argv)
 {
+	if (1) {
+		foo();
+		return 0;
+	}
+
 	test_init();
 
 	test_ranap_rab_ass_req_decode_encode();
