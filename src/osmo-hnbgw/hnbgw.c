@@ -56,8 +56,7 @@ void g_hnbgw_alloc(void *ctx)
 	INIT_LLIST_HEAD(&g_hnbgw->sccp.users);
 
 	g_hnbgw->mgw_pool = mgcp_client_pool_alloc(g_hnbgw);
-	g_hnbgw->config.mgcp_client = talloc_zero(g_hnbgw, struct mgcp_client_conf);
-	mgcp_client_conf_init(g_hnbgw->config.mgcp_client);
+	g_hnbgw->config.mgcp_client = mgcp_client_conf_alloc(g_hnbgw);
 
 #if ENABLE_PFCP
 	g_hnbgw->config.pfcp.remote_port = OSMO_PFCP_PORT;
