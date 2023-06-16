@@ -30,3 +30,6 @@ cs7 instance 1
  point-code 2.2.2
 hnbgw
 ...
+msc 0
+sgsn 0
+...
