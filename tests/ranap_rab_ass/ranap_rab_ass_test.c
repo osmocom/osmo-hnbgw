@@ -299,6 +299,31 @@ void test_ranap_rab_ass_resp_ies_check_failure(void)
 	ranap_cn_rx_co_free(&message);
 }
 
+/* Same as above but with a message that does not even contain a FailedItemsIEs list */
+void test_ranap_rab_ass_resp_ies_check_failure_no_faileditemies(void)
+{
+	int rc;
+	ranap_message message;
+	bool rab_failed_at_hnb;
+	uint8_t testvec[] = {
+		0x60, 0x00, 0x00, 0x2a, 0x00, 0x00, 0x01, 0x00,
+		0x34, 0x40, 0x23, 0x00, 0x00, 0x01, 0x00, 0x33,
+		0x40, 0x1c, 0x60, 0x3a, 0x7c, 0x35, 0x00, 0x01,
+		0x0a, 0x09, 0x01, 0xa4, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x40, 0x04, 0x0a, 0x00, 0x00
+	};
+
+	rc = ranap_cn_rx_co_decode2(&message, testvec, sizeof(testvec));
+
+	OSMO_ASSERT(rc == 0);
+	rab_failed_at_hnb =
+		ranap_rab_ass_resp_ies_check_failure(&message.msg.raB_AssignmentResponseIEs, 23);
+	OSMO_ASSERT(rab_failed_at_hnb == 0)
+
+	ranap_cn_rx_co_free(&message);
+}
+
 void test_ranap_rab_ass_req_ies_check_release(void)
 {
 	int rc;
@@ -413,6 +438,7 @@ int main(int argc, char **argv)
 	test_ranap_rab_ass_req_ies_replace_inet_addr();
 	test_ranap_rab_ass_resp_ies_replace_inet_addr();
 	test_ranap_rab_ass_resp_ies_check_failure();
+	test_ranap_rab_ass_resp_ies_check_failure_no_faileditemies();
 	test_ranap_rab_ass_req_ies_check_release();
 	test_ranap_rab_ass_req_ies_get_count();
 

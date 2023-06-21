@@ -176,7 +176,9 @@ static RANAP_IE_t *failed_list_item_from_rab_ass_resp(const RANAP_RAB_Assignment
 	return ies->raB_FailedList.raB_FailedList_ies.list.array[index];
 }
 
-/* find the RAB specified by rab_id in ies and when found, decode the result into items_ies */
+/* Find the RAB specified by rab_id in ies, decode the result into items_ies and return a positive index.
+ * The caller is responsible for freeing the contents in items_ies. In case of failure, the return code
+ * will be negative. */
 static int decode_rab_smditms_from_resp_ies(RANAP_RAB_SetupOrModifiedItemIEs_t *items_ies,
 					    RANAP_RAB_AssignmentResponseIEs_t *ies, uint8_t rab_id)
 {
@@ -576,17 +578,16 @@ bool ranap_rab_ass_resp_ies_check_failure(RANAP_RAB_AssignmentResponseIEs_t *ies
 	RANAP_RAB_FailedItemIEs_t _rab_failed_items_ies;
 	RANAP_RAB_FailedItemIEs_t *rab_failed_items_ies = &_rab_failed_items_ies;
 	int rc;
-	bool result = true;
 
-	/* If we can get a failed item for the specified RAB ID, then we know that the
+	/* If we can get a failed item (rc >= 0) for the specified RAB ID, then we know that the
 	 * HNB reported the RAB Assignment as failed */
 	rc = decode_rab_flitms_from_resp_ies(rab_failed_items_ies, ies, rab_id);
 	if (rc < 0)
-		result = false;
+		return false;
 
 	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_FailedItem, rab_failed_items_ies);
 
-	return result;
+	return true;
 }
 
 /*! Check if a specific RAB is present in an RAB-ReleaseList inside RANAP_RAB_AssignmentRequestIEs.
