@@ -41,10 +41,8 @@ struct msgb *ranap_rab_ass_req_encode(RANAP_RAB_AssignmentRequestIEs_t *rab_assi
 {
 	int rc;
 	struct msgb *msg;
-	RANAP_RAB_AssignmentRequest_t _rab_assignment_request;
+	RANAP_RAB_AssignmentRequest_t _rab_assignment_request = { 0 };
 	RANAP_RAB_AssignmentRequest_t *rab_assignment_request = &_rab_assignment_request;
-
-	memset(rab_assignment_request, 0, sizeof(*rab_assignment_request));
 
 	rc = ranap_encode_rab_assignmentrequesties(rab_assignment_request, rab_assignment_request_ies);
 	if (rc < 0)
@@ -72,11 +70,10 @@ int ranap_rab_ass_resp_encode(uint8_t *data, unsigned int len,
 	int rc;
 	struct msgb *msg;
 
-	RANAP_RAB_AssignmentResponse_t _rab_assignment_response;
+	RANAP_RAB_AssignmentResponse_t _rab_assignment_response = { 0 };
 	RANAP_RAB_AssignmentResponse_t *rab_assignment_response = &_rab_assignment_response;
 
 	memset(data, 0, len);
-	memset(rab_assignment_response, 0, sizeof(*rab_assignment_response));
 
 	rc = ranap_encode_rab_assignmentresponseies(rab_assignment_response, rab_assignment_response_ies);
 	if (rc < 0)
@@ -315,7 +312,7 @@ int ranap_rab_ass_req_ies_extract_inet_addr(struct osmo_sockaddr *addr, uint8_t 
 					    RANAP_RAB_AssignmentRequestIEs_t *ies, unsigned int index)
 {
 	RANAP_ProtocolIE_FieldPair_t *protocol_ie_field_pair;
-	RANAP_RAB_SetupOrModifyItemFirst_t _rab_setup_or_modify_item_first;
+	RANAP_RAB_SetupOrModifyItemFirst_t _rab_setup_or_modify_item_first = { 0 };
 	RANAP_RAB_SetupOrModifyItemFirst_t *rab_setup_or_modify_item_first = &_rab_setup_or_modify_item_first;
 	RANAP_TransportLayerAddress_t *trasp_layer_addr;
 	RANAP_IuTransportAssociation_t *transp_assoc;
@@ -384,7 +381,7 @@ error:
  *  \returns 0 on success; negative on error. */
 int ranap_rab_ass_resp_ies_extract_inet_addr(struct osmo_sockaddr *addr, RANAP_RAB_AssignmentResponseIEs_t *ies, uint8_t rab_id)
 {
-	RANAP_RAB_SetupOrModifiedItemIEs_t _rab_setup_or_modified_items_ies;
+	RANAP_RAB_SetupOrModifiedItemIEs_t _rab_setup_or_modified_items_ies = { 0 };
 	RANAP_RAB_SetupOrModifiedItemIEs_t *rab_setup_or_modified_items_ies = &_rab_setup_or_modified_items_ies;
 	RANAP_RAB_SetupOrModifiedItem_t *rab_setup_or_modified_item;
 	uint16_t port;
@@ -436,7 +433,7 @@ error:
 int ranap_rab_ass_req_ies_replace_inet_addr(RANAP_RAB_AssignmentRequestIEs_t *ies, struct osmo_sockaddr *addr, uint8_t rab_id)
 {
 	RANAP_ProtocolIE_FieldPair_t *protocol_ie_field_pair;
-	RANAP_RAB_SetupOrModifyItemFirst_t _rab_setup_or_modify_item_first;
+	RANAP_RAB_SetupOrModifyItemFirst_t _rab_setup_or_modify_item_first = { 0 };
 	RANAP_RAB_SetupOrModifyItemFirst_t *rab_setup_or_modify_item_first = &_rab_setup_or_modify_item_first;
 	RANAP_TransportLayerInformation_t *old_transport_layer_information = NULL;
 	RANAP_TransportLayerInformation_t *new_transport_layer_information = NULL;
@@ -506,7 +503,7 @@ error:
 int ranap_rab_ass_resp_ies_replace_inet_addr(RANAP_RAB_AssignmentResponseIEs_t *ies, struct osmo_sockaddr *addr, uint8_t rab_id)
 {
 	RANAP_IE_t *setup_or_modified_list_ie;
-	RANAP_RAB_SetupOrModifiedItemIEs_t _rab_setup_or_modified_items_ies;
+	RANAP_RAB_SetupOrModifiedItemIEs_t _rab_setup_or_modified_items_ies = { 0 };
 	RANAP_RAB_SetupOrModifiedItemIEs_t *rab_setup_or_modified_items_ies = &_rab_setup_or_modified_items_ies;
 	RANAP_RAB_SetupOrModifiedItem_t *rab_setup_or_modified_item;
 	RANAP_TransportLayerInformation_t *temp_transport_layer_information = NULL;
@@ -575,7 +572,7 @@ error:
  *  \returns true when RAB could be identified as failed; false otherwise */
 bool ranap_rab_ass_resp_ies_check_failure(RANAP_RAB_AssignmentResponseIEs_t *ies, uint8_t rab_id)
 {
-	RANAP_RAB_FailedItemIEs_t _rab_failed_items_ies;
+	RANAP_RAB_FailedItemIEs_t _rab_failed_items_ies = { 0 };
 	RANAP_RAB_FailedItemIEs_t *rab_failed_items_ies = &_rab_failed_items_ies;
 	int rc;
 
@@ -596,7 +593,7 @@ bool ranap_rab_ass_resp_ies_check_failure(RANAP_RAB_AssignmentResponseIEs_t *ies
  *  \returns true when RAB is intended for release; false otherwise */
 bool ranap_rab_ass_req_ies_check_release(RANAP_RAB_AssignmentRequestIEs_t *ies, uint8_t rab_id)
 {
-	RANAP_RAB_ReleaseItemIEs_t _rab_release_items_ies;
+	RANAP_RAB_ReleaseItemIEs_t _rab_release_items_ies = { 0 };
 	RANAP_RAB_ReleaseItemIEs_t *rab_release_items_ies = &_rab_release_items_ies;
 	int rc;
 	bool result = true;
