@@ -861,7 +861,8 @@ int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink)
 	sccp = osmo_sccp_simple_client_on_ss7_id(g_hnbgw, ss7 ? ss7->cfg.id : 0, cnlink->name, DEFAULT_PC_HNBGW,
 						 OSMO_SS7_ASP_PROT_M3UA, 0, "localhost", -1, "localhost");
 	if (!sccp) {
-		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Failed to configure 'cs7 instance %u'\n", ss7->cfg.id);
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Failed to configure SCCP on 'cs7 instance %u'\n",
+			   ss7 ? ss7->cfg.id : 0);
 		return -1;
 	}
 	ss7 = osmo_sccp_get_ss7(sccp);
