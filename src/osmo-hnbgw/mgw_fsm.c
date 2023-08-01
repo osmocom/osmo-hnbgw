@@ -113,6 +113,7 @@ struct mgw_fsm_priv {
 	struct osmo_mgcpc_ep *mgcpc_ep;
 	struct osmo_mgcpc_ep_ci *mgcpc_ep_ci_hnb;
 	struct osmo_mgcpc_ep_ci *mgcpc_ep_ci_msc;
+	struct osmo_sockaddr ci_hnb_crcx_ack_addr;
 	char msc_rtp_addr[INET6_ADDRSTRLEN];
 	uint16_t msc_rtp_port;
 };
@@ -187,8 +188,8 @@ static void mgw_fsm_crcx_hnb(struct osmo_fsm_inst *fi, uint32_t event, void *dat
 {
 	struct mgw_fsm_priv *mgw_fsm_priv = fi->priv;
 	const struct mgcp_conn_peer *mgw_info;
-	struct osmo_sockaddr addr;
 	struct osmo_sockaddr_str addr_str;
+	struct osmo_sockaddr *addr = &mgw_fsm_priv->ci_hnb_crcx_ack_addr;
 	RANAP_RAB_AssignmentRequestIEs_t *ies;
 	int rc;
 
@@ -207,7 +208,7 @@ static void mgw_fsm_crcx_hnb(struct osmo_fsm_inst *fi, uint32_t event, void *dat
 			addr_str.af = AF_INET6;
 		addr_str.port = mgw_info->port;
 		osmo_strlcpy(addr_str.ip, mgw_info->addr, sizeof(addr_str.ip));
-		rc = osmo_sockaddr_str_to_sockaddr(&addr_str, &addr.u.sas);
+		rc = osmo_sockaddr_str_to_sockaddr(&addr_str, &addr->u.sas);
 		if (rc < 0) {
 			LOGPFSML(fi, LOGL_ERROR,
 				 "Failed to convert RTP IP-address (%s) and Port (%u) to its binary representation\n",
@@ -217,7 +218,7 @@ static void mgw_fsm_crcx_hnb(struct osmo_fsm_inst *fi, uint32_t event, void *dat
 		}
 
 		ies = &mgw_fsm_priv->ranap_rab_ass_req_message->msg.raB_AssignmentRequestIEs;
-		rc = ranap_rab_ass_req_ies_replace_inet_addr(ies, &addr, mgw_fsm_priv->rab_id);
+		rc = ranap_rab_ass_req_ies_replace_inet_addr(ies, addr, mgw_fsm_priv->rab_id);
 		if (rc < 0) {
 			LOGPFSML(fi, LOGL_ERROR,
 				 "Failed to replace RTP IP-address (%s) and Port (%u) in RAB-AssignmentRequest\n",
@@ -341,6 +342,9 @@ static void mgw_fsm_mdcx_hnb(struct osmo_fsm_inst *fi, uint32_t event, void *dat
 {
 	struct mgw_fsm_priv *mgw_fsm_priv = fi->priv;
 	const struct mgcp_conn_peer *mgw_info;
+	struct osmo_sockaddr_str addr_str;
+	struct osmo_sockaddr addr;
+	int rc;
 
 	switch (event) {
 	case MGW_EV_MGCP_OK:
@@ -350,6 +354,33 @@ static void mgw_fsm_mdcx_hnb(struct osmo_fsm_inst *fi, uint32_t event, void *dat
 			osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
 			return;
 		}
+
+		if (strchr(mgw_info->addr, '.'))
+			addr_str.af = AF_INET;
+		else
+			addr_str.af = AF_INET6;
+		addr_str.port = mgw_info->port;
+		osmo_strlcpy(addr_str.ip, mgw_info->addr, sizeof(addr_str.ip));
+		rc = osmo_sockaddr_str_to_sockaddr(&addr_str, &addr.u.sas);
+		if (rc < 0) {
+			LOGPFSML(fi, LOGL_ERROR,
+				 "Failed to convert RTP IP-address (%s) and Port (%u) to its binary representation\n",
+				 mgw_info->addr, mgw_info->port);
+			osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
+			return;
+		}
+
+		if (osmo_sockaddr_cmp(&mgw_fsm_priv->ci_hnb_crcx_ack_addr, &addr) != 0) {
+			/* FIXME: Send RAB Modify Req to HNB. See OS#6127 */
+			char addr_buf[INET6_ADDRSTRLEN + 8];
+			LOGPFSML(fi, LOGL_ERROR, "Local MGW IuUP IP address %s changed to %s during MDCX."
+				 " This is so far unsupported, adapt your osmo-mgw config!\n",
+				 osmo_sockaddr_to_str(&mgw_fsm_priv->ci_hnb_crcx_ack_addr),
+				 osmo_sockaddr_to_str_buf(addr_buf, sizeof(addr_buf), &addr));
+			osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
+			return;
+		}
+
 		mgw_fsm_state_chg(fi, MGW_ST_CRCX_MSC);
 		return;
 	default:
