@@ -1,3 +1,126 @@
+osmo-hnbgw (1.5.0) unstable; urgency=medium
+
+  [ Neels Janosch Hofmeyr ]
+  * UE state leak: when HNB re-registers, discard previous UE state
+  * Deprecate 'sccp cr max-payload-len', remove SCCP CR limit code
+  * cosmetic: drop stray backslash
+  * drop obsolete fixme comment
+  * various comment tweaks
+  * log tweak
+  * cosmetic: rename context_map_deactivate
+  * fix deprecation: use ranap_cn_rx_co_decode2()
+  * rua_to_scu(): drop dead code for connection-less
+  * use RUA procedure code for rua_to_scu() arg
+  * cosmetic: regroup members of hnbgw_context_map
+  * add design charts for new context map FSMs
+  * context map: introduce RUA and SCCP FSMs to fix leaks
+  * log osmo_fsm timeouts
+  * sccp_sap_up(): ignore PCSTATE.ind
+  * fix regression: unbreak PFCP: PS RAB via UPF proxying
+  * tweak LOGHNB()
+  * debug log: log received RANAP message types on DCN, DHNB
+  * map_sccp: on timeout during WAIT_CC, send N-DISCONNECT to SCCP-SCOC
+  * release UE Contexts on HNB (Re-)Register
+  * release UE Contexts on SCTP_RESTART
+  * log: in new RUA,SCCP FSM IDs, indicate CS/PS
+  * vty: 'show ue': show which HNB the UE is registered on
+  * fix vty: show talloc-context all
+  * place asn1 context under hnb_ctx for better visibility
+  * fix asn1 leak in handle_cn_ranap()
+  * fix asn1 leak in error path of hnbgw_tx_ue_register_acc()
+  * fix asn1 leak in error path of hnbgw_tx_ue_register_acc_tmsi()
+  * fix asn1 leaks in ps_rab_ass_resp_send_if_ready()
+  * fix asn1 leak in hnbgw_rua_rx()
+  * less code dup in mem free of hnbgw_rx_ue_register_req()
+  * fix log msg typo 'Unsupportedccept'
+  * actually run vty-tests: VTY transcript tests
+  * actually run vty-tests: osmotestvty.py
+  * rab_ass_fsm.c: fix asn1 memleak when replacing GTP address
+  * ps_rab_ass_fsm.h: fix dup of FSM event enum
+  * drop empty hnbgw_rua_init()
+  * eliminate function hnb_contexts()
+  * vty: fix doc strings for 'show {hnb,ue}'
+  * actually run vty-tests: osmotestconfig.py
+  * drop ctrl_test_runner.py
+  * comment typo fix in ranap_rab_ass.c
+  * simplify: one g_hnbgw as global state and root ctx
+  * ranap_rab_ass_test.c: clarify talloc contexts
+  * move main() to separate file
+  * add non-installed libhnbgw.la for test linkage
+  * vty: make legacy 'hnbgw'/'sccp cr max...' fatal
+  * vty test: show missing write-back of 'rnc-id'
+  * fix missing write-back of rnc-id
+  * drop dead code: cnlink.T_RafC
+  * remove obsolete context_map_check_released() call
+  * unbloat: drop context_map_check_released()
+  * vty_go_parent(): remove legacy cruft
+  * immediately SCCP RLSD on HNB re-register
+  * use new osmo_sccp_instance_next_conn_id()
+  * add doc/examples/osmo-hnbgw/osmo-hnbgw-cs7.cfg
+  * add separate cfg file only for VTY tests
+  * add startup config tests
+  * charts: add sccp.dot
+  * cnpool: allow separate cs7 for IuPS and IuCS
+  * coverity: fix type of local var
+  * cnpool: split up context_map_find_or_create_by_rua_ctx_id()
+  * cnpool prep: add SCCP_EV_USER_ABORT
+  * cnpool: add multiple 'msc' and 'sgsn' cfg (use only the first)
+  * cnpool: examples and config tests: use 'msc 0'/'sgsn 0' syntax
+  * cnpool: make NRI mappings VTY configurable
+  * tdefs; combine timer groups 'ps' and 'cmap' to 'hnbgw'
+  * add hnbgw_decode_ranap_co()
+  * fixup for 'cnpool: split up context_map_find_...'
+  * startup config tests: show default 'msc 0', 'sgsn 0'
+  * cnpool: extract Mobile Identity from RANAP payload
+  * add rate_ctr infra; add rate_ctrs for cnpool
+  * add CTRL transcript tests for cnpool rate ctrs
+  * cnpool: select CN link from pool by NRI or round robin
+  * doc/examples/osmo-hnbgw/osmo-hnbgw-cnpool.cfg
+  * fix umts_cell_id_name(): show CID
+  * make public: umts_cell_id_name()
+  * tweak lots of logging
+  * ctrl test: also test msc 1
+  * cnpool: add context_map_cnlink_lost() handling
+  * add ranap_domain_name()
+  * detect in/active CN links by RANAP RESET
+  * use cnlink state in cnpool decisions
+  * cnpool: return Paging Resp to the exact CN link that Paged
+  * cfg: add 'hnbgw' / 'plmn MCC MNC'
+  * include Global RNC-ID in RESET
+  * include Global RNC-ID in RESET-ACK
+  * RUA: log tweak
+  * coverity: hnbgw_cn: avoid NULL deref in LOGP
+
+  [ Philipp Maier ]
+  * mgw_fsm: fix typo
+  * mgw_fsm: fix log line
+  * mgw_fsm: use __func__ to mention function name in log line
+  * mgw_fsm: refactor helper function handle_rab_release()
+  * ranap_rab_ass: do not free never allocated FieldItems
+  * ranap_rab_ass: be sure to initialize memory with 0
+
+  [ Vadim Yanitskiy ]
+  * tests: use check_PROGRAMS for tests, not noinst_PROGRAMS
+  * tests: use -no-install libtool flag to avoid ./lt-* scripts
+  * tests: make 'vty-test' target depend on osmo-hnbgw binary
+  * tests: do not depend on undefined $(BUILT_SOURCES)
+  * copyright: fix typo: sysmocom s/s.m.f.c./s.f.m.c./ GmbH
+
+  [ Oliver Smith ]
+  * hnbgw_mgw_setup: use mgcp_client_pool_empty()
+  * debian: set compat level to 10
+  * contrib/jenkins.sh: add PFCP variable
+  * hnbgw: put copyright into define
+  * systemd: depend on networking-online.target
+
+  [ Pau Espin Pedrol ]
+  * manuals: include osmo-gsm-manual's sigtran.adoc
+  * tests: Update *.vty after libosmo-sccp VTY improvements
+  * Use new mgcp_client_conf_alloc() API to alloc mgcp_client_conf
+  * Tear down call if local IuUP MGW address changed during MDCX
+
+ -- Pau Espin Pedrol <pespin@sysmocom.de>  Tue, 12 Sep 2023 17:18:43 +0200
+
 osmo-hnbgw (1.4.0) unstable; urgency=medium
 
   [ Pau Espin Pedrol ]
