@@ -849,11 +849,7 @@ int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink)
 			return 0;
 		}
 		/* else cnlink->hnbgw_sccp_user stays NULL and is set up below. */
-		LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "cs7 instance %u has no SCCP instance yet\n", ss7->cfg.id);
-
-		/* All SCCP instances should originate from this function. So if there is no hnbgw_sccp_user for the cs7
-		 * instance, then the cs7 instance should not have an SCCP instance yet. */
-		OSMO_ASSERT(!ss7->sccp);
+		LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "cs7 instance %u has no configured SCCP instance yet\n", ss7->cfg.id);
 	}
 
 	/* No SCCP instance yet for this ss7. Create it. If no address name is given that resolves to a
