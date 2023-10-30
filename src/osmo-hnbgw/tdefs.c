@@ -34,7 +34,7 @@ struct osmo_tdef mgw_fsm_T_defs[] = {
 struct osmo_tdef hnbgw_T_defs[] = {
 	{.T = 3113, .default_val = 15, .desc = "Time to keep Paging record, for CN pools with more than one link" },
 	{.T = 4, .default_val = 5, .desc = "Timeout to receive RANAP RESET ACKNOWLEDGE from an MSC/SGSN" },
-	{.T = -31, .default_val = 5, .desc = "Timeout for discarding a partially released context map (RUA <-> SCCP)" },
+	{.T = -31, .default_val = 15, .desc = "Timeout for discarding a partially released context map (RUA <-> SCCP)" },
 	{.T = -1002, .default_val = 10, .desc = "Timeout for the HNB to respond to PS RAB Assignment Request" },
 	{ }
 };
