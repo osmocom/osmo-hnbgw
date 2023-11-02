@@ -452,6 +452,7 @@ static void map_sccp_wait_rlsd_action(struct osmo_fsm_inst *fi, uint32_t event, 
 		handle_rx_sccp(fi, ranap_msg);
 		return;
 
+	case MAP_SCCP_EV_RAN_LINK_LOST:
 	case MAP_SCCP_EV_USER_ABORT:
 	case MAP_SCCP_EV_CN_LINK_LOST:
 		/* Stop waiting for RLSD, send RLSD now. */
