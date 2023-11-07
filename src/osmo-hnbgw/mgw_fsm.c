@@ -683,6 +683,47 @@ static int release_mgw_fsm(struct hnbgw_context_map *map, struct msgb *ranap_msg
 	return 0;
 }
 
+static bool is_rab_ass_without_tli(struct hnbgw_context_map *map, ranap_message *message)
+{
+	RANAP_RAB_AssignmentRequestIEs_t *ies;
+	RANAP_ProtocolIE_ContainerPair_t *protocol_ie_container_pair;
+	RANAP_ProtocolIE_FieldPair_t *protocol_ie_field_pair;
+	RANAP_RAB_SetupOrModifyItemFirst_t _rab_setup_or_modify_item_first = { 0 };
+	RANAP_RAB_SetupOrModifyItemFirst_t *rab_setup_or_modify_item_first = &_rab_setup_or_modify_item_first;
+	int rc;
+	bool ret;
+
+	ies = &message->msg.raB_AssignmentRequestIEs;
+
+	if (!(ies->presenceMask & RAB_ASSIGNMENTREQUESTIES_RANAP_RAB_SETUPORMODIFYLIST_PRESENT))
+		return false;
+
+	/* Detect the end of the list */
+	if (ies->raB_SetupOrModifyList.list.count < 1)
+		return false;
+
+	protocol_ie_container_pair = ies->raB_SetupOrModifyList.list.array[0];
+	protocol_ie_field_pair = protocol_ie_container_pair->list.array[0];
+
+	if (!protocol_ie_field_pair)
+		return false;
+
+	if (protocol_ie_field_pair->id != RANAP_ProtocolIE_ID_id_RAB_SetupOrModifyItem) {
+		RANAP_DEBUG
+		    ("Decoding failed, the protocol IE field-pair is not of type RANAP RAB setup-or-modify-item!\n");
+		return false;
+	}
+
+	rc = ranap_decode_rab_setupormodifyitemfirst(rab_setup_or_modify_item_first,
+						     &protocol_ie_field_pair->firstValue);
+	if (rc < 0)
+		return false;
+
+	ret = rab_setup_or_modify_item_first->transportLayerInformation == NULL;
+	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_SetupOrModifyItemFirst, rab_setup_or_modify_item_first);
+	return ret;
+}
+
 /* Check if the message contains a RAB-ReleaseItem that matches the RAB-ID that is managed by the given context map */
 static bool is_our_rab_release(struct hnbgw_context_map *map, ranap_message *message)
 {
@@ -719,6 +760,15 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct msgb *ranap_msg, ra
 	if (!initialized) {
 		OSMO_ASSERT(osmo_fsm_register(&mgw_fsm) == 0);
 		initialized = true;
+	}
+
+	/* There may be CS RAB Assignment Requests without actual RTP information: after a normal RAB Assignment,
+	 * another RAB Assignment may follow, modifying some RAB parameters. When there is no RTP info in the message,
+	 * there is no RTP to redirect via MGW, hence just forward as-is. */
+	if (is_rab_ass_without_tli(map, message)) {
+		LOG_MAP(map, DCN, LOGL_INFO,
+			"Rx RAB Assignment Request without transportLayerInformation, forwarding as-is\n");
+		return map_rua_dispatch(map, MAP_RUA_EV_TX_DIRECT_TRANSFER, ranap_msg);
 	}
 
 	/* The RTP stream negotiation usually begins with a RAB-AssignmentRequest and ends with an IU-Release, however
@@ -789,6 +839,13 @@ int mgw_fsm_handle_rab_ass_resp(struct hnbgw_context_map *map, struct msgb *rana
 		/* Send a release request, to make sure that the MSC is aware of the problem. */
 		tx_release_req(map);
 		return -1;
+	}
+
+	if (map->mgw_fi->state == MGW_ST_ESTABLISHED) {
+		/* This is a response to a second RAB Assignment Request, which only modified some RAB config on top of
+		 * an earlier RAB Assignment. Just forward the response as-is, we already have our MGW set up and need
+		 * no info from it. (i.e. we don't support modifying the RTP address.) */
+		return map_sccp_dispatch(map, MAP_SCCP_EV_TX_DATA_REQUEST, ranap_msg);
 	}
 
 	mgw_fsm_priv = map->mgw_fi->priv;
