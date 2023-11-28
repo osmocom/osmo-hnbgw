@@ -26,6 +26,8 @@
 #include <osmocom/core/logging.h>
 #include <osmocom/core/sockaddr_str.h>
 
+#include <osmocom/netif/stream.h>
+
 #include <osmocom/ranap/ranap_common.h>
 #include <osmocom/ranap/ranap_common_cn.h>
 #include <osmocom/ranap/ranap_common_ran.h>
@@ -132,6 +134,7 @@ static void mgw_fsm_crcx_hnb_onenter(struct osmo_fsm_inst *fi, uint32_t prev_sta
 {
 	struct mgw_fsm_priv *mgw_fsm_priv = fi->priv;
 	struct hnbgw_context_map *map = mgw_fsm_priv->map;
+	struct hnb_context *hnb_ctx = map->hnb_ctx;
 	struct osmo_sockaddr addr;
 	struct osmo_sockaddr_str addr_str;
 	RANAP_RAB_AssignmentRequestIEs_t *ies;
@@ -167,6 +170,19 @@ static void mgw_fsm_crcx_hnb_onenter(struct osmo_fsm_inst *fi, uint32_t prev_sta
 	};
 	mgw_info.codecs[0] = CODEC_IUFP;
 	mgw_info.codecs_len = 1;
+
+	/* The HNB IuUP IP address & port is not yet known here (Rx RAB-Ass-Req Tx CRCX (RAN) time):
+	 * Assume and announce "remote IuUP IP address" == "remote Iuh signalling IP address" to the MGW
+	 * here, so that it can most probably select a proper IuUP local IP address to be used from the
+	 * start. In the event we receive a "remote IuUP IP address" != "remote Iuh signalling IP address"
+	 * later on during RAB-Ass-Resp, we'll update IP addr at the MGW through MDCX and if MGW decides
+	 * to use another IuUP local IP address as a result, it will be updated at the HNB through
+	 * RAB-Modify-Req. */
+	if (hnb_ctx && hnb_ctx->conn &&
+	    (rc = osmo_stream_srv_get_fd(hnb_ctx->conn)) >= 0) {
+		if (osmo_sock_get_remote_ip(rc, mgw_info.addr, sizeof(mgw_info.addr)) < 0)
+			LOGPFSML(fi, LOGL_ERROR, "Invalid Iuh IP Address\n");
+	}
 
 	mgw_fsm_priv->mgcpc = mgcp_client_pool_get(g_hnbgw->mgw_pool);
 	if (!mgw_fsm_priv->mgcpc) {
