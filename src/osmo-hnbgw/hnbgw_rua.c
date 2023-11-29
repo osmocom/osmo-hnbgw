@@ -179,17 +179,11 @@ static inline const char *rua_procedure_code_name(enum RUA_ProcedureCode val)
 	return get_value_string(rua_procedure_code_names, val);
 }
 
-static struct hnbgw_context_map *find_or_create_context_map(struct hnb_context *hnb, uint32_t rua_ctx_id, bool is_ps,
-							    struct msgb *ranap_msg)
+static struct hnbgw_context_map *create_context_map(struct hnb_context *hnb, uint32_t rua_ctx_id, bool is_ps,
+						    struct msgb *ranap_msg)
 {
 	struct hnbgw_context_map *map;
 	struct hnbgw_cnlink *cnlink;
-
-	map = context_map_find_by_rua_ctx_id(hnb, rua_ctx_id, is_ps);
-	if (map) {
-		/* Already established SCCP link. Continue to use that. */
-		return map;
-	}
 
 	/* Establish a new context map. From the RUA Connect, extract a mobile identity, if any, and select a CN link
 	 * based on an NRI found in the mobile identity, if any. */
@@ -255,12 +249,35 @@ static int rua_to_scu(struct hnb_context *hnb,
 		memcpy(ranap_msg->l2h, data, len);
 	}
 
-	map = find_or_create_context_map(hnb, context_id, is_ps, ranap_msg);
-	if (!map) {
-		LOGHNB(hnb, DRUA, LOGL_ERROR,
-		       "Failed to create context map for %s: rx RUA %s with %u bytes RANAP data\n",
-		       is_ps ? "IuPS" : "IuCS", rua_procedure_code_name(rua_procedure), data ? len : 0);
-		return -1;
+	map = context_map_find_by_rua_ctx_id(hnb, context_id, is_ps);
+
+	switch (rua_procedure) {
+	case RUA_ProcedureCode_id_Connect:
+		/* A Connect message can only be the first message for an unused RUA context */
+		if (map) {
+			/* Already established this RUA context. But then how can it be a Connect message. */
+			LOGHNB(hnb, DRUA, LOGL_ERROR, "rx RUA %s for already active RUA context %u\n",
+			       rua_procedure_code_name(rua_procedure), context_id);
+			return -EINVAL;
+		}
+		/* ok, this RUA context does not exist yet, so create one. */
+		map = create_context_map(hnb, context_id, is_ps, ranap_msg);
+		if (!map) {
+			LOGHNB(hnb, DRUA, LOGL_ERROR,
+			       "Failed to create context map for %s: rx RUA %s with %u bytes RANAP data\n",
+			       is_ps ? "IuPS" : "IuCS", rua_procedure_code_name(rua_procedure), data ? len : 0);
+			return -EINVAL;
+		}
+		break;
+
+	default:
+		/* Any message other than Connect must have a valid RUA context */
+		if (!map) {
+			LOGHNB(hnb, DRUA, LOGL_ERROR, "rx RUA %s for unknown RUA context %u\n",
+			       rua_procedure_code_name(rua_procedure), context_id);
+			return -EINVAL;
+		}
+		break;
 	}
 
 	LOG_MAP(map, DRUA, LOGL_DEBUG, "rx RUA %s with %u bytes RANAP data\n",
