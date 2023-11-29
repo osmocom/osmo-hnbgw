@@ -109,6 +109,11 @@ struct mgw_fsm_priv {
 	ranap_message *ranap_rab_ass_req_message;
 	ranap_message *ranap_rab_ass_resp_message;
 	struct msgb *ranap_rab_ass_resp_msgb;
+	/* IP address contained in ranap_rab_ass_resp_msgb/message: */
+	struct osmo_sockaddr hnb_rtp_addr;
+	/* Number of MDCX transmitted. Used to detect current mgw conn_mode and
+	 * detect modify infinite loops: */
+	unsigned int mdcx_tx_cnt;
 
 	/* MGW context */
 	struct mgcp_client *mgcpc;
@@ -205,8 +210,6 @@ static void mgw_fsm_crcx_hnb(struct osmo_fsm_inst *fi, uint32_t event, void *dat
 	struct mgw_fsm_priv *mgw_fsm_priv = fi->priv;
 	const struct mgcp_conn_peer *mgw_info;
 	struct osmo_sockaddr_str addr_str;
-	struct osmo_sockaddr *addr = &mgw_fsm_priv->ci_hnb_crcx_ack_addr;
-	RANAP_RAB_AssignmentRequestIEs_t *ies;
 	int rc;
 
 	switch (event) {
@@ -224,20 +227,10 @@ static void mgw_fsm_crcx_hnb(struct osmo_fsm_inst *fi, uint32_t event, void *dat
 			addr_str.af = AF_INET6;
 		addr_str.port = mgw_info->port;
 		osmo_strlcpy(addr_str.ip, mgw_info->addr, sizeof(addr_str.ip));
-		rc = osmo_sockaddr_str_to_sockaddr(&addr_str, &addr->u.sas);
+		rc = osmo_sockaddr_str_to_sockaddr(&addr_str, &mgw_fsm_priv->ci_hnb_crcx_ack_addr.u.sas);
 		if (rc < 0) {
 			LOGPFSML(fi, LOGL_ERROR,
 				 "Failed to convert RTP IP-address (%s) and Port (%u) to its binary representation\n",
-				 mgw_info->addr, mgw_info->port);
-			osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
-			return;
-		}
-
-		ies = &mgw_fsm_priv->ranap_rab_ass_req_message->msg.raB_AssignmentRequestIEs;
-		rc = ranap_rab_ass_req_ies_replace_inet_addr(ies, addr, mgw_fsm_priv->rab_id);
-		if (rc < 0) {
-			LOGPFSML(fi, LOGL_ERROR,
-				 "Failed to replace RTP IP-address (%s) and Port (%u) in RAB-AssignmentRequest\n",
 				 mgw_info->addr, mgw_info->port);
 			osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
 			return;
@@ -256,8 +249,16 @@ static void mgw_fsm_assign_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state
 	struct hnbgw_context_map *map = mgw_fsm_priv->map;
 	RANAP_RAB_AssignmentRequestIEs_t *ies;
 	struct msgb *msg;
+	int rc;
 
 	ies = &mgw_fsm_priv->ranap_rab_ass_req_message->msg.raB_AssignmentRequestIEs;
+	rc = ranap_rab_ass_req_ies_replace_inet_addr(ies, &mgw_fsm_priv->ci_hnb_crcx_ack_addr, mgw_fsm_priv->rab_id);
+	if (rc < 0) {
+		LOGPFSML(fi, LOGL_ERROR, "Failed to replace RTP IP-address and Port in RAB-AssignmentRequest\n");
+		osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
+		return;
+	}
+
 	msg = ranap_rab_ass_req_encode(ies);
 	if (!msg) {
 		LOGPFSML(fi, LOGL_ERROR, "failed to re-encode RAB-AssignmentRequest message\n");
@@ -273,9 +274,72 @@ static void mgw_fsm_assign_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state
 
 static void mgw_fsm_assign(struct osmo_fsm_inst *fi, uint32_t event, void *data)
 {
+	struct mgw_fsm_priv *mgw_fsm_priv = fi->priv;
+	struct hnbgw_context_map *map = mgw_fsm_priv->map;
+	RANAP_RAB_AssignmentResponseIEs_t *ies;
+	bool rab_failed_at_hnb;
+	struct osmo_sockaddr addr;
+	enum mgw_fsm_state next_st;
+	int rc;
+
 	switch (event) {
 	case MGW_EV_RAB_ASS_RESP:
-		mgw_fsm_state_chg(fi, MGW_ST_MDCX_HNB);
+		LOGPFSML(fi, LOGL_DEBUG, "RAB-AssignmentResponse received, completing HNB side call-leg on MGW...\n");
+		ies = &mgw_fsm_priv->ranap_rab_ass_resp_message->msg.raB_AssignmentResponseIEs;
+		rc = ranap_rab_ass_resp_ies_extract_inet_addr(&addr, ies, mgw_fsm_priv->rab_id);
+		if (rc < 0) {
+			rab_failed_at_hnb = ranap_rab_ass_resp_ies_check_failure(ies, mgw_fsm_priv->rab_id);
+			if (rab_failed_at_hnb) {
+				struct msgb *msg;
+
+				LOGPFSML(fi, LOGL_ERROR,
+					"The RAB-AssignmentResponse contains a RAB-FailedList, RAB-Assignment (%u) failed.\n",
+					mgw_fsm_priv->rab_id);
+
+				/* Forward the RAB-AssignmentResponse transparently. This will ensure that the MSC is informed
+				* about the problem. */
+				LOGPFSML(fi, LOGL_DEBUG, "forwarding unmodified RAB-AssignmentResponse to MSC\n");
+
+				msg = mgw_fsm_priv->ranap_rab_ass_resp_msgb;
+				mgw_fsm_priv->ranap_rab_ass_resp_msgb = NULL;
+				talloc_steal(OTC_SELECT, msg);
+
+				rc = map_sccp_dispatch(map, MAP_SCCP_EV_TX_DATA_REQUEST, msg);
+				if (rc < 0) {
+					LOGPFSML(fi, LOGL_DEBUG, "failed to forward RAB-AssignmentResponse message\n");
+					osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
+				}
+
+				/* Even though this is a failure situation, we still release normally as the error is located
+				* at the HNB. */
+				osmo_fsm_inst_state_chg(fi, MGW_ST_RELEASE, 0, 0);
+				return;
+			}
+
+			/* The RAB-ID we are dealing with is not on an FailedList and we were unable to parse the response
+			* normally. This is a situation we cannot recover from. */
+			LOGPFSML(fi, LOGL_ERROR, "Failed to extract RTP IP-address and Port from RAB-AssignmentResponse\n");
+			osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
+			return;
+		}
+
+		/* Break infinite loops modifications between HNB and our MGW: */
+		if (mgw_fsm_priv->mdcx_tx_cnt > 3) {
+			osmo_fsm_inst_state_chg(fi, MGW_ST_RELEASE, 0, 0);
+			return;
+		}
+
+		/* Send at least 1 MDCX in order to change conn_mode to SEND_RECV.
+		 * From there on, MDCX is only needed if HNB IP/Port changed: */
+		if (mgw_fsm_priv->mdcx_tx_cnt == 0 ||
+		    osmo_sockaddr_cmp(&addr, &mgw_fsm_priv->hnb_rtp_addr) != 0) {
+			next_st = MGW_ST_MDCX_HNB;
+		} else {
+			LOGPFSML(fi, LOGL_DEBUG, "RAB-AssignmentResponse received with unchanged IuUP attributes, skipping MDCX...\n");
+			next_st = MGW_ST_CRCX_MSC;
+		}
+		mgw_fsm_priv->hnb_rtp_addr = addr;
+		mgw_fsm_state_chg(fi, next_st);
 		return;
 	default:
 		OSMO_ASSERT(false);
@@ -287,13 +351,8 @@ static void mgw_fsm_mdcx_hnb_onenter(struct osmo_fsm_inst *fi, uint32_t prev_sta
 	struct mgw_fsm_priv *mgw_fsm_priv = fi->priv;
 	struct hnbgw_context_map *map = mgw_fsm_priv->map;
 	struct mgcp_conn_peer mgw_info;
-	struct osmo_sockaddr addr;
 	struct osmo_sockaddr_str addr_str;
-	RANAP_RAB_AssignmentResponseIEs_t *ies;
 	int rc;
-	bool rab_failed_at_hnb;
-
-	LOGPFSML(fi, LOGL_DEBUG, "RAB-AssignmentResponse received, completing HNB side call-leg on MGW...\n");
 
 	mgw_info = (struct mgcp_conn_peer) {
 		.call_id = map->rua_ctx_id,
@@ -303,53 +362,17 @@ static void mgw_fsm_mdcx_hnb_onenter(struct osmo_fsm_inst *fi, uint32_t prev_sta
 	mgw_info.codecs[0] = CODEC_IUFP;
 	mgw_info.codecs_len = 1;
 
-	ies = &mgw_fsm_priv->ranap_rab_ass_resp_message->msg.raB_AssignmentResponseIEs;
-	rc = ranap_rab_ass_resp_ies_extract_inet_addr(&addr, ies, mgw_fsm_priv->rab_id);
-	if (rc < 0) {
-		rab_failed_at_hnb = ranap_rab_ass_resp_ies_check_failure(ies, mgw_fsm_priv->rab_id);
-		if (rab_failed_at_hnb) {
-			struct msgb *msg;
-
-			LOGPFSML(fi, LOGL_ERROR,
-				 "The RAB-AssignmentResponse contains a RAB-FailedList, RAB-Assignment (%u) failed.\n",
-				 mgw_fsm_priv->rab_id);
-
-			/* Forward the RAB-AssignmentResponse transparently. This will ensure that the MSC is informed
-			 * about the problem. */
-			LOGPFSML(fi, LOGL_DEBUG, "forwarding unmodified RAB-AssignmentResponse to MSC\n");
-
-			msg = mgw_fsm_priv->ranap_rab_ass_resp_msgb;
-			mgw_fsm_priv->ranap_rab_ass_resp_msgb = NULL;
-			talloc_steal(OTC_SELECT, msg);
-
-			rc = map_sccp_dispatch(map, MAP_SCCP_EV_TX_DATA_REQUEST, msg);
-			if (rc < 0) {
-				LOGPFSML(fi, LOGL_DEBUG, "failed to forward RAB-AssignmentResponse message\n");
-				osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
-			}
-
-			/* Even though this is a failure situation, we still release normally as the error is located
-			 * at the HNB. */
-			osmo_fsm_inst_state_chg(fi, MGW_ST_RELEASE, 0, 0);
-			return;
-		}
-
-		/* The RAB-ID we are dealing with is not on an FailedList and we were unable to parse the response
-		 * normally. This is a situation we cannot recover from. */
-		LOGPFSML(fi, LOGL_ERROR, "Failed to extract RTP IP-address and Port from RAB-AssignmentResponse\n");
-		osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
-		return;
-	}
-
-	rc = osmo_sockaddr_str_from_sockaddr(&addr_str, &addr.u.sas);
+	rc = osmo_sockaddr_str_from_sockaddr(&addr_str, &mgw_fsm_priv->hnb_rtp_addr.u.sas);
 	if (rc < 0) {
 		LOGPFSML(fi, LOGL_ERROR, "Invalid RTP IP-address or Port in RAB-AssignmentResponse\n");
 		osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
 		return;
 	}
+
 	osmo_strlcpy(mgw_info.addr, addr_str.ip, sizeof(mgw_info.addr));
 	mgw_info.port = addr_str.port;
 
+	mgw_fsm_priv->mdcx_tx_cnt++;
 	osmo_mgcpc_ep_ci_request(mgw_fsm_priv->mgcpc_ep_ci_hnb, MGCP_VERB_MDCX, &mgw_info, fi, MGW_EV_MGCP_OK,
 				 MGW_EV_MGCP_FAIL, NULL);
 }
@@ -387,13 +410,14 @@ static void mgw_fsm_mdcx_hnb(struct osmo_fsm_inst *fi, uint32_t event, void *dat
 		}
 
 		if (osmo_sockaddr_cmp(&mgw_fsm_priv->ci_hnb_crcx_ack_addr, &addr) != 0) {
-			/* FIXME: Send RAB Modify Req to HNB. See OS#6127 */
 			char addr_buf[INET6_ADDRSTRLEN + 8];
 			LOGPFSML(fi, LOGL_ERROR, "Local MGW IuUP IP address %s changed to %s during MDCX."
-				 " This is so far unsupported, adapt your osmo-mgw config!\n",
+				 " Modifying RAB on HNB.\n",
 				 osmo_sockaddr_to_str(&mgw_fsm_priv->ci_hnb_crcx_ack_addr),
 				 osmo_sockaddr_to_str_buf(addr_buf, sizeof(addr_buf), &addr));
-			osmo_fsm_inst_state_chg(fi, MGW_ST_FAILURE, 0, 0);
+			/* Modify RAB on the HNB with the new local IuUP address (OS#6127): */
+			mgw_fsm_priv->ci_hnb_crcx_ack_addr = addr;
+			mgw_fsm_state_chg(fi, MGW_ST_ASSIGN);
 			return;
 		}
 
@@ -619,6 +643,7 @@ static const struct osmo_fsm_state mgw_fsm_states[] = {
 		.in_event_mask = S(MGW_EV_RAB_ASS_RESP),
 		.out_state_mask =
 			S(MGW_ST_MDCX_HNB) |
+			S(MGW_ST_CRCX_MSC) |
 			S(MGW_ST_FAILURE) |
 			S(MGW_ST_RELEASE),
 	},
@@ -629,6 +654,7 @@ static const struct osmo_fsm_state mgw_fsm_states[] = {
 		.in_event_mask =
 			S(MGW_EV_MGCP_OK),
 		.out_state_mask =
+			S(MGW_ST_ASSIGN) |
 			S(MGW_ST_CRCX_MSC) |
 			S(MGW_ST_FAILURE) |
 			S(MGW_ST_RELEASE),
