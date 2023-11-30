@@ -6,6 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 Restart=always
+LimitNOFILE=65536
 StateDirectory=osmocom
 WorkingDirectory=%S/osmocom
 ExecStart=/usr/bin/osmo-hnbgw -c /etc/osmocom/osmo-hnbgw.cfg

@@ -76,6 +76,23 @@ To run multiple OsmoHNBGW instances on the same SCCP routing, each HNBGW has to
 configure a distinct point-code, see <<configure_iucs_iups>>.
 
 
+=== Configure limits
+
+When connecting hundreds of HNB to OsmoHNBGW, it may be necessary to adjust the
+operating system's limit on open file descriptors for the osmo-hnbgw process. A
+typical default limit imposed by operating systems is 1024; this would be
+exceeded by, for example, about 1024 HNB on Iuh, sockets for other interfaces
+not considered yet.
+
+It should be ok to set an OS limit on open file descriptors as high as 65536
+for osmo-hnbgw, which practically rules out failure from running out of file
+descriptors anywhere (<50,000 HNB).
+
+When using systemd, the file descriptor limit may be adjusted in the service
+file by the `LimitNOFILE` setting ("Number of Open FILE descriptors").
+OsmoHNBGW ships a systemd service file with a high LimitNOFILE setting.
+
+
 === Configuring Primary Links
 
 [[configure_iucs_iups]]
