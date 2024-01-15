@@ -33,8 +33,10 @@ OsmoHNBGW# ### IuCS on instance 0 with local-PC = 1.1.1, IuPS on instance 1 with
 OsmoHNBGW# show cnlink
 IuCS: OsmoHNBGW:RI=SSN_PC,PC=1.1.1,SSN=RANAP <-> my-msc=RI=SSN_PC,PC=1.2.3,SSN=RANAP
       SS7 route: pc=0=0.0.0 mask=0x0=0.0.0 via AS as-clnt-msc-0 proto=m3ua ASP asp-clnt-msc-0
+      RANAP state: DISCONNECTED
 IuPS: OsmoHNBGW:RI=SSN_PC,PC=2.2.2,SSN=RANAP <-> my-sgsn=RI=SSN_PC,PC=2.4.2,SSN=RANAP
       SS7 route: pc=0=0.0.0 mask=0x0=0.0.0 via AS as-clnt-sgsn-0 proto=m3ua ASP asp-clnt-sgsn-0
+      RANAP state: DISCONNECTED
 
 OsmoHNBGW# show running-config
 ...

@@ -149,6 +149,7 @@ static void _show_cnlink(struct vty *vty, struct hnbgw_cnlink *cnlink)
 
 	rt = osmo_ss7_route_lookup(ss7, cnlink->remote_addr.pc);
 	vty_out(vty, "      SS7 route: %s%s", osmo_ss7_route_name(rt, true), VTY_NEWLINE);
+	vty_out(vty, "      RANAP state: %s%s", osmo_fsm_inst_state_name(cnlink->fi), VTY_NEWLINE);
 }
 
 DEFUN(show_cnlink, show_cnlink_cmd, "show cnlink",

@@ -304,7 +304,7 @@ static int cnlink_fsm_timer_cb(struct osmo_fsm_inst *fi)
 
 static struct osmo_fsm_state cnlink_fsm_states[] = {
 	[CNLINK_ST_DISC] = {
-		     .name = "DISC",
+		     .name = "DISCONNECTED",
 		     .in_event_mask = 0
 			     | S(CNLINK_EV_RX_RESET)
 			     | S(CNLINK_EV_RX_RESET_ACK)
@@ -317,7 +317,7 @@ static struct osmo_fsm_state cnlink_fsm_states[] = {
 		     .action = cnlink_disc_action,
 		     },
 	[CNLINK_ST_CONN] = {
-		     .name = "CONN",
+		     .name = "CONNECTED",
 		     .in_event_mask = 0
 			     | S(CNLINK_EV_RX_RESET)
 			     | S(CNLINK_EV_RX_RESET_ACK)
