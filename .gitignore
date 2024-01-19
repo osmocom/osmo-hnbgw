@@ -2,6 +2,7 @@ hnbgwdebian/*.log
 *.o
 *.lo
 *.a
+*.la
 .deps
 Makefile
 Makefile.in
@@ -67,6 +68,7 @@ doc/manuals/*__*.png
 doc/manuals/*.check
 doc/manuals/generated/
 doc/manuals/osmohnbgw-usermanual.xml
+doc/manuals/vty/hnbgw_vty_reference.xml
 doc/manuals/common
 doc/manuals/build
 
