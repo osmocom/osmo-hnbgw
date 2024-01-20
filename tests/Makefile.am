@@ -26,6 +26,7 @@ EXTRA_DIST = \
 	$(TESTSUITE) \
 	osmo-hnbgw-vty-test.cfg \
 	$(srcdir)/*.vty \
+	$(srcdir)/*.vty.with_pfcp \
 	$(srcdir)/*.ctrl \
 	$(srcdir)/config/*.cfg \
 	$(srcdir)/config/*.vty \
@@ -50,7 +51,11 @@ python-tests:
 endif
 
 # Run a specific test with: 'make vty-test VTY_TEST=osmo-hnbgw.vty'
+if ENABLE_PFCP
+VTY_TEST ?= *.vty*
+else
 VTY_TEST ?= *.vty
+endif
 
 # To update the VTY script from current application behavior,
 # pass -u to vty_script_runner.py by doing:

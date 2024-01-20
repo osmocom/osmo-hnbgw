@@ -1,0 +1,55 @@
+OsmoHNBGW> enable
+OsmoHNBGW# configure terminal
+
+OsmoHNBGW(config)# hnbgw
+OsmoHNBGW(config-hnbgw)# list
+...
+  pfcp
+...
+OsmoHNBGW(config-hnbgw)# pfcp?
+  pfcp  Configure PFCP for GTP tunnel mapping
+
+OsmoHNBGW(config-hnbgw)# pfcp
+OsmoHNBGW(config-hnbgw-pfcp)# list
+...
+  local-addr IP_ADDR
+  local-port <1-65535>
+  remote-addr IP_ADDR
+
+OsmoHNBGW(config-hnbgw-pfcp)# local-addr?
+  local-addr  Local address for PFCP
+OsmoHNBGW(config-hnbgw-pfcp)# local-addr ?
+  IP_ADDR  IP address
+
+OsmoHNBGW(config-hnbgw-pfcp)# local-port?
+  local-port  Local port for PFCP
+OsmoHNBGW(config-hnbgw-pfcp)# local-port ?
+  <1-65535>  UDP port
+
+OsmoHNBGW(config-hnbgw-pfcp)# remote-addr?
+  remote-addr  Remote UPF's listen IP address; where to send PFCP requests
+OsmoHNBGW(config-hnbgw-pfcp)# remote-addr ?
+  IP_ADDR  IP address
+
+
+OsmoHNBGW(config-hnbgw-pfcp)# show running-config
+...
+hnbgw
+...
+ pfcp
+msc 0
+...
+
+OsmoHNBGW(config-hnbgw-pfcp)# remote-addr 127.0.0.2
+OsmoHNBGW(config-hnbgw-pfcp)# local-addr 127.0.0.1
+OsmoHNBGW(config-hnbgw-pfcp)# local-port 8805
+
+OsmoHNBGW(config-hnbgw-pfcp)# show running-config
+...
+hnbgw
+...
+ pfcp
+  local-addr 127.0.0.1
+  remote-addr 127.0.0.2
+msc 0
+...
