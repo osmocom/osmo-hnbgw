@@ -945,6 +945,8 @@ static int config_write_hnbgw_pfcp(struct vty *vty)
 	vty_out(vty, " pfcp%s", VTY_NEWLINE);
 	if (g_hnbgw->config.pfcp.local_addr)
 		vty_out(vty, "  local-addr %s%s", g_hnbgw->config.pfcp.local_addr, VTY_NEWLINE);
+	if (g_hnbgw->config.pfcp.local_port)
+		vty_out(vty, "  local-port %u%s", g_hnbgw->config.pfcp.local_port, VTY_NEWLINE);
 	if (g_hnbgw->config.pfcp.remote_addr)
 		vty_out(vty, "  remote-addr %s%s", g_hnbgw->config.pfcp.remote_addr, VTY_NEWLINE);
 

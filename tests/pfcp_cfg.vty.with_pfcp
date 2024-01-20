@@ -50,6 +50,7 @@ hnbgw
 ...
  pfcp
   local-addr 127.0.0.1
+  local-port 8805
   remote-addr 127.0.0.2
 msc 0
 ...
