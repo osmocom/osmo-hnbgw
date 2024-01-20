@@ -519,7 +519,8 @@ static int on_pfcp_mod_resp(struct osmo_pfcp_msg *req, struct osmo_pfcp_msg *rx_
 static void ps_rab_fsm_wait_pfcp_mod_resp_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state)
 {
 	/* We have been given the Access side's remote F-TEID, now in rab->access.remote, and we need to tell the UPF
-	 * about it. */
+	 * about it. This affects the Core to Access direction: now we know where to forward payloads coming from Core.
+	 */
 	struct ps_rab *rab = fi->priv;
 	struct osmo_pfcp_msg *m;
 
@@ -531,7 +532,7 @@ static void ps_rab_fsm_wait_pfcp_mod_resp_onenter(struct osmo_fsm_inst *fi, uint
 
 	m = ps_rab_new_pfcp_msg_req(rab, OSMO_PFCP_MSGT_SESSION_MOD_REQ);
 
-	if (rab_to_pfcp_session_mod_req_upd_far(&m->ies.session_mod_req, ID_ACCESS_TO_CORE, &rab->access.remote)) {
+	if (rab_to_pfcp_session_mod_req_upd_far(&m->ies.session_mod_req, ID_CORE_TO_ACCESS, &rab->access.remote)) {
 		LOG_PS_RAB(rab, LOGL_ERROR, "error composing Update FAR IE in PFCP msg\n");
 		ps_rab_failure(rab);
 		return;
