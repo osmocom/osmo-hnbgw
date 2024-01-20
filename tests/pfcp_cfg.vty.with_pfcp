@@ -15,6 +15,7 @@ OsmoHNBGW(config-hnbgw-pfcp)# list
   local-addr IP_ADDR
   local-port <1-65535>
   remote-addr IP_ADDR
+  netinst (access|core) NAME
 
 OsmoHNBGW(config-hnbgw-pfcp)# local-addr?
   local-addr  Local address for PFCP
@@ -31,6 +32,15 @@ OsmoHNBGW(config-hnbgw-pfcp)# remote-addr?
 OsmoHNBGW(config-hnbgw-pfcp)# remote-addr ?
   IP_ADDR  IP address
 
+OsmoHNBGW(config-hnbgw-pfcp)# netinst?
+  netinst  Add a Network Instance IE to all outgoing PFCP rule sets, so that the UPF may choose the correct interface to open GTP tunnels on.
+OsmoHNBGW(config-hnbgw-pfcp)# netinst ?
+  access  Set the Network Instance name for the access side (towards RAN).
+  core    Set the Network Instance name for the core side.
+
+OsmoHNBGW(config-hnbgw-pfcp)# netinst access ?
+  NAME  The Network Instance name as a dotted string, typically a domain name like 'ran23.example.com'. A matching osmo-upf.cfg could be: 'netinst' / 'add ran23.example.com 10.0.0.23'. See 3GPP TS 29.244 8.2.4.
+
 
 OsmoHNBGW(config-hnbgw-pfcp)# show running-config
 ...
@@ -43,6 +53,8 @@ msc 0
 OsmoHNBGW(config-hnbgw-pfcp)# remote-addr 127.0.0.2
 OsmoHNBGW(config-hnbgw-pfcp)# local-addr 127.0.0.1
 OsmoHNBGW(config-hnbgw-pfcp)# local-port 8805
+OsmoHNBGW(config-hnbgw-pfcp)# netinst access ran.net
+OsmoHNBGW(config-hnbgw-pfcp)# netinst core core.net
 
 OsmoHNBGW(config-hnbgw-pfcp)# show running-config
 ...
@@ -52,5 +64,7 @@ hnbgw
   local-addr 127.0.0.1
   local-port 8805
   remote-addr 127.0.0.2
+  netinst access ran.net
+  netinst core core.net
 msc 0
 ...

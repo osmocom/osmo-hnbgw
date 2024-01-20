@@ -265,6 +265,10 @@ struct hnbgw {
 			uint16_t local_port;
 			char *remote_addr;
 			uint16_t remote_port;
+			struct {
+				char *access;
+				char *core;
+			} netinst;
 		} pfcp;
 	} config;
 	/*! SCTP listen socket for incoming connections */

@@ -842,6 +842,27 @@ DEFUN(cfg_pfcp_local_port, cfg_pfcp_local_port_cmd,
 	return CMD_SUCCESS;
 }
 
+DEFUN(cfg_pfcp_netinst, cfg_pfcp_netinst_cmd,
+      "netinst (access|core) NAME",
+      "Add a Network Instance IE to all outgoing PFCP rule sets,"
+      " so that the UPF may choose the correct interface to open GTP tunnels on.\n"
+      "Set the Network Instance name for the access side (towards RAN).\n"
+      "Set the Network Instance name for the core side.\n"
+      "The Network Instance name as a dotted string, typically a domain name like 'ran23.example.com'."
+      " A matching osmo-upf.cfg could be: 'netinst' / 'add ran23.example.com 10.0.0.23'."
+      " See 3GPP TS 29.244 8.2.4.\n")
+{
+	const char *access_or_core = argv[0];
+	char **str;
+	if (!strcmp(access_or_core, "access"))
+		str = &g_hnbgw->config.pfcp.netinst.access;
+	else
+		str = &g_hnbgw->config.pfcp.netinst.core;
+	osmo_talloc_replace_string(g_hnbgw, str, argv[1]);
+	LOGP(DLPFCP, LOGL_NOTICE, "cfg: pfcp netinst %s %s\n", access_or_core, *str);
+	return CMD_SUCCESS;
+}
+
 #endif /* ENABLE_PFCP */
 
 DEFUN_DEPRECATED(cfg_hnbgw_timer_ps, cfg_hnbgw_timer_ps_cmd,
@@ -949,6 +970,12 @@ static int config_write_hnbgw_pfcp(struct vty *vty)
 		vty_out(vty, "  local-port %u%s", g_hnbgw->config.pfcp.local_port, VTY_NEWLINE);
 	if (g_hnbgw->config.pfcp.remote_addr)
 		vty_out(vty, "  remote-addr %s%s", g_hnbgw->config.pfcp.remote_addr, VTY_NEWLINE);
+	if (g_hnbgw->config.pfcp.netinst.access
+	    && *g_hnbgw->config.pfcp.netinst.access)
+		vty_out(vty, "  netinst access %s%s", g_hnbgw->config.pfcp.netinst.access, VTY_NEWLINE);
+	if (g_hnbgw->config.pfcp.netinst.core
+	    && *g_hnbgw->config.pfcp.netinst.core)
+		vty_out(vty, "  netinst core %s%s", g_hnbgw->config.pfcp.netinst.core, VTY_NEWLINE);
 
 	return CMD_SUCCESS;
 }
@@ -1019,6 +1046,7 @@ void hnbgw_vty_init(void)
 	install_element(PFCP_NODE, &cfg_pfcp_local_addr_cmd);
 	install_element(PFCP_NODE, &cfg_pfcp_local_port_cmd);
 	install_element(PFCP_NODE, &cfg_pfcp_remote_addr_cmd);
+	install_element(PFCP_NODE, &cfg_pfcp_netinst_cmd);
 #endif
 
 	osmo_tdef_vty_groups_init(HNBGW_NODE, hnbgw_tdef_group);

@@ -199,6 +199,13 @@ struct ps_rab *ps_rab_start(struct hnbgw_context_map *map, uint8_t rab_id,
 	return rab;
 }
 
+#define set_netinst(NETINST_MEMBER, STRING) do { \
+		if ((STRING) && *(STRING)) { \
+			NETINST_MEMBER##_present = true; \
+			OSMO_STRLCPY_ARRAY(NETINST_MEMBER.str, STRING); \
+		} \
+	} while (0)
+
 /* Add two PDR and two FAR to the PFCP Session Establishment Request message, according to the information found in rab.
  */
 static int rab_to_pfcp_session_est_req(struct osmo_pfcp_msg_session_est_req *ser, struct ps_rab *rab)
@@ -234,6 +241,7 @@ static int rab_to_pfcp_session_est_req(struct osmo_pfcp_msg_session_est_req *ser
 		.far_id_present = true,
 		.far_id = ID_CORE_TO_ACCESS,
 	};
+	set_netinst(ser->create_pdr[ser->create_pdr_count].pdi.network_inst, g_hnbgw->config.pfcp.netinst.core);
 	ser->create_pdr_count++;
 
 	ser->create_far[ser->create_far_count] = (struct osmo_pfcp_ie_create_far){
@@ -268,6 +276,7 @@ static int rab_to_pfcp_session_est_req(struct osmo_pfcp_msg_session_est_req *ser
 		.far_id_present = true,
 		.far_id = ID_ACCESS_TO_CORE,
 	};
+	set_netinst(ser->create_pdr[ser->create_pdr_count].pdi.network_inst, g_hnbgw->config.pfcp.netinst.access);
 	ser->create_pdr_count++;
 
 	ser->create_far[ser->create_far_count] = (struct osmo_pfcp_ie_create_far){
@@ -288,6 +297,7 @@ static int rab_to_pfcp_session_est_req(struct osmo_pfcp_msg_session_est_req *ser
 			   OSMO_PFCP_OUTER_HEADER_CREATION_GTP_U_UDP_IPV4, true);
 	osmo_pfcp_bits_set(ser->create_far[ser->create_far_count].apply_action.bits,
 			   OSMO_PFCP_APPLY_ACTION_FORW, true);
+	set_netinst(ser->create_far[ser->create_far_count].forw_params.network_inst, g_hnbgw->config.pfcp.netinst.core);
 	ser->create_far_count++;
 
 	return 0;
@@ -484,7 +494,8 @@ static void ps_rab_fsm_wait_access_remote_f_teid(struct osmo_fsm_inst *fi, uint3
 
 /* Add an Update FAR to the PFCP Session Modification Request message, updating a remote F-TEID. */
 static int rab_to_pfcp_session_mod_req_upd_far(struct osmo_pfcp_msg_session_mod_req *smr,
-					       uint32_t far_id, const struct addr_teid *remote_f_teid)
+					       uint32_t far_id, const struct addr_teid *remote_f_teid,
+					       const char *far_netinst)
 {
 	if (smr->upd_far_count + 1 > ARRAY_SIZE(smr->upd_far))
 		return -1;
@@ -509,6 +520,7 @@ static int rab_to_pfcp_session_mod_req_upd_far(struct osmo_pfcp_msg_session_mod_
 			   OSMO_PFCP_APPLY_ACTION_FORW, true);
 	osmo_pfcp_bits_set(smr->upd_far[smr->upd_far_count].upd_forw_params.outer_header_creation.desc_bits,
 			   OSMO_PFCP_OUTER_HEADER_CREATION_GTP_U_UDP_IPV4, true);
+	set_netinst(smr->upd_far[smr->upd_far_count].upd_forw_params.network_inst, far_netinst);
 	smr->upd_far_count++;
 
 	return 0;
@@ -532,7 +544,8 @@ static void ps_rab_fsm_wait_pfcp_mod_resp_onenter(struct osmo_fsm_inst *fi, uint
 
 	m = ps_rab_new_pfcp_msg_req(rab, OSMO_PFCP_MSGT_SESSION_MOD_REQ);
 
-	if (rab_to_pfcp_session_mod_req_upd_far(&m->ies.session_mod_req, ID_CORE_TO_ACCESS, &rab->access.remote)) {
+	if (rab_to_pfcp_session_mod_req_upd_far(&m->ies.session_mod_req, ID_CORE_TO_ACCESS, &rab->access.remote,
+						g_hnbgw->config.pfcp.netinst.access)) {
 		LOG_PS_RAB(rab, LOGL_ERROR, "error composing Update FAR IE in PFCP msg\n");
 		ps_rab_failure(rab);
 		return;
