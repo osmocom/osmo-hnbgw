@@ -836,7 +836,7 @@ DEFUN(cfg_pfcp_local_addr, cfg_pfcp_local_addr_cmd,
 DEFUN(cfg_pfcp_local_port, cfg_pfcp_local_port_cmd,
       "local-port <1-65535>",
       "Local port for PFCP\n"
-      "IP port\n")
+      "UDP port\n")
 {
 	g_hnbgw->config.pfcp.local_port = atoi(argv[0]);
 	return CMD_SUCCESS;
