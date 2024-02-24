@@ -18,6 +18,8 @@
 #include <osmocom/mgcp_client/mgcp_client.h>
 #include <osmocom/mgcp_client/mgcp_client_pool.h>
 
+#define STORE_UPTIME_INTERVAL	10 /* seconds */
+
 enum {
 	DMAIN,
 	DHNBAP,
@@ -69,6 +71,14 @@ enum hnb_ctrl_node {
 #define IUH_PPI_PUA		55
 
 #define IUH_MSGB_SIZE	2048
+
+enum hnb_rate_ctr {
+	HNB_CTR_IUH_ESTABLISHED,
+};
+
+enum hnb_stat {
+	HNB_STAT_UPTIME_SECONDS,
+};
 
 struct umts_cell_id {
 	uint16_t mcc;	/*!< Mobile Country Code (0-999) */
@@ -253,9 +263,15 @@ struct hnb_context {
 	/* linked list of hnbgw_context_map */
 	struct llist_head map_list;
 
-	/*! pointer to the associated hnb persistent state */
+	/*! pointer to the associated hnb persistent state. Always present after HNB-Register */
 	struct hnb_persistent *persistent;
 };
+
+#define HNBP_CTR(hnbp, x) rate_ctr_group_get_ctr((hnbp)->ctrs, x)
+#define HNBP_CTR_INC(hnbp, x) rate_ctr_inc(HNBP_CTR(hnbp, x))
+
+#define HNBP_STAT(hbp, x) osmo_stat_item_group_get_item((hnbp)->statg, x)
+#define HNBP_STAT_SET(hnbp, x, val) osmo_stat_item_set(HNBP_STAT(hnbp, x), val)
 
 /* persistent data for one HNB.  This continues to exist even as conn / hnb_context is deleted on disconnect */
 struct hnb_persistent {
@@ -268,6 +284,12 @@ struct hnb_persistent {
 	struct umts_cell_id id;
 	/*! stringified version of the cell identiy above (for printing/naming) */
 	const char *id_str;
+
+	/*! copied from HNB-Identity-Info IE */
+	time_t updowntime;
+
+	struct rate_ctr_group *ctrs;
+	struct osmo_stat_item_group *statg;
 };
 
 struct ue_context {
@@ -313,6 +335,7 @@ struct hnbgw {
 	struct llist_head hnb_list;
 	/* list of struct hnb_persistent */
 	struct llist_head hnb_persistent_list;
+	struct osmo_timer_list store_uptime_timer;
 	/* list of struct ue_context */
 	struct llist_head ue_list;
 	/* next availble UE Context ID */

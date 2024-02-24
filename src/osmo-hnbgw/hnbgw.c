@@ -22,6 +22,10 @@
 #include <netinet/in.h>
 #include <netinet/sctp.h>
 
+#include <osmocom/core/stats.h>
+#include <osmocom/core/rate_ctr.h>
+#include <osmocom/core/stat_item.h>
+
 #include <osmocom/vty/vty.h>
 
 #include <osmocom/gsm/gsm23236.h>
@@ -270,8 +274,13 @@ void hnb_context_release_ue_state(struct hnb_context *ctx)
 void hnb_context_release(struct hnb_context *ctx)
 {
 	struct hnbgw_context_map *map;
+	struct timespec tp;
+	int rc;
 
 	LOGHNB(ctx, DMAIN, LOGL_INFO, "Releasing HNB context\n");
+
+	rc = osmo_clock_gettime(CLOCK_MONOTONIC, &tp);
+	ctx->persistent->updowntime = (rc < 0) ? 0 : tp.tv_sec;
 
 	/* remove from the list of HNB contexts */
 	llist_del(&ctx->list);
@@ -305,6 +314,31 @@ void hnb_context_release(struct hnb_context *ctx)
  * HNB Persistent Data
  ***********************************************************************/
 
+const struct rate_ctr_desc hnb_ctr_description[] = {
+	[HNB_CTR_IUH_ESTABLISHED] = {
+		"iuh:established", "Number of times Iuh link was established" },
+};
+
+const struct rate_ctr_group_desc hnb_ctrg_desc = {
+	"hnb",
+	"hNodeB",
+	OSMO_STATS_CLASS_GLOBAL,
+	ARRAY_SIZE(hnb_ctr_description),
+	hnb_ctr_description,
+};
+
+const struct osmo_stat_item_desc hnb_stat_desc[] = {
+	[HNB_STAT_UPTIME_SECONDS] = { "uptime:seconds", "Seconds of uptime", "s", 60, 0 },
+};
+
+const struct osmo_stat_item_group_desc hnb_statg_desc = {
+	.group_name_prefix = "hnb",
+	.group_description = "hNodeB",
+	.class_id = OSMO_STATS_CLASS_GLOBAL,
+	.num_items = ARRAY_SIZE(hnb_stat_desc),
+	.item_desc = hnb_stat_desc,
+};
+
 struct hnb_persistent *hnb_persistent_alloc(const struct umts_cell_id *id)
 {
 	struct hnb_persistent *hnbp = talloc_zero(g_hnbgw, struct hnb_persistent);
@@ -313,10 +347,24 @@ struct hnb_persistent *hnb_persistent_alloc(const struct umts_cell_id *id)
 
 	hnbp->id = *id;
 	hnbp->id_str = talloc_strdup(hnbp, umts_cell_id_name(id));
+	hnbp->ctrs = rate_ctr_group_alloc(hnbp, &hnb_ctrg_desc, 0);
+	if (!hnbp->ctrs)
+		goto out_free;
+	rate_ctr_group_set_name(hnbp->ctrs, hnbp->id_str);
+	hnbp->statg = osmo_stat_item_group_alloc(hnbp, &hnb_statg_desc, 0);
+	if (!hnbp->statg)
+		goto out_free_ctrs;
+	osmo_stat_item_group_set_name(hnbp->statg, hnbp->id_str);
 
 	llist_add(&hnbp->list, &g_hnbgw->hnb_persistent_list);
 
 	return hnbp;
+
+out_free_ctrs:
+	rate_ctr_group_free(hnbp->ctrs);
+out_free:
+	talloc_free(hnbp);
+	return NULL;
 }
 
 struct hnb_persistent *hnb_persistent_find_by_id(const struct umts_cell_id *id)
@@ -336,6 +384,32 @@ void hnb_persistent_free(struct hnb_persistent *hnbp)
 	/* FIXME: check if in use? */
 	llist_del(&hnbp->list);
 	talloc_free(hnbp);
+}
+
+/* return the amount of time the HNB is up (hnbp->ctx != NULL) or down (hnbp->ctx == NULL) */
+static unsigned long long hnbp_get_updowntime(const struct hnb_persistent *hnbp)
+{
+	struct timespec tp;
+
+	if (!hnbp->updowntime)
+		return 0;
+
+	if (osmo_clock_gettime(CLOCK_MONOTONIC, &tp) != 0)
+		return 0;
+
+	return difftime(tp.tv_sec, hnbp->updowntime);
+}
+
+/* timer call-back: Update the HNB_STAT_UPTIME_SECONDS stat item of each hnb_persistent */
+static void hnbgw_store_hnb_uptime(void *data)
+{
+	struct hnb_persistent *hnbp;
+
+	llist_for_each_entry(hnbp, &g_hnbgw->hnb_persistent_list, list) {
+		HNBP_STAT_SET(hnbp, HNB_STAT_UPTIME_SECONDS, hnbp->ctx != NULL ? hnbp_get_updowntime(hnbp) : 0);
+	}
+
+	osmo_timer_schedule(&g_hnbgw->store_uptime_timer, STORE_UPTIME_INTERVAL, 0);
 }
 
 /***********************************************************************
@@ -584,7 +658,7 @@ struct msgb *hnbgw_ranap_msg_alloc(const char *name)
 
 #define HNBGW_COPYRIGHT \
 	"OsmoHNBGW - Osmocom Home Node B Gateway implementation\r\n" \
-	"Copyright (C) 2016-2023 by sysmocom s.f.m.c. GmbH <info@sysmocom.de>\r\n" \
+	"Copyright (C) 2016-2024 by sysmocom s.f.m.c. GmbH <info@sysmocom.de>\r\n" \
 	"Contributions by Daniel Willmann, Harald Welte, Neels Hofmeyr\r\n" \
 	"License AGPLv3+: GNU AGPL version 3 or later <http://gnu.org/licenses/agpl-3.0.html>\r\n" \
 	"This is free software: you are free to change and redistribute it.\r\n" \
@@ -696,4 +770,7 @@ void g_hnbgw_alloc(void *ctx)
 		.ctrs = rate_ctr_group_alloc(g_hnbgw, &iups_ctrg_desc, 0),
 	};
 	INIT_LLIST_HEAD(&g_hnbgw->sccp.cnpool_iups.cnlinks);
+
+	osmo_timer_setup(&g_hnbgw->store_uptime_timer, hnbgw_store_hnb_uptime, g_hnbgw);
+	osmo_timer_schedule(&g_hnbgw->store_uptime_timer, STORE_UPTIME_INTERVAL, 0);
 }

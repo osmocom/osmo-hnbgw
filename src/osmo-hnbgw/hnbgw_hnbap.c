@@ -412,6 +412,7 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	struct osmo_fd *ofd = osmo_stream_srv_get_ofd(ctx->conn);
 	char identity_str[256];
 	const char *cell_id_str;
+	struct timespec tp;
 
 	rc = hnbap_decode_hnbregisterrequesties(&ies, in);
 	if (rc < 0) {
@@ -443,6 +444,9 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	ctx->persistent = hnbp;
 	hnbp->ctx = ctx;
 
+	HNBP_CTR_INC(hnbp, HNB_CTR_IUH_ESTABLISHED);
+	rc = osmo_clock_gettime(CLOCK_MONOTONIC, &tp);
+	hnbp->updowntime = (rc < 0) ? 0 : tp.tv_sec;
 
 	llist_for_each_entry_safe(hnb, tmp, &g_hnbgw->hnb_list, list) {
 		if (hnb->hnb_registered && ctx != hnb && memcmp(&ctx->id, &hnb->id, sizeof(ctx->id)) == 0) {
