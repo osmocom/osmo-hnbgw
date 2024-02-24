@@ -47,85 +47,10 @@ const struct value_string ranap_domain_names[] = {
 	{}
 };
 
-void g_hnbgw_alloc(void *ctx)
-{
-	OSMO_ASSERT(!g_hnbgw);
-	g_hnbgw = talloc_zero(ctx, struct hnbgw);
 
-	/* strdup so we can easily talloc_free in the VTY code */
-	g_hnbgw->config.iuh_local_ip = talloc_strdup(g_hnbgw, HNBGW_LOCAL_IP_DEFAULT);
-	g_hnbgw->config.iuh_local_port = IUH_DEFAULT_SCTP_PORT;
-	g_hnbgw->config.log_prefix_hnb_id = true;
-
-	/* Set zero PLMN to detect a missing PLMN when transmitting RESET */
-	g_hnbgw->config.plmn = (struct osmo_plmn_id){ 0, 0, false };
-
-	g_hnbgw->next_ue_ctx_id = 23;
-	INIT_LLIST_HEAD(&g_hnbgw->hnb_list);
-	INIT_LLIST_HEAD(&g_hnbgw->ue_list);
-	INIT_LLIST_HEAD(&g_hnbgw->sccp.users);
-
-	g_hnbgw->mgw_pool = mgcp_client_pool_alloc(g_hnbgw);
-	g_hnbgw->config.mgcp_client = mgcp_client_conf_alloc(g_hnbgw);
-
-#if ENABLE_PFCP
-	g_hnbgw->config.pfcp.remote_port = OSMO_PFCP_PORT;
-#endif
-
-	g_hnbgw->sccp.cnpool_iucs = (struct hnbgw_cnpool){
-		.domain = DOMAIN_CS,
-		.pool_name = "iucs",
-		.peer_name = "msc",
-		.default_remote_pc = DEFAULT_PC_MSC,
-		.vty = {
-			.nri_bitlen = OSMO_NRI_BITLEN_DEFAULT,
-			.null_nri_ranges = osmo_nri_ranges_alloc(g_hnbgw),
-		},
-		.cnlink_ctrg_desc = &msc_ctrg_desc,
-
-		.ctrs = rate_ctr_group_alloc(g_hnbgw, &iucs_ctrg_desc, 0),
-	};
-	INIT_LLIST_HEAD(&g_hnbgw->sccp.cnpool_iucs.cnlinks);
-
-	g_hnbgw->sccp.cnpool_iups = (struct hnbgw_cnpool){
-		.domain = DOMAIN_PS,
-		.pool_name = "iups",
-		.peer_name = "sgsn",
-		.default_remote_pc = DEFAULT_PC_SGSN,
-		.vty = {
-			.nri_bitlen = OSMO_NRI_BITLEN_DEFAULT,
-			.null_nri_ranges = osmo_nri_ranges_alloc(g_hnbgw),
-		},
-		.cnlink_ctrg_desc = &sgsn_ctrg_desc,
-
-		.ctrs = rate_ctr_group_alloc(g_hnbgw, &iups_ctrg_desc, 0),
-	};
-	INIT_LLIST_HEAD(&g_hnbgw->sccp.cnpool_iups.cnlinks);
-}
-
-static struct hnb_context *hnb_context_by_id(uint32_t cid)
-{
-	struct hnb_context *hnb;
-
-	llist_for_each_entry(hnb, &g_hnbgw->hnb_list, list) {
-		if (hnb->id.cid == cid)
-			return hnb;
-	}
-
-	return NULL;
-}
-
-struct hnb_context *hnb_context_by_identity_info(const char *identity_info)
-{
-	struct hnb_context *hnb;
-
-	llist_for_each_entry(hnb, &g_hnbgw->hnb_list, list) {
-		if (strcmp(identity_info, hnb->identity_info) == 0)
-			return hnb;
-	}
-
-	return NULL;
-}
+/***********************************************************************
+ * UE Context
+ ***********************************************************************/
 
 struct ue_context *ue_context_by_id(uint32_t id)
 {
@@ -211,6 +136,141 @@ void ue_context_free(struct ue_context *ue)
 	llist_del(&ue->list);
 	talloc_free(ue);
 }
+
+
+/***********************************************************************
+ * HNB Context
+ ***********************************************************************/
+
+/* look-up HNB context by id. Used from CTRL */
+static struct hnb_context *hnb_context_by_id(uint32_t cid)
+{
+	struct hnb_context *hnb;
+
+	llist_for_each_entry(hnb, &g_hnbgw->hnb_list, list) {
+		if (hnb->id.cid == cid)
+			return hnb;
+	}
+
+	return NULL;
+}
+
+/* look-up HNB context by identity_info. Used from VTY */
+struct hnb_context *hnb_context_by_identity_info(const char *identity_info)
+{
+	struct hnb_context *hnb;
+
+	llist_for_each_entry(hnb, &g_hnbgw->hnb_list, list) {
+		if (strcmp(identity_info, hnb->identity_info) == 0)
+			return hnb;
+	}
+
+	return NULL;
+}
+
+static int hnb_read_cb(struct osmo_stream_srv *conn);
+static int hnb_closed_cb(struct osmo_stream_srv *conn);
+
+static struct hnb_context *hnb_context_alloc(struct osmo_stream_srv_link *link, int new_fd)
+{
+	struct hnb_context *ctx;
+
+	ctx = talloc_zero(g_hnbgw, struct hnb_context);
+	if (!ctx)
+		return NULL;
+	INIT_LLIST_HEAD(&ctx->map_list);
+
+	ctx->conn = osmo_stream_srv_create(g_hnbgw, link, new_fd, hnb_read_cb, hnb_closed_cb, ctx);
+	if (!ctx->conn) {
+		LOGP(DMAIN, LOGL_INFO, "error while creating connection\n");
+		talloc_free(ctx);
+		return NULL;
+	}
+
+	llist_add_tail(&ctx->list, &g_hnbgw->hnb_list);
+	return ctx;
+}
+
+const char *umts_cell_id_name(const struct umts_cell_id *ucid)
+{
+	return talloc_asprintf(OTC_SELECT, "%u-%u-L%u-R%u-S%u-C%u", ucid->mcc, ucid->mnc, ucid->lac, ucid->rac,
+			       ucid->sac, ucid->cid);
+}
+
+const char *hnb_context_name(struct hnb_context *ctx)
+{
+	char *result;
+	if (!ctx)
+		return "NULL";
+
+	if (ctx->conn) {
+		char hostbuf_r[INET6_ADDRSTRLEN];
+		char portbuf_r[6];
+		int fd = osmo_stream_srv_get_ofd(ctx->conn)->fd;
+
+		/* get remote addr */
+		if (osmo_sock_get_ip_and_port(fd, hostbuf_r, sizeof(hostbuf_r), portbuf_r, sizeof(portbuf_r), false) == 0)
+			result = talloc_asprintf(OTC_SELECT, "%s:%s", hostbuf_r, portbuf_r);
+		else
+			result = "?";
+	} else {
+		result = "disconnected";
+	}
+
+	if (g_hnbgw->config.log_prefix_hnb_id)
+		result = talloc_asprintf(OTC_SELECT, "%s %s", result, ctx->identity_info);
+	else
+		result = talloc_asprintf(OTC_SELECT, "%s %s", result, umts_cell_id_name(&ctx->id));
+	return result;
+}
+
+void hnb_context_release_ue_state(struct hnb_context *ctx)
+{
+	struct hnbgw_context_map *map, *map2;
+
+	/* deactivate all context maps */
+	llist_for_each_entry_safe(map, map2, &ctx->map_list, hnb_list) {
+		context_map_hnb_released(map);
+		/* hnbgw_context_map will remove itself from lists when it is ready. */
+	}
+	ue_context_free_by_hnb(ctx);
+}
+
+void hnb_context_release(struct hnb_context *ctx)
+{
+	struct hnbgw_context_map *map;
+
+	LOGHNB(ctx, DMAIN, LOGL_INFO, "Releasing HNB context\n");
+
+	/* remove from the list of HNB contexts */
+	llist_del(&ctx->list);
+
+	hnb_context_release_ue_state(ctx);
+
+	if (ctx->conn) { /* we own a conn, we must free it: */
+		LOGHNB(ctx, DMAIN, LOGL_INFO, "Closing HNB SCTP connection %s\n",
+		     osmo_sock_get_name2(osmo_stream_srv_get_ofd(ctx->conn)->fd));
+		/* Avoid our closed_cb calling hnb_context_release() again: */
+		osmo_stream_srv_set_data(ctx->conn, NULL);
+		osmo_stream_srv_destroy(ctx->conn);
+	} /* else: we are called from closed_cb, so conn is being freed separately */
+
+	/* hnbgw_context_map are still listed in ctx->map_list, but we are freeing ctx. Remove all entries from the
+	 * list, but keep the hnbgw_context_map around for graceful release. They are also listed under
+	 * hnbgw_cnlink->map_list, and will remove themselves when ready. */
+	while ((map = llist_first_entry_or_null(&ctx->map_list, struct hnbgw_context_map, hnb_list))) {
+		llist_del(&map->hnb_list);
+		map->hnb_ctx = NULL;
+	}
+
+	talloc_free(ctx);
+}
+
+
+
+/***********************************************************************
+ * SCTP Socket / stream handling
+ ***********************************************************************/
 
 static int hnb_read_cb(struct osmo_stream_srv *conn)
 {
@@ -329,101 +389,6 @@ static int hnb_closed_cb(struct osmo_stream_srv *conn)
 	hnb_context_release(hnb);
 
 	return 0;
-}
-
-static struct hnb_context *hnb_context_alloc(struct osmo_stream_srv_link *link, int new_fd)
-{
-	struct hnb_context *ctx;
-
-	ctx = talloc_zero(g_hnbgw, struct hnb_context);
-	if (!ctx)
-		return NULL;
-	INIT_LLIST_HEAD(&ctx->map_list);
-
-	ctx->conn = osmo_stream_srv_create(g_hnbgw, link, new_fd, hnb_read_cb, hnb_closed_cb, ctx);
-	if (!ctx->conn) {
-		LOGP(DMAIN, LOGL_INFO, "error while creating connection\n");
-		talloc_free(ctx);
-		return NULL;
-	}
-
-	llist_add_tail(&ctx->list, &g_hnbgw->hnb_list);
-	return ctx;
-}
-
-const char *umts_cell_id_name(const struct umts_cell_id *ucid)
-{
-	return talloc_asprintf(OTC_SELECT, "%u-%u-L%u-R%u-S%u-C%u", ucid->mcc, ucid->mnc, ucid->lac, ucid->rac,
-			       ucid->sac, ucid->cid);
-}
-
-const char *hnb_context_name(struct hnb_context *ctx)
-{
-	char *result;
-	if (!ctx)
-		return "NULL";
-
-	if (ctx->conn) {
-		char hostbuf_r[INET6_ADDRSTRLEN];
-		char portbuf_r[6];
-		int fd = osmo_stream_srv_get_ofd(ctx->conn)->fd;
-
-		/* get remote addr */
-		if (osmo_sock_get_ip_and_port(fd, hostbuf_r, sizeof(hostbuf_r), portbuf_r, sizeof(portbuf_r), false) == 0)
-			result = talloc_asprintf(OTC_SELECT, "%s:%s", hostbuf_r, portbuf_r);
-		else
-			result = "?";
-	} else {
-		result = "disconnected";
-	}
-
-	if (g_hnbgw->config.log_prefix_hnb_id)
-		result = talloc_asprintf(OTC_SELECT, "%s %s", result, ctx->identity_info);
-	else
-		result = talloc_asprintf(OTC_SELECT, "%s %s", result, umts_cell_id_name(&ctx->id));
-	return result;
-}
-
-void hnb_context_release_ue_state(struct hnb_context *ctx)
-{
-	struct hnbgw_context_map *map, *map2;
-
-	/* deactivate all context maps */
-	llist_for_each_entry_safe(map, map2, &ctx->map_list, hnb_list) {
-		context_map_hnb_released(map);
-		/* hnbgw_context_map will remove itself from lists when it is ready. */
-	}
-	ue_context_free_by_hnb(ctx);
-}
-
-void hnb_context_release(struct hnb_context *ctx)
-{
-	struct hnbgw_context_map *map;
-
-	LOGHNB(ctx, DMAIN, LOGL_INFO, "Releasing HNB context\n");
-
-	/* remove from the list of HNB contexts */
-	llist_del(&ctx->list);
-
-	hnb_context_release_ue_state(ctx);
-
-	if (ctx->conn) { /* we own a conn, we must free it: */
-		LOGHNB(ctx, DMAIN, LOGL_INFO, "Closing HNB SCTP connection %s\n",
-		     osmo_sock_get_name2(osmo_stream_srv_get_ofd(ctx->conn)->fd));
-		/* Avoid our closed_cb calling hnb_context_release() again: */
-		osmo_stream_srv_set_data(ctx->conn, NULL);
-		osmo_stream_srv_destroy(ctx->conn);
-	} /* else: we are called from closed_cb, so conn is being freed separately */
-
-	/* hnbgw_context_map are still listed in ctx->map_list, but we are freeing ctx. Remove all entries from the
-	 * list, but keep the hnbgw_context_map around for graceful release. They are also listed under
-	 * hnbgw_cnlink->map_list, and will remove themselves when ready. */
-	while ((map = llist_first_entry_or_null(&ctx->map_list, struct hnbgw_context_map, hnb_list))) {
-		llist_del(&map->hnb_list);
-		map->hnb_ctx = NULL;
-	}
-
-	talloc_free(ctx);
 }
 
 /*! call-back when the listen FD has something to read */
@@ -604,3 +569,59 @@ struct vty_app_info hnbgw_vty_info = {
 	.go_parent_cb = hnbgw_vty_go_parent,
 	.copyright = HNBGW_COPYRIGHT,
 };
+
+void g_hnbgw_alloc(void *ctx)
+{
+	OSMO_ASSERT(!g_hnbgw);
+	g_hnbgw = talloc_zero(ctx, struct hnbgw);
+
+	/* strdup so we can easily talloc_free in the VTY code */
+	g_hnbgw->config.iuh_local_ip = talloc_strdup(g_hnbgw, HNBGW_LOCAL_IP_DEFAULT);
+	g_hnbgw->config.iuh_local_port = IUH_DEFAULT_SCTP_PORT;
+	g_hnbgw->config.log_prefix_hnb_id = true;
+
+	/* Set zero PLMN to detect a missing PLMN when transmitting RESET */
+	g_hnbgw->config.plmn = (struct osmo_plmn_id){ 0, 0, false };
+
+	g_hnbgw->next_ue_ctx_id = 23;
+	INIT_LLIST_HEAD(&g_hnbgw->hnb_list);
+	INIT_LLIST_HEAD(&g_hnbgw->ue_list);
+	INIT_LLIST_HEAD(&g_hnbgw->sccp.users);
+
+	g_hnbgw->mgw_pool = mgcp_client_pool_alloc(g_hnbgw);
+	g_hnbgw->config.mgcp_client = mgcp_client_conf_alloc(g_hnbgw);
+
+#if ENABLE_PFCP
+	g_hnbgw->config.pfcp.remote_port = OSMO_PFCP_PORT;
+#endif
+
+	g_hnbgw->sccp.cnpool_iucs = (struct hnbgw_cnpool){
+		.domain = DOMAIN_CS,
+		.pool_name = "iucs",
+		.peer_name = "msc",
+		.default_remote_pc = DEFAULT_PC_MSC,
+		.vty = {
+			.nri_bitlen = OSMO_NRI_BITLEN_DEFAULT,
+			.null_nri_ranges = osmo_nri_ranges_alloc(g_hnbgw),
+		},
+		.cnlink_ctrg_desc = &msc_ctrg_desc,
+
+		.ctrs = rate_ctr_group_alloc(g_hnbgw, &iucs_ctrg_desc, 0),
+	};
+	INIT_LLIST_HEAD(&g_hnbgw->sccp.cnpool_iucs.cnlinks);
+
+	g_hnbgw->sccp.cnpool_iups = (struct hnbgw_cnpool){
+		.domain = DOMAIN_PS,
+		.pool_name = "iups",
+		.peer_name = "sgsn",
+		.default_remote_pc = DEFAULT_PC_SGSN,
+		.vty = {
+			.nri_bitlen = OSMO_NRI_BITLEN_DEFAULT,
+			.null_nri_ranges = osmo_nri_ranges_alloc(g_hnbgw),
+		},
+		.cnlink_ctrg_desc = &sgsn_ctrg_desc,
+
+		.ctrs = rate_ctr_group_alloc(g_hnbgw, &iups_ctrg_desc, 0),
+	};
+	INIT_LLIST_HEAD(&g_hnbgw->sccp.cnpool_iups.cnlinks);
+}
