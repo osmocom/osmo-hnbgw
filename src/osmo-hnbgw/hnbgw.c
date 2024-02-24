@@ -317,6 +317,47 @@ void hnb_context_release(struct hnb_context *ctx)
 const struct rate_ctr_desc hnb_ctr_description[] = {
 	[HNB_CTR_IUH_ESTABLISHED] = {
 		"iuh:established", "Number of times Iuh link was established" },
+
+	[HNB_CTR_RANAP_PS_ERR_IND_UL] = {
+		"ranap:ps:error_ind:ul", "Received ERROR Indications in Uplink (PS Domain)" },
+	[HNB_CTR_RANAP_CS_ERR_IND_UL] = {
+		"ranap:cs:error_ind:ul", "Received ERROR Indications in Uplink (PS Domain)" },
+
+	[HNB_CTR_RANAP_PS_RESET_REQ_UL] = {
+		"ranap:ps:reset_req:ul", "Received RESET Requests in Uplink (PS Domain)" },
+	[HNB_CTR_RANAP_CS_RESET_REQ_UL] = {
+		"ranap:cs:reset_req:ul", "Received RESET Requests in Uplink (CS Domain)" },
+
+	[HNB_CTR_RUA_ERR_IND] = {
+		"rua:error_ind", "Received RUA Error Indications" },
+
+	[HNB_CTR_RUA_PS_CONNECT_UL] = {
+		"rua:ps:connect:ul", "Received RUA Connect requests (PS Domain)" },
+	[HNB_CTR_RUA_CS_CONNECT_UL] = {
+		"rua:cs:connect:ul", "Received RUA Connect requests (CS Domain)" },
+
+	[HNB_CTR_RUA_PS_DISCONNECT_UL] = {
+		"rua:ps:disconnect:ul", "Received RUA Disconnect requests in uplink (PS Domain)" },
+	[HNB_CTR_RUA_CS_DISCONNECT_UL] = {
+		"rua:cs:disconnect:ul", "Received RUA Disconnect requests in uplink (CS Domain)" },
+	[HNB_CTR_RUA_PS_DISCONNECT_DL] = {
+		"rua:ps:disconnect:dl", "Transmitted RUA Disconnect requests in downlink (PS Domain)" },
+	[HNB_CTR_RUA_CS_DISCONNECT_DL] = {
+		"rua:cs:disconnect:dl", "Transmitted RUA Disconnect requests in downlink (CS Domain)" },
+
+	[HNB_CTR_RUA_PS_DT_UL] = {
+		"rua:ps:direct_transfer:ul", "Received RUA DirectTransfer in uplink (PS Domain)" },
+	[HNB_CTR_RUA_CS_DT_UL] = {
+		"rua:cs:direct_transfer:ul", "Received RUA DirectTransfer in uplink (CS Domain)" },
+	[HNB_CTR_RUA_PS_DT_DL] = {
+		"rua:ps:direct_transfer:dl", "Transmitted RUA DirectTransfer in downlink (PS Domain)" },
+	[HNB_CTR_RUA_CS_DT_DL] = {
+		"rua:cs:direct_transfer:dl", "Transmitted RUA DirectTransfer in downlink (CS Domain)" },
+
+	[HNB_CTR_RUA_UDT_UL] = {
+		"rua:unit_data:ul", "Received RUA UnitData (UDT) in uplink" },
+	[HNB_CTR_RUA_UDT_DL] = {
+		"rua:unit_data:dl", "Transmitted RUA UnitData (UDT) in downlink" },
 };
 
 const struct rate_ctr_group_desc hnb_ctrg_desc = {

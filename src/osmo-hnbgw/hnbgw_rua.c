@@ -83,6 +83,7 @@ int rua_tx_udt(struct hnb_context *hnb, const uint8_t *data, unsigned int len)
 	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RUA_ConnectionlessTransfer, &out);
 
 	LOGHNB(hnb, DRUA, LOGL_DEBUG, "transmitting RUA payload of %u bytes\n", msgb_length(msg));
+	HNBP_CTR_INC(hnb->persistent, HNB_CTR_RUA_UDT_DL);
 
 	return hnbgw_rua_tx(hnb, msg);
 }
@@ -120,6 +121,7 @@ int rua_tx_dt(struct hnb_context *hnb, int is_ps, uint32_t context_id,
 
 	LOGHNB(hnb, DRUA, LOGL_DEBUG, "transmitting RUA DirectTransfer (cn=%s) payload of %u bytes\n",
 		is_ps ? "ps" : "cs", msgb_length(msg));
+	HNBP_CTR_INC(hnb->persistent, is_ps ? HNB_CTR_RUA_PS_DT_DL : HNB_CTR_RUA_CS_DT_DL);
 
 	return hnbgw_rua_tx(hnb, msg);
 }
@@ -157,9 +159,9 @@ int rua_tx_disc(struct hnb_context *hnb, int is_ps, uint32_t context_id,
 					      &out);
 	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RUA_Disconnect, &out);
 
-
 	LOGHNB(hnb, DRUA, LOGL_DEBUG, "transmitting RUA Disconnect (cn=%s) payload of %u bytes\n",
 	       is_ps ? "ps" : "cs", msgb_length(msg));
+	HNBP_CTR_INC(hnb->persistent, is_ps ? HNB_CTR_RUA_PS_DISCONNECT_DL : HNB_CTR_RUA_CS_DISCONNECT_DL);
 
 	return hnbgw_rua_tx(hnb, msg);
 }
@@ -386,6 +388,8 @@ static int rua_rx_init_connect(struct msgb *msg, ANY_t *in)
 	LOGHNB(hnb, DRUA, LOGL_DEBUG, "RUA %s Connect.req(ctx=0x%x, %s)\n",
 		ranap_domain_name(ies.cN_DomainIndicator), context_id,
 		ies.establishment_Cause == RUA_Establishment_Cause_emergency_call ? "emergency" : "normal");
+	HNBP_CTR_INC(hnb->persistent, ies.cN_DomainIndicator == DOMAIN_PS ?
+		     HNB_CTR_RUA_PS_CONNECT_UL : HNB_CTR_RUA_CS_CONNECT_UL);
 
 	rc = rua_to_scu(hnb, ies.cN_DomainIndicator, RUA_ProcedureCode_id_Connect,
 			context_id, 0, ies.ranaP_Message.buf,
@@ -415,6 +419,8 @@ static int rua_rx_init_disconnect(struct msgb *msg, ANY_t *in)
 
 	LOGHNB(hnb, DRUA, LOGL_DEBUG, "RUA Disconnect.req(ctx=0x%x,cause=%s)\n", context_id,
 		rua_cause_str(&ies.cause));
+	HNBP_CTR_INC(hnb->persistent, ies.cN_DomainIndicator == DOMAIN_PS ?
+		     HNB_CTR_RUA_PS_DISCONNECT_UL : HNB_CTR_RUA_CS_DISCONNECT_UL);
 
 	if (ies.presenceMask & DISCONNECTIES_RUA_RANAP_MESSAGE_PRESENT) {
 		ranap_data = ies.ranaP_Message.buf;
@@ -444,6 +450,8 @@ static int rua_rx_init_dt(struct msgb *msg, ANY_t *in)
 	context_id = asn1bitstr_to_u24(&ies.context_ID);
 
 	LOGHNB(hnb, DRUA, LOGL_DEBUG, "RUA Data.req(ctx=0x%x)\n", context_id);
+	HNBP_CTR_INC(hnb->persistent, ies.cN_DomainIndicator == DOMAIN_PS ?
+		     HNB_CTR_RUA_PS_DT_UL : HNB_CTR_RUA_CS_DT_UL);
 
 	rc = rua_to_scu(hnb,
 			ies.cN_DomainIndicator,
@@ -467,6 +475,7 @@ static int rua_rx_init_udt(struct msgb *msg, ANY_t *in)
 		return rc;
 
 	LOGHNB(hnb, DRUA, LOGL_DEBUG, "RUA UData.req()\n");
+	HNBP_CTR_INC(hnb->persistent, HNB_CTR_RUA_UDT_UL);
 
 	/* according tot the spec, we can primarily receive Overload,
 	 * Reset, Reset ACK, Error Indication, reset Resource, Reset
@@ -493,6 +502,7 @@ static int rua_rx_init_err_ind(struct msgb *msg, ANY_t *in)
 		return rc;
 
 	LOGHNB(hnb, DRUA, LOGL_ERROR, "RUA UData.ErrorInd(%s)\n", rua_cause_str(&ies.cause));
+	HNBP_CTR_INC(hnb->persistent, HNB_CTR_RUA_ERR_IND);
 
 	rua_free_errorindicationies(&ies);
 	return rc;

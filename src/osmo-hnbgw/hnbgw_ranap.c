@@ -66,6 +66,7 @@ static int ranap_rx_init_reset(struct hnb_context *hnb, ANY_t *in)
 
 	LOGHNB(hnb, DRANAP, LOGL_INFO, "Rx RESET.req(%s,%s)\n", is_ps ? "ps" : "cs",
 		ranap_cause_str(&ies.cause));
+	HNBP_CTR_INC(hnb->persistent, is_ps ? HNB_CTR_RANAP_PS_RESET_REQ_UL : HNB_CTR_RANAP_CS_RESET_REQ_UL);
 
 	/* FIXME: Actually we have to wait for some guard time? */
 	/* FIXME: Reset all resources related to this HNB/RNC */
@@ -78,15 +79,20 @@ static int ranap_rx_error_ind(struct hnb_context *hnb, ANY_t *in)
 {
 	RANAP_ErrorIndicationIEs_t ies;
 	int rc;
+	bool is_ps = false;
 
 	rc = ranap_decode_errorindicationies(&ies, in);
 	if (rc < 0)
 		return rc;
 
+	if (ies.cN_DomainIndicator == RANAP_CN_DomainIndicator_ps_domain)
+		is_ps = true;
+
 	if (ies.presenceMask & ERRORINDICATIONIES_RANAP_CAUSE_PRESENT) {
 		LOGHNB(hnb, DRANAP, LOGL_ERROR, "Rx ERROR.ind(%s)\n", ranap_cause_str(&ies.cause));
 	} else
 		LOGHNB(hnb, DRANAP, LOGL_ERROR, "Rx ERROR.ind\n");
+	HNBP_CTR_INC(hnb->persistent, is_ps ? HNB_CTR_RANAP_PS_ERR_IND_UL : HNB_CTR_RANAP_CS_ERR_IND_UL);
 
 	return 0;
 }
