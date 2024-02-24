@@ -1,6 +1,7 @@
 /* HNB-GW interface to quagga VTY */
 
 /* (C) 2016 by sysmocom s.f.m.c. GmbH <info@sysmocom.de>
+ * (C) 2024 by Harald Welte <laforge@gnumonks.org>
  * All Rights Reserved
  *
  * This program is free software; you can redistribute it and/or modify
@@ -52,6 +53,12 @@ DEFUN(cfg_hnbgw, cfg_hnbgw_cmd,
 	vty->node = HNBGW_NODE;
 	return CMD_SUCCESS;
 }
+
+static struct cmd_node hnb_node = {
+	HNB_NODE,
+	"%s(config-hnbgw-hnb)# ",
+	1,
+};
 
 static struct cmd_node iuh_node = {
 	IUH_NODE,
@@ -352,6 +359,19 @@ DEFUN(cfg_hnbgw_log_prefix, cfg_hnbgw_log_prefix_cmd,
 		g_hnbgw->config.log_prefix_hnb_id = true;
 	else
 		g_hnbgw->config.log_prefix_hnb_id = false;
+	return CMD_SUCCESS;
+}
+
+DEFUN(cfg_hnbgw_hnb_policy, cfg_hnbgw_hnb_policy_cmd,
+	"hnb-policy (accept-all|closed)",
+	"Configure the policy of which HNB connections to accept\n"
+	"Accept HNB of any identity\n"
+	"Accept only HNB whose identity is explicitly configured via VTY\n")
+{
+	if (!strcmp(argv[0], "accept-all"))
+		g_hnbgw->config.accept_all_hnb = true;
+	else
+		g_hnbgw->config.accept_all_hnb = false;
 	return CMD_SUCCESS;
 }
 
@@ -799,6 +819,58 @@ DEFUN(cfg_config_apply_sccp, cfg_config_apply_sccp_cmd,
 	return CMD_SUCCESS;
 }
 
+#define HNB_STR "hNodeB specific configuration\n"
+
+DEFUN(cfg_hnbgw_hnb, cfg_hnbgw_hnb_cmd,
+      "hnb UMTS_CELL_ID",
+      HNB_STR
+      "Identity of hNodeB in xxx-yyy-Llac-Rrac-Ssac-Ccid format\n")
+{
+	struct umts_cell_id ucid;
+	struct hnb_persistent *hnbp;
+
+	if (umts_cell_id_from_str(&ucid, argv[0])) {
+		vty_out(vty, "%% Invalid UMTS_CELL_ID '%s'%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	hnbp = hnb_persistent_find_by_id(&ucid);
+	if (!hnbp)
+		hnbp = hnb_persistent_alloc(&ucid);
+	if (!hnbp) {
+		vty_out(vty, "%% Could not create HNB '%s'%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	vty->index = hnbp;
+	vty->node = HNB_NODE;
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(cfg_hnbgw_no_hnb, cfg_hnbgw_no_hnb_cmd,
+	"no hnb IDENTITY_INFO",
+	NO_STR "Remove configuration for specified hNodeB\n"
+	"Identity of hNodeB\n")
+{
+	struct umts_cell_id ucid;
+	struct hnb_persistent *hnbp;
+
+	if (umts_cell_id_from_str(&ucid, argv[0])) {
+		vty_out(vty, "%% Invalid UMTS_CELL_ID '%s'%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	hnbp = hnb_persistent_find_by_id(&ucid);
+	if (!hnbp) {
+		vty_out(vty, "%% Could not find any HNB for identity '%s'%s", argv[0], VTY_NEWLINE);
+		return CMD_WARNING;
+	}
+
+	hnb_persistent_free(hnbp);
+	return CMD_SUCCESS;
+}
+
 #if ENABLE_PFCP
 
 static struct cmd_node pfcp_node = {
@@ -889,8 +961,15 @@ static void _config_write_cnpool(struct vty *vty, struct hnbgw_cnpool *cnpool)
 	cnpool_write_nri(vty, cnpool, false);
 }
 
+static void write_one_hnbp(struct vty *vty, const struct hnb_persistent *hnbp)
+{
+	vty_out(vty, " hnb %s%s", hnbp->id_str, VTY_NEWLINE);
+}
+
 static int config_write_hnbgw(struct vty *vty)
 {
+	const struct hnb_persistent *hnbp;
+
 	vty_out(vty, "hnbgw%s", VTY_NEWLINE);
 
 	if (g_hnbgw->config.plmn.mcc)
@@ -903,7 +982,14 @@ static int config_write_hnbgw(struct vty *vty)
 
 	vty_out(vty, " log-prefix %s%s", g_hnbgw->config.log_prefix_hnb_id ? "hnb-id" : "umts-cell-id",
 		VTY_NEWLINE);
+
+	if (!g_hnbgw->config.accept_all_hnb)
+		vty_out(vty, " hnb-policy closed%s", VTY_NEWLINE);
+
 	osmo_tdef_vty_groups_write(vty, " ");
+
+	llist_for_each_entry(hnbp, &g_hnbgw->hnb_persistent_list, list)
+		write_one_hnbp(vty, hnbp);
 
 	_config_write_cnpool(vty, &g_hnbgw->sccp.cnpool_iucs);
 	_config_write_cnpool(vty, &g_hnbgw->sccp.cnpool_iups);
@@ -1003,6 +1089,7 @@ void hnbgw_vty_init(void)
 	install_element(HNBGW_NODE, &cfg_hnbgw_rnc_id_cmd);
 	install_element(HNBGW_NODE, &cfg_hnbgw_log_prefix_cmd);
 	install_element(HNBGW_NODE, &cfg_hnbgw_max_sccp_cr_payload_len_cmd);
+	install_element(HNBGW_NODE, &cfg_hnbgw_hnb_policy_cmd);
 
 	install_element(HNBGW_NODE, &cfg_hnbgw_iuh_cmd);
 	install_node(&iuh_node, config_write_hnbgw_iuh);
@@ -1026,6 +1113,10 @@ void hnbgw_vty_init(void)
 	/* deprecated: 'remote-addr' outside of 'msc 123' redirects to 'msc 0' / same for 'sgsn' */
 	install_element(IUCS_NODE, &cfg_hnbgw_cnpool_remote_addr_cmd);
 	install_element(IUPS_NODE, &cfg_hnbgw_cnpool_remote_addr_cmd);
+
+	install_element(HNBGW_NODE, &cfg_hnbgw_hnb_cmd);
+	install_element(HNBGW_NODE, &cfg_hnbgw_no_hnb_cmd);
+	install_node(&hnb_node, NULL);
 
 	install_element_ve(&show_cnlink_cmd);
 	install_element_ve(&show_hnb_cmd);

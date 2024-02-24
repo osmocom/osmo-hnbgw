@@ -14,9 +14,12 @@ OsmoHNBGW(config-hnbgw)# list
   plmn <1-999> <0-999>
   rnc-id <0-65535>
   log-prefix (hnb-id|umts-cell-id)
+  hnb-policy (accept-all|closed)
   iuh
   iucs
   iups
+  hnb UMTS_CELL_ID
+  no hnb IDENTITY_INFO
 ...
 
 OsmoHNBGW(config-hnbgw)# plmn?

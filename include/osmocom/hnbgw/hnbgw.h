@@ -71,15 +71,33 @@ enum hnb_ctrl_node {
 #define IUH_MSGB_SIZE	2048
 
 struct umts_cell_id {
-	uint16_t mcc;	/*!< Mobile Country Code */
-	uint16_t mnc;	/*!< Mobile Network Code */
-	uint16_t lac;	/*!< Locaton Area Code */
-	uint16_t rac;	/*!< Routing Area Code */
+	uint16_t mcc;	/*!< Mobile Country Code (0-999) */
+	uint16_t mnc;	/*!< Mobile Network Code (0-999) */
+	uint16_t lac;	/*!< Locaton Area Code (1-65534) */
+	uint16_t rac;	/*!< Routing Area Code (0-255) */
 	uint16_t sac;	/*!< Service Area Code */
 	uint32_t cid;	/*!< Cell ID */
 };
 const char *umts_cell_id_name(const struct umts_cell_id *ucid);
 int umts_cell_id_from_str(struct umts_cell_id *ucid, const char *instr);
+
+/*! are both given umts_cell_id euqal? */
+static inline bool umts_cell_id_equal(const struct umts_cell_id *a, const struct umts_cell_id *b)
+{
+	if (a->mcc != b->mcc)
+		return false;
+	if (a->mnc != b->mnc)
+		return false;
+	if (a->lac != b->lac)
+		return false;
+	if (a->rac != b->rac)
+		return false;
+	if (a->sac != b->sac)
+		return false;
+	if (a->cid != b->cid)
+		return false;
+	return true;
+}
 
 struct hnbgw_context_map;
 
@@ -234,6 +252,22 @@ struct hnb_context {
 
 	/* linked list of hnbgw_context_map */
 	struct llist_head map_list;
+
+	/*! pointer to the associated hnb persistent state */
+	struct hnb_persistent *persistent;
+};
+
+/* persistent data for one HNB.  This continues to exist even as conn / hnb_context is deleted on disconnect */
+struct hnb_persistent {
+	/*! Entry in HNBGW-global list of hnb_persistent */
+	struct llist_head list;
+	/*! back-pointer to hnb_context.  Can be NULL if no context at this point */
+	struct hnb_context *ctx;
+
+	/*! unique cell identity; copied from HNB REGISTER REQ */
+	struct umts_cell_id id;
+	/*! stringified version of the cell identiy above (for printing/naming) */
+	const char *id_str;
 };
 
 struct ue_context {
@@ -260,6 +294,7 @@ struct hnbgw {
 		bool hnbap_allow_tmsi;
 		/*! print hnb-id (true) or MCC-MNC-LAC-RAC-SAC (false) in logs */
 		bool log_prefix_hnb_id;
+		bool accept_all_hnb;
 		struct mgcp_client_conf *mgcp_client;
 		struct {
 			char *local_addr;
@@ -276,6 +311,8 @@ struct hnbgw {
 	struct osmo_stream_srv_link *iuh;
 	/* list of struct hnb_context */
 	struct llist_head hnb_list;
+	/* list of struct hnb_persistent */
+	struct llist_head hnb_persistent_list;
 	/* list of struct ue_context */
 	struct llist_head ue_list;
 	/* next availble UE Context ID */
@@ -323,6 +360,10 @@ void ue_context_free(struct ue_context *ue);
 
 void hnb_context_release(struct hnb_context *ctx);
 void hnb_context_release_ue_state(struct hnb_context *ctx);
+
+struct hnb_persistent *hnb_persistent_alloc(const struct umts_cell_id *id);
+struct hnb_persistent *hnb_persistent_find_by_id(const struct umts_cell_id *id);
+void hnb_persistent_free(struct hnb_persistent *hnbp);
 
 void hnbgw_vty_init(void);
 int hnbgw_vty_go_parent(struct vty *vty);

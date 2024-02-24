@@ -579,6 +579,10 @@ int hnbgw_rua_rx(struct hnb_context *hnb, struct msgb *msg)
 	asn_dec_rval_t dec_ret;
 	int rc;
 
+	/* RUA is only processed after HNB registration, and as soon as the HNB is registered,
+	 * it should have a persistent config associated with it */
+	OSMO_ASSERT(hnb->persistent);
+
 	/* decode and handle to _hnbgw_hnbap_rx() */
 
 	memset(pdu, 0, sizeof(*pdu));

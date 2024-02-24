@@ -1,6 +1,6 @@
 /* kitchen sink for OsmoHNBGW implementation */
 
-/* (C) 2015 by Harald Welte <laforge@gnumonks.org>
+/* (C) 2015,2024 by Harald Welte <laforge@gnumonks.org>
  * (C) 2016-2023 by sysmocom s.f.m.c. GmbH <info@sysmocom.de>
  * All Rights Reserved
  *
@@ -294,10 +294,49 @@ void hnb_context_release(struct hnb_context *ctx)
 		map->hnb_ctx = NULL;
 	}
 
+	/* remove back reference from hnb_persistent to context */
+	if (ctx->persistent)
+		ctx->persistent->ctx = NULL;
+
 	talloc_free(ctx);
 }
 
+/***********************************************************************
+ * HNB Persistent Data
+ ***********************************************************************/
 
+struct hnb_persistent *hnb_persistent_alloc(const struct umts_cell_id *id)
+{
+	struct hnb_persistent *hnbp = talloc_zero(g_hnbgw, struct hnb_persistent);
+	if (!hnbp)
+		return NULL;
+
+	hnbp->id = *id;
+	hnbp->id_str = talloc_strdup(hnbp, umts_cell_id_name(id));
+
+	llist_add(&hnbp->list, &g_hnbgw->hnb_persistent_list);
+
+	return hnbp;
+}
+
+struct hnb_persistent *hnb_persistent_find_by_id(const struct umts_cell_id *id)
+{
+	struct hnb_persistent *hnbp;
+
+	llist_for_each_entry(hnbp, &g_hnbgw->hnb_persistent_list, list) {
+		if (umts_cell_id_equal(&hnbp->id, id))
+			return hnbp;
+	}
+
+	return NULL;
+}
+
+void hnb_persistent_free(struct hnb_persistent *hnbp)
+{
+	/* FIXME: check if in use? */
+	llist_del(&hnbp->list);
+	talloc_free(hnbp);
+}
 
 /***********************************************************************
  * SCTP Socket / stream handling
@@ -610,12 +649,14 @@ void g_hnbgw_alloc(void *ctx)
 	g_hnbgw->config.iuh_local_ip = talloc_strdup(g_hnbgw, HNBGW_LOCAL_IP_DEFAULT);
 	g_hnbgw->config.iuh_local_port = IUH_DEFAULT_SCTP_PORT;
 	g_hnbgw->config.log_prefix_hnb_id = true;
+	g_hnbgw->config.accept_all_hnb = true;
 
 	/* Set zero PLMN to detect a missing PLMN when transmitting RESET */
 	g_hnbgw->config.plmn = (struct osmo_plmn_id){ 0, 0, false };
 
 	g_hnbgw->next_ue_ctx_id = 23;
 	INIT_LLIST_HEAD(&g_hnbgw->hnb_list);
+	INIT_LLIST_HEAD(&g_hnbgw->hnb_persistent_list);
 	INIT_LLIST_HEAD(&g_hnbgw->ue_list);
 	INIT_LLIST_HEAD(&g_hnbgw->sccp.users);
 

@@ -4,6 +4,7 @@
 
 enum osmo_iuh_vty_node {
 	HNBGW_NODE = _LAST_OSMOVTY_NODE + 1,
+	HNB_NODE,
 	IUH_NODE,
 	IUCS_NODE,
 	IUPS_NODE,

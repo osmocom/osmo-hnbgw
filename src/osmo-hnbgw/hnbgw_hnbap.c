@@ -404,21 +404,24 @@ static int hnbgw_rx_hnb_deregister(struct hnb_context *ctx, ANY_t *in)
 
 static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 {
+	struct hnb_persistent *hnbp;
 	struct hnb_context *hnb, *tmp;
 	HNBAP_HNBRegisterRequestIEs_t ies;
 	int rc;
 	struct osmo_plmn_id plmn;
 	struct osmo_fd *ofd = osmo_stream_srv_get_ofd(ctx->conn);
+	char identity_str[256];
+	const char *cell_id_str;
 
 	rc = hnbap_decode_hnbregisterrequesties(&ies, in);
 	if (rc < 0) {
 		LOGHNB(ctx, DHNBAP, LOGL_ERROR, "Failure to decode HNB-REGISTER-REQ: rc=%d\n", rc);
 		return rc;
 	}
+	asn1_strncpy(identity_str, &ies.hnB_Identity.hNB_Identity_Info, sizeof(identity_str));
 
 	/* copy all identity parameters from the message to ctx */
-	asn1_strncpy(ctx->identity_info, &ies.hnB_Identity.hNB_Identity_Info,
-			sizeof(ctx->identity_info));
+	OSMO_STRLCPY_ARRAY(ctx->identity_info, identity_str);
 	ctx->id.lac = asn1str_to_u16(&ies.lac);
 	ctx->id.sac = asn1str_to_u16(&ies.sac);
 	ctx->id.rac = asn1str_to_u8(&ies.rac);
@@ -426,6 +429,19 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	osmo_plmn_from_bcd(ies.plmNidentity.buf, &plmn);
 	ctx->id.mcc = plmn.mcc;
 	ctx->id.mnc = plmn.mnc;
+	cell_id_str = umts_cell_id_name(&ctx->id);
+
+	hnbp = hnb_persistent_find_by_id(&ctx->id);
+	if (!hnbp && g_hnbgw->config.accept_all_hnb)
+		hnbp = hnb_persistent_alloc(&ctx->id);
+
+	if (!hnbp) {
+		LOGHNB(ctx, DHNBAP, LOGL_NOTICE, "Rejecting unknonwn HNB with identity %s\n", identity_str);
+		hnbap_free_hnbregisterrequesties(&ies);
+		return hnbgw_tx_hnb_register_rej(ctx);
+	}
+	ctx->persistent = hnbp;
+
 
 	llist_for_each_entry_safe(hnb, tmp, &g_hnbgw->hnb_list, list) {
 		if (hnb->hnb_registered && ctx != hnb && memcmp(&ctx->id, &hnb->id, sizeof(ctx->id)) == 0) {
@@ -456,15 +472,14 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 
 			/* If new conn registering same HNB is from anoter remote addr+port, let's reject it to avoid
 			 * misconfigurations or someone trying to impersonate an already working HNB: */
-			LOGHNB(ctx, DHNBAP, LOGL_ERROR, "rejecting HNB-REGISTER-REQ with duplicate cell identity %s\n",
-			       umts_cell_id_name(&ctx->id));
+			LOGHNB(ctx, DHNBAP, LOGL_ERROR, "rejecting HNB-REGISTER-REQ with duplicate cell identity %s\n", cell_id_str);
 			hnbap_free_hnbregisterrequesties(&ies);
 			return hnbgw_tx_hnb_register_rej(ctx);
 		}
 	}
 
 	LOGHNB(ctx, DHNBAP, LOGL_DEBUG, "HNB-REGISTER-REQ %s %s%s\n",
-	       ctx->identity_info, umts_cell_id_name(&ctx->id), ctx->hnb_registered ? " (re-connecting)" : "");
+	       ctx->identity_info, cell_id_str, ctx->hnb_registered ? " (re-connecting)" : "");
 
 	/* The HNB is already registered, and we are seeing a new HNB Register Request. The HNB has restarted
 	 * without us noticing. Clearly, the HNB does not expect any UE state to be active here, so discard any
