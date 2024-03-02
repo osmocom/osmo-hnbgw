@@ -155,8 +155,7 @@ struct ue_context *ue_context_alloc(struct hnb_context *hnb, const char *imsi,
 	struct ue_context *ue;
 
 	ue = talloc_zero(g_hnbgw, struct ue_context);
-	if (!ue)
-		return NULL;
+	OSMO_ASSERT(ue);
 
 	ue->hnb = hnb;
 	if (imsi)
