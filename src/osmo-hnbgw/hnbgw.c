@@ -188,8 +188,10 @@ struct ue_context *ue_context_alloc(struct hnb_context *hnb, const char *imsi,
 	struct ue_context *ue;
 
 	ue = talloc_zero(g_hnbgw, struct ue_context);
-	if (!ue)
+	if (!ue) {
+		LOGHNB(hnb, DHNBAP, LOGL_ERROR, "Failed to allocate new ue_context\n");
 		return NULL;
+	}
 
 	ue->hnb = hnb;
 	if (imsi)

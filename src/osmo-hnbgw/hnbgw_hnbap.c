@@ -148,6 +148,9 @@ static int hnbgw_tx_ue_register_acc(struct ue_context *ue)
 	rc = hnbap_encode_ueregisteraccepties(&accept_out, &accept);
 	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_OCTET_STRING, &accept.uE_Identity.choice.iMSI);
 	if (rc < 0) {
+		LOGHNB(ue->hnb, DHNBAP, LOGL_ERROR,
+		       "Failed to encode HNBAP UE Register Accept message for UE IMSI-%s TMSI-0x%x\n",
+		       ue->imsi, ue->tmsi);
 		return rc;
 	}
 
@@ -158,7 +161,12 @@ static int hnbgw_tx_ue_register_acc(struct ue_context *ue)
 
 	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_HNBAP_UERegisterAccept, &accept_out);
 
-	return hnbgw_hnbap_tx(ue->hnb, msg);
+	rc = hnbgw_hnbap_tx(ue->hnb, msg);
+	if (rc)
+		LOGHNB(ue->hnb, DHNBAP, LOGL_ERROR,
+		       "Failed to enqueue HNBAP UE Register Accept message for UE IMSI-%s TMSI-0x%x\n",
+		       ue->imsi, ue->tmsi);
+	return rc;
 }
 
 static int hnbgw_tx_ue_register_rej_tmsi(struct hnb_context *hnb, HNBAP_UE_Identity_t *ue_id)
@@ -367,6 +375,7 @@ static int hnbgw_tx_ue_register_acc_tmsi(struct hnb_context *hnb, HNBAP_UE_Ident
 	}
 
 	if (rc < 0) {
+		LOGHNB(hnb, DHNBAP, LOGL_ERROR, "Failed to encode HNBAP UE Register Accept for TMSI 0x%x\n", tmsi);
 		/* Encoding failed. Nothing in 'accept_out'. */
 		/* If we allocated the UE context but the UE REGISTER fails, get rid of it again: there will likely
 		 * never be a UE DE-REGISTER for this UE from the HNB, and the ue_context would linger forever. */
@@ -382,6 +391,8 @@ static int hnbgw_tx_ue_register_acc_tmsi(struct hnb_context *hnb, HNBAP_UE_Ident
 						&accept_out);
 	rc = hnbgw_hnbap_tx(hnb, msg);
 	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_HNBAP_UERegisterAccept, &accept_out);
+	if (rc)
+		LOGHNB(hnb, DHNBAP, LOGL_ERROR, "Failed to transmit HNBAP UE Register Accept for TMSI 0x%x\n", tmsi);
 	return rc;
 }
 
@@ -526,14 +537,19 @@ static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 	ue = ue_context_by_imsi(imsi);
 	if (!ue)
 		ue = ue_allocated = ue_context_alloc(ctx, imsi, 0);
+	else
+		LOGHNB(ctx, DHNBAP, LOGL_DEBUG, "UE context for IMSI %s already exists\n", imsi);
 
 	/* Send UERegisterAccept */
 	rc = hnbgw_tx_ue_register_acc(ue);
 	if (rc < 0) {
+		LOGHNB(ctx, DHNBAP, LOGL_ERROR, "Failed to transmit HNBAP UE Register Accept for IMSI %s\n", imsi);
 		/* If we allocated the UE context but the UE REGISTER fails, get rid of it again: there will likely
 		 * never be a UE DE-REGISTER for this UE from the HNB, and the ue_context would linger forever. */
-		if (ue_allocated)
+		if (ue_allocated) {
 			ue_context_free(ue_allocated);
+			LOGHNB(ctx, DHNBAP, LOGL_INFO, "Freed UE context for IMSI %s\n", imsi);
+		}
 	}
 free_and_return_rc:
 	hnbap_free_ueregisterrequesties(&ies);
