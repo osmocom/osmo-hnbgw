@@ -1,6 +1,6 @@
 /* OsmoHNBGW main routine */
 
-/* (C) 2015 by Harald Welte <laforge@gnumonks.org>
+/* (C) 2015-2024 by Harald Welte <laforge@gnumonks.org>
  * (C) 2016-2023 by sysmocom s.f.m.c. GmbH <info@sysmocom.de>
  * All Rights Reserved
  *
@@ -19,6 +19,7 @@
  *
  */
 
+#include <signal.h>
 #include <getopt.h>
 
 #include "config.h"
@@ -63,6 +64,32 @@ static struct {
 	0,
 	NULL,
 };
+
+static void signal_handler(int signum)
+{
+	fprintf(stdout, "signal %u received\n", signum);
+
+	switch (signum) {
+	case SIGABRT:
+		/* in case of abort, we want to obtain a talloc report and
+		 * then run default SIGABRT handler, who will generate coredump
+		 * and abort the process. abort() should do this for us after we
+		 * return, but program wouldn't exit if an external SIGABRT is
+		 * received.
+		 */
+		talloc_report(tall_vty_ctx, stderr);
+		talloc_report_full(g_hnbgw, stderr);
+		signal(SIGABRT, SIG_DFL);
+		raise(SIGABRT);
+		break;
+	case SIGUSR1:
+		talloc_report(tall_vty_ctx, stderr);
+		talloc_report_full(g_hnbgw, stderr);
+		break;
+	default:
+		break;
+	}
+}
 
 static void print_usage(void)
 {
@@ -312,6 +339,11 @@ int main(int argc, char **argv)
 			exit(1);
 		}
 	}
+
+	signal(SIGABRT, &signal_handler);
+	signal(SIGUSR1, &signal_handler);
+	signal(SIGUSR2, &signal_handler);
+	osmo_init_ignore_signals();
 
 	while (1) {
 		rc = osmo_select_main_ctx(0);
