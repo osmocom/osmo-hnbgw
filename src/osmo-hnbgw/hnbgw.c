@@ -202,6 +202,32 @@ const char *umts_cell_id_name(const struct umts_cell_id *ucid)
 			       ucid->sac, ucid->cid);
 }
 
+/* parse a string representation of an umts_cell_id into its decoded representation */
+int umts_cell_id_from_str(struct umts_cell_id *ucid, const char *instr)
+{
+	int rc = sscanf(instr, "%hu-%hu-L%hu-R%hu-S%hu-C%u", &ucid->mcc, &ucid->mnc, &ucid->lac, &ucid->rac, &ucid->sac, &ucid->cid);
+	if (rc < 0)
+		return -errno;
+
+	if (rc != 6)
+		return -EINVAL;
+
+	if (ucid->mcc > 999)
+		return -EINVAL;
+
+	if (ucid->mnc > 999)
+		return -EINVAL;
+
+	if (ucid->lac == 0 || ucid->lac == 0xffff)
+		return -EINVAL;
+
+	/* CellIdentity in the ASN.1 syntax is a bit-string of 28 bits length */
+	if (ucid->cid >= (1 << 28))
+		return -EINVAL;
+
+	return 0;
+}
+
 const char *hnb_context_name(struct hnb_context *ctx)
 {
 	char *result;

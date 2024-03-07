@@ -79,6 +79,7 @@ struct umts_cell_id {
 	uint32_t cid;	/*!< Cell ID */
 };
 const char *umts_cell_id_name(const struct umts_cell_id *ucid);
+int umts_cell_id_from_str(struct umts_cell_id *ucid, const char *instr);
 
 struct hnbgw_context_map;
 
