@@ -1,4 +1,4 @@
-/* (C) 2021 by sysmocom s.f.m.c. GmbH <info@sysmocom.de>
+/* (C) 2021-2024 by sysmocom s.f.m.c. GmbH <info@sysmocom.de>
  * All Rights Reserved
  *
  * Author: Philipp Maier
@@ -123,6 +123,10 @@ struct mgw_fsm_priv {
 	struct osmo_sockaddr ci_hnb_crcx_ack_addr;
 	char msc_rtp_addr[INET6_ADDRSTRLEN];
 	uint16_t msc_rtp_port;
+
+	/* Timestamps to track active duration */
+	struct timespec active_start;
+	struct timespec active_stored;
 };
 
 struct osmo_tdef_state_timeout mgw_fsm_timeouts[32] = {
@@ -554,6 +558,9 @@ static void mgw_fsm_established_onenter(struct osmo_fsm_inst *fi, uint32_t prev_
 	}
 
 	LOGPFSML(fi, LOGL_DEBUG, "HNB and MSC side call-legs completed!\n");
+
+	osmo_clock_gettime(CLOCK_MONOTONIC, &mgw_fsm_priv->active_start);
+	mgw_fsm_priv->active_stored = mgw_fsm_priv->active_start;
 }
 
 static void mgw_fsm_release_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state)
@@ -914,4 +921,31 @@ int mgw_fsm_release(struct hnbgw_context_map *map)
 
 	osmo_fsm_inst_dispatch(map->mgw_fi, MGW_EV_RELEASE, NULL);
 	return 0;
+}
+
+/* determine the number of elapsed active RAB milli-seconds since last call */
+uint64_t mgw_fsm_get_elapsed_ms(struct hnbgw_context_map *map, const struct timespec *now)
+{
+	struct mgw_fsm_priv *mgw_fsm_priv;
+	struct timespec elapsed;
+	uint64_t elapsed_ms;
+
+	if (!map->mgw_fi)
+		return 0;
+
+	OSMO_ASSERT(map->mgw_fi->fsm == &mgw_fsm);
+	mgw_fsm_priv = map->mgw_fi->priv;
+
+	/* Ignore RABs whose activation timestamps are not yet set. */
+	if (!timespecisset(&mgw_fsm_priv->active_stored))
+		return 0;
+
+	/* Calculate elapsed time since last storage */
+	timespecsub(now, &mgw_fsm_priv->active_stored, &elapsed);
+	elapsed_ms = elapsed.tv_sec * 1000 + elapsed.tv_nsec / 1000000;
+
+	/* Update storage time */
+	mgw_fsm_priv->active_stored = *now;
+
+	return elapsed_ms;
 }

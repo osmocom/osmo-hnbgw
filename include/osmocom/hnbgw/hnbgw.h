@@ -19,6 +19,7 @@
 #include <osmocom/mgcp_client/mgcp_client_pool.h>
 
 #define STORE_UPTIME_INTERVAL	10 /* seconds */
+#define HNB_STORE_RAB_DURATIONS_INTERVAL 1 /* seconds */
 
 enum {
 	DMAIN,
@@ -96,6 +97,8 @@ enum hnb_rate_ctr {
 
 	HNB_CTR_RUA_UDT_UL,
 	HNB_CTR_RUA_UDT_DL,
+
+	HNB_CTR_RAB_ACTIVE_MILLISECONDS_TOTAL,
 };
 
 enum hnb_stat {
@@ -385,6 +388,8 @@ struct hnbgw {
 		struct osmo_pfcp_endpoint *ep;
 		struct osmo_pfcp_cp_peer *cp_peer;
 	} pfcp;
+
+	struct osmo_timer_list hnb_store_rab_durations_timer;
 };
 
 extern struct hnbgw *g_hnbgw;

@@ -42,6 +42,7 @@
 #include <osmocom/hnbgw/hnbgw_rua.h>
 #include <osmocom/hnbgw/hnbgw_cn.h>
 #include <osmocom/hnbgw/context_map.h>
+#include <osmocom/hnbgw/mgw_fsm.h>
 
 struct hnbgw *g_hnbgw = NULL;
 
@@ -50,6 +51,41 @@ const struct value_string ranap_domain_names[] = {
 	{ DOMAIN_PS, "PS" },
 	{}
 };
+
+/* update the active RAB duration rate_ctr for given HNB */
+static void hnb_store_rab_durations(struct hnb_context *hnb)
+{
+	struct hnbgw_context_map *map;
+	struct timespec now;
+	uint64_t elapsed_cs_rab_ms = 0;
+
+	osmo_clock_gettime(CLOCK_MONOTONIC, &now);
+
+	/* iterate over all context_maps (subscribers) */
+	llist_for_each_entry(map, &hnb->map_list, hnb_list) {
+		/* skip any PS maps, we care about CS RABs only here */
+		if (map->is_ps)
+			continue;
+		elapsed_cs_rab_ms += mgw_fsm_get_elapsed_ms(map, &now);
+	}
+
+	/* Export to rate countes. */
+	rate_ctr_add(HNBP_CTR(hnb->persistent, HNB_CTR_RAB_ACTIVE_MILLISECONDS_TOTAL), elapsed_cs_rab_ms);
+}
+
+static void hnbgw_store_hnb_rab_durations(void *data)
+{
+	struct hnb_context *hnb;
+
+	llist_for_each_entry(hnb, &g_hnbgw->hnb_list, list) {
+		if (!hnb->persistent)
+			continue;
+		hnb_store_rab_durations(hnb);
+	}
+
+	/* Keep this timer ticking */
+	osmo_timer_schedule(&g_hnbgw->hnb_store_rab_durations_timer, HNB_STORE_RAB_DURATIONS_INTERVAL, 0);
+}
 
 
 /***********************************************************************
@@ -358,6 +394,9 @@ const struct rate_ctr_desc hnb_ctr_description[] = {
 		"rua:unit_data:ul", "Received RUA UnitData (UDT) in uplink" },
 	[HNB_CTR_RUA_UDT_DL] = {
 		"rua:unit_data:dl", "Transmitted RUA UnitData (UDT) in downlink" },
+
+	[HNB_CTR_RAB_ACTIVE_MILLISECONDS_TOTAL] = {
+		"rab:cs:active_milliseconds:total", "Cumulative number of milliseconds of CS RAB activity" },
 };
 
 const struct rate_ctr_group_desc hnb_ctrg_desc = {
@@ -821,4 +860,7 @@ void g_hnbgw_alloc(void *ctx)
 
 	osmo_timer_setup(&g_hnbgw->store_uptime_timer, hnbgw_store_hnb_uptime, g_hnbgw);
 	osmo_timer_schedule(&g_hnbgw->store_uptime_timer, STORE_UPTIME_INTERVAL, 0);
+
+	osmo_timer_setup(&g_hnbgw->hnb_store_rab_durations_timer, hnbgw_store_hnb_rab_durations, g_hnbgw);
+	osmo_timer_schedule(&g_hnbgw->hnb_store_rab_durations_timer, HNB_STORE_RAB_DURATIONS_INTERVAL, 0);
 }
