@@ -318,10 +318,10 @@ static int cn_ranap_rx_paging_cmd(struct hnbgw_cnlink *cnlink,
 	return 0;
 }
 
-static int cn_ranap_rx_initiating_msg(struct hnbgw_cnlink *cnlink,
-				      const struct osmo_scu_unitdata_param *unitdata,
-				      RANAP_InitiatingMessage_t *imsg,
-				      const uint8_t *data, unsigned int len)
+static int ranap_rx_udt_dl_initiating_msg(struct hnbgw_cnlink *cnlink,
+					  const struct osmo_scu_unitdata_param *unitdata,
+					  RANAP_InitiatingMessage_t *imsg,
+					  const uint8_t *data, unsigned int len)
 {
 	switch (imsg->procedureCode) {
 	case RANAP_ProcedureCode_id_Reset:
@@ -353,8 +353,8 @@ static int cn_ranap_rx_initiating_msg(struct hnbgw_cnlink *cnlink,
 	return 0;
 }
 
-static int cn_ranap_rx_successful_msg(struct hnbgw_cnlink *cnlink,
-					RANAP_SuccessfulOutcome_t *omsg)
+static int ranap_rx_udt_dl_successful_msg(struct hnbgw_cnlink *cnlink,
+					  RANAP_SuccessfulOutcome_t *omsg)
 {
 	switch (omsg->procedureCode) {
 	case RANAP_ProcedureCode_id_Reset: /* Reset acknowledge */
@@ -378,19 +378,18 @@ static int cn_ranap_rx_successful_msg(struct hnbgw_cnlink *cnlink,
 }
 
 
-static int _cn_ranap_rx(struct hnbgw_cnlink *cnlink,
-			const struct osmo_scu_unitdata_param *unitdata,
-			RANAP_RANAP_PDU_t *pdu, const uint8_t *data, unsigned int len)
+static int hnbgw_ranap_rx_udt_dl(struct hnbgw_cnlink *cnlink,
+				 const struct osmo_scu_unitdata_param *unitdata,
+				 RANAP_RANAP_PDU_t *pdu, const uint8_t *data, unsigned int len)
 {
 	int rc;
 
 	switch (pdu->present) {
 	case RANAP_RANAP_PDU_PR_initiatingMessage:
-		rc = cn_ranap_rx_initiating_msg(cnlink, unitdata, &pdu->choice.initiatingMessage,
-						data, len);
+		rc = ranap_rx_udt_dl_initiating_msg(cnlink, unitdata, &pdu->choice.initiatingMessage, data, len);
 		break;
 	case RANAP_RANAP_PDU_PR_successfulOutcome:
-		rc = cn_ranap_rx_successful_msg(cnlink, &pdu->choice.successfulOutcome);
+		rc = ranap_rx_udt_dl_successful_msg(cnlink, &pdu->choice.successfulOutcome);
 		break;
 	case RANAP_RANAP_PDU_PR_unsuccessfulOutcome:
 		LOGP(DRANAP, LOGL_NOTICE, "Received unsupported RANAP "
@@ -423,7 +422,7 @@ static int handle_cn_ranap(struct hnbgw_cnlink *cnlink, const struct osmo_scu_un
 		return -1;
 	}
 
-	rc = _cn_ranap_rx(cnlink, unitdata, pdu, data, len);
+	rc = hnbgw_ranap_rx_udt_dl(cnlink, unitdata, pdu, data, len);
 	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RANAP_PDU, pdu);
 
 	return rc;
