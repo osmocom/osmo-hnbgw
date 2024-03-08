@@ -194,7 +194,7 @@ static struct hnbgw_context_map *create_context_map(struct hnb_context *hnb, uin
 	map = context_map_alloc(hnb, rua_ctx_id, is_ps);
 	OSMO_ASSERT(map);
 
-	if (hnbgw_peek_l3(map, ranap_msg))
+	if (hnbgw_peek_l3_ul(map, ranap_msg))
 		LOGP(DCN, LOGL_NOTICE, "Failed to extract Mobile Identity from RUA Connect message's RANAP payload\n");
 	/* map->l3 now contains all the interesting information from the NAS PDU, if any.
 	 * If no useful information could be decoded, still continue to select a hopefully adequate link by round robin.

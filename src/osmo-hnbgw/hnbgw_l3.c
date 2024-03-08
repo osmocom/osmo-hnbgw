@@ -156,8 +156,8 @@ static int mobile_identity_decode_from_gmm_rau_req(struct osmo_mobile_identity *
 	return 0;
 }
 
-static int peek_l3_nas(struct hnbgw_context_map *map, const uint8_t *nas_pdu, size_t len,
-		       const struct osmo_plmn_id *local_plmn)
+static int peek_l3_ul_nas(struct hnbgw_context_map *map, const uint8_t *nas_pdu, size_t len,
+			  const struct osmo_plmn_id *local_plmn)
 {
 	const struct gsm48_hdr *gh;
 	int8_t pdisc;
@@ -277,7 +277,7 @@ static int peek_l3_nas(struct hnbgw_context_map *map, const uint8_t *nas_pdu, si
 	return 0;
 }
 
-static int peek_l3_initial_ue(struct hnbgw_context_map *map, const RANAP_InitialUE_MessageIEs_t *ies)
+static int peek_l3_ul_initial_ue(struct hnbgw_context_map *map, const RANAP_InitialUE_MessageIEs_t *ies)
 {
 	struct osmo_plmn_id local_plmn;
 
@@ -293,12 +293,12 @@ static int peek_l3_initial_ue(struct hnbgw_context_map *map, const RANAP_Initial
 		osmo_plmn_from_bcd(ies->lai.pLMNidentity.buf, &local_plmn);
 	}
 
-	return peek_l3_nas(map, ies->nas_pdu.buf, ies->nas_pdu.size, &local_plmn);
+	return peek_l3_ul_nas(map, ies->nas_pdu.buf, ies->nas_pdu.size, &local_plmn);
 }
 
-/* Extract a Layer 3 message (NAS PDU) from the RANAP message, and put the info obtained in map->l3. This is relevant
- * for CN pooling, to decide which CN link to map the RUA context to. */
-int hnbgw_peek_l3(struct hnbgw_context_map *map, struct msgb *ranap_msg)
+/* Extract a Layer 3 message (NAS PDU) from the uplink RANAP message, and put the info obtained in map->l3.
+ * This is relevant for CN pooling, to decide which CN link to map the RUA context to. */
+int hnbgw_peek_l3_ul(struct hnbgw_context_map *map, struct msgb *ranap_msg)
 {
 	ranap_message *message = hnbgw_decode_ranap_co(ranap_msg);
 	if (!message) {
@@ -308,7 +308,7 @@ int hnbgw_peek_l3(struct hnbgw_context_map *map, struct msgb *ranap_msg)
 
 	switch (message->procedureCode) {
 	case RANAP_ProcedureCode_id_InitialUE_Message:
-		return peek_l3_initial_ue(map, &message->msg.initialUE_MessageIEs);
+		return peek_l3_ul_initial_ue(map, &message->msg.initialUE_MessageIEs);
 	default:
 		LOGP(DCN, LOGL_ERROR, "unexpected RANAP PDU in RUA Connect message: %s\n",
 		     get_value_string(ranap_procedure_code_vals, message->procedureCode));
