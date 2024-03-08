@@ -218,7 +218,7 @@ static int handle_rx_sccp(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 			switch (message->procedureCode) {
 			case RANAP_ProcedureCode_id_RAB_Assignment:
 				/* mgw_fsm_alloc_and_handle_rab_ass_req() takes ownership of (ranap) message */
-				return handle_rab_ass_req(map, ranap_msg, message);
+				return handle_cs_rab_ass_req(map, ranap_msg, message);
 			case RANAP_ProcedureCode_id_Iu_Release:
 				/* Any IU Release will terminate the MGW FSM, the message itsself is not passed to the
 				 * FSM code. It is just forwarded normally by map_rua_tx_dt() below. */

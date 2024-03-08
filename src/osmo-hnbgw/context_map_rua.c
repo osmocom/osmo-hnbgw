@@ -171,7 +171,7 @@ static int handle_rx_rua(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 			switch (message->procedureCode) {
 			case RANAP_ProcedureCode_id_RAB_Assignment:
 				/* mgw_fsm_handle_rab_ass_resp() takes ownership of prim->oph and (ranap) message */
-				return mgw_fsm_handle_rab_ass_resp(map, ranap_msg, message);
+				return mgw_fsm_handle_cs_rab_ass_resp(map, ranap_msg, message);
 			}
 		}
 #if ENABLE_PFCP

@@ -794,7 +794,7 @@ static bool is_our_rab_release(struct hnbgw_context_map *map, ranap_message *mes
  *  \param[in] message decoded RANAP message container, allocated in OTC_SELECT.
  *                     This function may talloc_steal(message) to keep it for later.
  *  \returns 0 on success; negative on error. */
-int handle_rab_ass_req(struct hnbgw_context_map *map, struct msgb *ranap_msg, ranap_message *message)
+int handle_cs_rab_ass_req(struct hnbgw_context_map *map, struct msgb *ranap_msg, ranap_message *message)
 {
 	static bool initialized = false;
 	struct mgw_fsm_priv *mgw_fsm_priv;
@@ -866,7 +866,7 @@ int handle_rab_ass_req(struct hnbgw_context_map *map, struct msgb *ranap_msg, ra
  *  \param[in] message decoded RANAP message container, allocated in OTC_SELECT.
  *                     This function may talloc_steal(message) to keep it for later.
  *  \returns 0 on success; negative on error. */
-int mgw_fsm_handle_rab_ass_resp(struct hnbgw_context_map *map, struct msgb *ranap_msg, ranap_message *message)
+int mgw_fsm_handle_cs_rab_ass_resp(struct hnbgw_context_map *map, struct msgb *ranap_msg, ranap_message *message)
 {
 	struct mgw_fsm_priv *mgw_fsm_priv;
 
