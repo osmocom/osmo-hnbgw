@@ -807,6 +807,8 @@ int handle_cs_rab_ass_req(struct hnbgw_context_map *map, struct msgb *ranap_msg,
 	struct mgw_fsm_priv *mgw_fsm_priv;
 	char fsm_name[255];
 
+	OSMO_ASSERT(!map->is_ps);
+
 	/* Initialize FSM if not done yet */
 	if (!initialized) {
 		OSMO_ASSERT(osmo_fsm_register(&mgw_fsm) == 0);
@@ -878,6 +880,7 @@ int mgw_fsm_handle_cs_rab_ass_resp(struct hnbgw_context_map *map, struct msgb *r
 	struct mgw_fsm_priv *mgw_fsm_priv;
 
 	OSMO_ASSERT(ranap_msg);
+	OSMO_ASSERT(!map->is_ps);
 
 	if (!map->mgw_fi) {
 		/* NOTE: This situation is a corner-case. We may end up here when the co-located MGW caused a problem
@@ -916,6 +919,8 @@ int mgw_fsm_handle_cs_rab_ass_resp(struct hnbgw_context_map *map, struct msgb *r
  *  \returns 0 on success; negative on error. */
 int mgw_fsm_release(struct hnbgw_context_map *map)
 {
+	OSMO_ASSERT(!map->is_ps);
+
 	if (!map->mgw_fi)
 		return -EINVAL;
 
@@ -929,6 +934,8 @@ uint64_t mgw_fsm_get_elapsed_ms(struct hnbgw_context_map *map, const struct time
 	struct mgw_fsm_priv *mgw_fsm_priv;
 	struct timespec elapsed;
 	uint64_t elapsed_ms;
+
+	OSMO_ASSERT(!map->is_ps);
 
 	if (!map->mgw_fi)
 		return 0;
