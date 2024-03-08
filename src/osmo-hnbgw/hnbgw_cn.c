@@ -305,6 +305,8 @@ static int cn_ranap_rx_paging_cmd(struct hnbgw_cnlink *cnlink,
 	/* FIXME: determine which HNBs to send this Paging command,
 	 * rather than broadcasting to all HNBs */
 	llist_for_each_entry(hnb, &g_hnbgw->hnb_list, list) {
+		if (!hnb->hnb_registered)
+			continue;
 		rua_tx_udt(hnb, data, len);
 	}
 
