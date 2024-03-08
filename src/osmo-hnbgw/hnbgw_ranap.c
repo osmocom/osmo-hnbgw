@@ -35,8 +35,7 @@
 #include <osmocom/ranap/ranap_ies_defs.h>
 #include <osmocom/ranap/ranap_msg_factory.h>
 
-static int ranap_tx_reset_ack(struct hnb_context *hnb,
-				RANAP_CN_DomainIndicator_t domain)
+static int ranap_tx_udt_dl_reset_ack(struct hnb_context *hnb, RANAP_CN_DomainIndicator_t domain)
 {
 	struct msgb *msg;
 	int rc;
@@ -52,7 +51,7 @@ static int ranap_tx_reset_ack(struct hnb_context *hnb,
 	return rc;
 }
 
-static int ranap_rx_init_reset(struct hnb_context *hnb, ANY_t *in)
+static int ranap_rx_udt_ul_init_reset(struct hnb_context *hnb, ANY_t *in)
 {
 	RANAP_ResetIEs_t ies;
 	int rc, is_ps = 0;
@@ -70,12 +69,12 @@ static int ranap_rx_init_reset(struct hnb_context *hnb, ANY_t *in)
 
 	/* FIXME: Actually we have to wait for some guard time? */
 	/* FIXME: Reset all resources related to this HNB/RNC */
-	ranap_tx_reset_ack(hnb, ies.cN_DomainIndicator);
+	ranap_tx_udt_dl_reset_ack(hnb, ies.cN_DomainIndicator);
 
 	return 0;
 }
 
-static int ranap_rx_error_ind(struct hnb_context *hnb, ANY_t *in)
+static int ranap_rx_udt_ul_error_ind(struct hnb_context *hnb, ANY_t *in)
 {
 	RANAP_ErrorIndicationIEs_t ies;
 	int rc;
@@ -97,7 +96,7 @@ static int ranap_rx_error_ind(struct hnb_context *hnb, ANY_t *in)
 	return 0;
 }
 
-static int ranap_rx_initiating_msg(struct hnb_context *hnb, RANAP_InitiatingMessage_t *imsg)
+static int ranap_rx_udt_ul_initiating_msg(struct hnb_context *hnb, RANAP_InitiatingMessage_t *imsg)
 {
 	int rc = 0;
 
@@ -111,12 +110,12 @@ static int ranap_rx_initiating_msg(struct hnb_context *hnb, RANAP_InitiatingMess
 	switch (imsg->procedureCode) {
 	case RANAP_ProcedureCode_id_Reset:
 		/* Reset request */
-		rc = ranap_rx_init_reset(hnb, &imsg->value);
+		rc = ranap_rx_udt_ul_init_reset(hnb, &imsg->value);
 		break;
 	case RANAP_ProcedureCode_id_OverloadControl: /* Overload ind */
 		break;
 	case RANAP_ProcedureCode_id_ErrorIndication: /* Error ind */
-		rc = ranap_rx_error_ind(hnb, &imsg->value);
+		rc = ranap_rx_udt_ul_error_ind(hnb, &imsg->value);
 		break;
 	case RANAP_ProcedureCode_id_ResetResource: /* request */
 	case RANAP_ProcedureCode_id_InformationTransfer:
@@ -134,7 +133,7 @@ static int ranap_rx_initiating_msg(struct hnb_context *hnb, RANAP_InitiatingMess
 	return rc;
 }
 
-static int ranap_rx_successful_msg(struct hnb_context *hnb, RANAP_SuccessfulOutcome_t *imsg)
+static int ranap_rx_udt_ul_successful_msg(struct hnb_context *hnb, RANAP_SuccessfulOutcome_t *imsg)
 {
 	/* according tot the spec, we can primarily receive Overload,
 	 * Reset, Reset ACK, Error Indication, reset Resource, Reset
@@ -164,16 +163,16 @@ static int ranap_rx_successful_msg(struct hnb_context *hnb, RANAP_SuccessfulOutc
 
 
 
-static int _hnbgw_ranap_rx(struct hnb_context *hnb, RANAP_RANAP_PDU_t *pdu)
+static int _hnbgw_ranap_rx_udt_ul(struct hnb_context *hnb, RANAP_RANAP_PDU_t *pdu)
 {
 	int rc = 0;
 
 	switch (pdu->present) {
 	case RANAP_RANAP_PDU_PR_initiatingMessage:
-		rc = ranap_rx_initiating_msg(hnb, &pdu->choice.initiatingMessage);
+		rc = ranap_rx_udt_ul_initiating_msg(hnb, &pdu->choice.initiatingMessage);
 		break;
 	case RANAP_RANAP_PDU_PR_successfulOutcome:
-		rc = ranap_rx_successful_msg(hnb, &pdu->choice.successfulOutcome);
+		rc = ranap_rx_udt_ul_successful_msg(hnb, &pdu->choice.successfulOutcome);
 		break;
 	case RANAP_RANAP_PDU_PR_unsuccessfulOutcome:
 		LOGHNB(hnb, DRANAP, LOGL_NOTICE, "Received unsupported RANAP "
@@ -189,8 +188,8 @@ static int _hnbgw_ranap_rx(struct hnb_context *hnb, RANAP_RANAP_PDU_t *pdu)
 	return rc;
 }
 
-
-int hnbgw_ranap_rx(struct msgb *msg, uint8_t *data, size_t len)
+/* receive a RNAAP Unit-Data message in uplink direction */
+int hnbgw_ranap_rx_udt_ul(struct msgb *msg, uint8_t *data, size_t len)
 {
 	RANAP_RANAP_PDU_t _pdu, *pdu = &_pdu;
 	struct hnb_context *hnb = msg->dst;
@@ -205,7 +204,7 @@ int hnbgw_ranap_rx(struct msgb *msg, uint8_t *data, size_t len)
 		return -1;
 	}
 
-	rc = _hnbgw_ranap_rx(hnb, pdu);
+	rc = _hnbgw_ranap_rx_udt_ul(hnb, pdu);
 
 	return rc;
 }

@@ -218,7 +218,7 @@ static struct hnbgw_context_map *create_context_map(struct hnb_context *hnb, uin
 
 /* dispatch a RUA connection-oriented message received from a HNB to a context mapping's RUA FSM, so that it is
  * forwarded to the CN via SCCP connection-oriented messages.
- * Connectionless messages are handled in hnbgw_ranap_rx() instead, not here. */
+ * Connectionless messages are handled in hnbgw_ranap_rx_udt_ul() instead, not here. */
 static int rua_to_scu(struct hnb_context *hnb,
 		      RUA_CN_DomainIndicator_t cN_DomainIndicator,
 		      enum RUA_ProcedureCode rua_procedure,
@@ -484,7 +484,7 @@ static int rua_rx_init_udt(struct msgb *msg, ANY_t *in)
 	 * Information Transfer and Uplink Information Trnansfer that we
 	 * can ignore.  In either case, it is RANAP that we need to
 	 * decode... */
-	rc = hnbgw_ranap_rx(msg, ies.ranaP_Message.buf, ies.ranaP_Message.size);
+	rc = hnbgw_ranap_rx_udt_ul(msg, ies.ranaP_Message.buf, ies.ranaP_Message.size);
 	rua_free_connectionlesstransferies(&ies);
 
 	return rc;
