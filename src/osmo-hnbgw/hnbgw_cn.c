@@ -318,21 +318,27 @@ static int cn_ranap_rx_initiating_msg(struct hnbgw_cnlink *cnlink,
 {
 	switch (imsg->procedureCode) {
 	case RANAP_ProcedureCode_id_Reset:
+		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_RESET);
 		return cn_ranap_rx_reset_cmd(cnlink, unitdata, imsg);
 	case RANAP_ProcedureCode_id_Paging:
+		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_PAGING);
 		return cn_ranap_rx_paging_cmd(cnlink, imsg, data, len);
 	case RANAP_ProcedureCode_id_OverloadControl: /* Overload ind */
+		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_OVERLOAD_IND);
 		break;
 	case RANAP_ProcedureCode_id_ErrorIndication: /* Error ind */
+		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_ERROR_IND);
 		break;
 	case RANAP_ProcedureCode_id_ResetResource: /* request */
 	case RANAP_ProcedureCode_id_InformationTransfer:
 	case RANAP_ProcedureCode_id_DirectInformationTransfer:
 	case RANAP_ProcedureCode_id_UplinkInformationExchange:
+		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_UNSUPPORTED);
 		LOGP(DRANAP, LOGL_NOTICE, "Received unsupported RANAP "
 		     "Procedure %ld from CN, ignoring\n", imsg->procedureCode);
 		break;
 	default:
+		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_UNKNOWN);
 		LOGP(DRANAP, LOGL_NOTICE, "Received suspicious RANAP "
 		     "Procedure %ld from CN, ignoring\n", imsg->procedureCode);
 		break;
@@ -345,15 +351,18 @@ static int cn_ranap_rx_successful_msg(struct hnbgw_cnlink *cnlink,
 {
 	switch (omsg->procedureCode) {
 	case RANAP_ProcedureCode_id_Reset: /* Reset acknowledge */
+		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_RESET);
 		return cn_ranap_rx_reset_ack(cnlink, omsg);
 	case RANAP_ProcedureCode_id_ResetResource: /* response */
 	case RANAP_ProcedureCode_id_InformationTransfer:
 	case RANAP_ProcedureCode_id_DirectInformationTransfer:
 	case RANAP_ProcedureCode_id_UplinkInformationExchange:
+		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_UNSUPPORTED);
 		LOGP(DRANAP, LOGL_NOTICE, "Received unsupported RANAP "
 		     "Procedure %ld from CN, ignoring\n", omsg->procedureCode);
 		break;
 	default:
+		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_UNKNOWN);
 		LOGP(DRANAP, LOGL_NOTICE, "Received suspicious RANAP "
 		     "Procedure %ld from CN, ignoring\n", omsg->procedureCode);
 		break;
@@ -1126,6 +1135,43 @@ char *cnlink_sccp_addr_to_str(struct hnbgw_cnlink *cnlink, const struct osmo_scc
 }
 
 static const struct rate_ctr_desc cnlink_ctr_description[] = {
+	[CNLINK_CTR_RANAP_RX_UDT_RESET] = {
+		"ranap:rx:udt:reset",
+		"RANAP Unitdata RESET messages received"
+	},
+	[CNLINK_CTR_RANAP_RX_UDT_RESET_ACK] = {
+		"ranap:rx:udt:reset_ack",
+		"RANAP Unitdata RESET ACK messages received",
+	},
+	[CNLINK_CTR_RANAP_RX_UDT_PAGING] = {
+		"ranap:rx:udt:paging",
+		"RANAP Unitdata PAGING messages received",
+	},
+	[CNLINK_CTR_RANAP_RX_UDT_UNKNOWN] = {
+		"ranap:rx:udt:unknown",
+		"Unknown RANAP Unitdata messages received",
+	},
+	[CNLINK_CTR_RANAP_RX_UDT_UNSUPPORTED] = {
+		"ranap:rx:udt:unsupported",
+		"Unsupported RANAP Unitdata messages received",
+	},
+	[CNLINK_CTR_RANAP_RX_UDT_OVERLOAD_IND] = {
+		"ranap:rx:udt:overload_ind",
+		"RANAP Unitdata Overload Indications received",
+	},
+	[CNLINK_CTR_RANAP_RX_UDT_ERROR_IND] = {
+		"ranap:rx:udt:error_ind",
+		"RANAP Unitdata Error Indications received",
+	},
+
+	[CNLINK_CTR_RANAP_TX_UDT_RESET] = {
+		"ranap:tx:udt:reset",
+		"RANAP Unitdata RESET messages transmitted",
+	},
+	[CNLINK_CTR_RANAP_TX_UDT_RESET_ACK] = {
+		"ranap:tx:udt:reset_ack",
+		"RANAP Unitdata RESET ACK messages transmitted",
+	},
 
 	/* Indicators for CN pool usage */
 	[CNLINK_CTR_CNPOOL_SUBSCR_NEW] = {

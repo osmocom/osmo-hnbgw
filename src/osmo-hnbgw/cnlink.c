@@ -174,7 +174,7 @@ static void tx_reset(struct hnbgw_cnlink *cnlink)
 	}
 
 	msg = ranap_new_msg_reset2(cnlink->pool->domain, &cause, use_grnc_id);
-
+	CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_TX_UDT_RESET);
 	osmo_sccp_tx_unitdata_msg(cnlink->hnbgw_sccp_user->sccp_user,
 				  &cnlink->hnbgw_sccp_user->local_addr,
 				  &cnlink->remote_addr,
@@ -225,7 +225,7 @@ static void tx_reset_ack(struct hnbgw_cnlink *cnlink)
 	}
 
 	msg = ranap_new_msg_reset_ack(cnlink->pool->domain, use_grnc_id);
-
+	CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_TX_UDT_RESET_ACK);
 	osmo_sccp_tx_unitdata_msg(cnlink->hnbgw_sccp_user->sccp_user,
 				  &cnlink->hnbgw_sccp_user->local_addr,
 				  &cnlink->remote_addr,
