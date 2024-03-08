@@ -203,6 +203,8 @@ struct hnbgw_cnpool {
 	struct rate_ctr_group *ctrs;
 };
 
+#define CNPOOL_CTR_INC(cnpool, x) rate_ctr_inc2((cnpool)->ctrs, x)
+
 /* A CN peer, like 'msc 0' or 'sgsn 23' */
 struct hnbgw_cnlink {
 	struct llist_head entry;

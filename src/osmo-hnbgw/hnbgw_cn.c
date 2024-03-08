@@ -1053,7 +1053,7 @@ struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 				CNLINK_CTR_INC(cnlink, CNLINK_CTR_CNPOOL_SUBSCR_KNOWN);
 				if (map->l3.is_emerg) {
 					CNLINK_CTR_INC(cnlink, CNLINK_CTR_CNPOOL_EMERG_FORWARDED);
-					rate_ctr_inc(rate_ctr_group_get_ctr(cnpool->ctrs, CNPOOL_CTR_EMERG_FORWARDED));
+					CNPOOL_CTR_INC(cnpool, CNPOOL_CTR_EMERG_FORWARDED);
 				}
 				return cnlink;
 			}
@@ -1090,9 +1090,9 @@ struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 	 * them are usable -- wrap to the start. */
 	cnlink = round_robin_next ? : round_robin_first;
 	if (!cnlink) {
-		rate_ctr_inc(rate_ctr_group_get_ctr(cnpool->ctrs, CNPOOL_CTR_SUBSCR_NO_CNLINK));
+		CNPOOL_CTR_INC(cnpool, CNPOOL_CTR_SUBSCR_NO_CNLINK);
 		if (map->l3.is_emerg)
-			rate_ctr_inc(rate_ctr_group_get_ctr(cnpool->ctrs, CNPOOL_CTR_EMERG_LOST));
+			CNPOOL_CTR_INC(cnpool, CNPOOL_CTR_EMERG_LOST);
 		return NULL;
 	}
 
@@ -1105,7 +1105,7 @@ struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 
 	if (map->l3.is_emerg) {
 		CNLINK_CTR_INC(cnlink, CNLINK_CTR_CNPOOL_EMERG_FORWARDED);
-		rate_ctr_inc(rate_ctr_group_get_ctr(cnpool->ctrs, CNPOOL_CTR_EMERG_FORWARDED));
+		CNPOOL_CTR_INC(cnpool, CNPOOL_CTR_EMERG_FORWARDED);
 	}
 
 	/* A CN link was picked by round-robin, so update the next round-robin nr to pick */
