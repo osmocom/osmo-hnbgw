@@ -47,9 +47,9 @@
 #include <osmocom/hnbgw/tdefs.h>
 #include <osmocom/mgcp_client/mgcp_client_endpoint_fsm.h>
 
-/* NOTE: This implementation can only handle one RAB per hnbgw context. This simplification was made because usually
- * a voice call will require only one RAB at a time. An exception may be corner cases like video calls, which we
- * do not support at the moment. */
+/* NOTE: This implementation can only handle one RAB per context_map (== SCCP connection == RUA connection == UE
+ * context). This simplification was made because usually a voice call will require only one RAB at a time. An exception
+ * may be corner cases like video calls, which we do not support at the moment. */
 
 /* Send Iu Release Request, this is done in erroneous cases from which we cannot recover */
 static void tx_release_req(struct hnbgw_context_map *map)
