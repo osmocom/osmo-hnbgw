@@ -988,7 +988,7 @@ struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 		if (cnlink) {
 			LOG_MAP(map, DCN, LOGL_INFO, "CN link paging record selects %s %d\n", cnpool->peer_name,
 				cnlink->nr);
-			rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_SUBSCR_PAGED));
+			CNLINK_CTR_INC(cnlink, CNLINK_CTR_CNPOOL_SUBSCR_PAGED);
 			return cnlink;
 		}
 		/* If there is no match, go on with other ways */
@@ -1038,7 +1038,7 @@ struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 			if (nri_matches_cnlink) {
 				LOG_NRI(LOGL_DEBUG, "NRI matches %s %d, but this %s is currently not connected\n",
 					cnpool->peer_name, cnlink->nr, cnpool->peer_name);
-				rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_SUBSCR_ATTACH_LOST));
+				CNLINK_CTR_INC(cnlink, CNLINK_CTR_CNPOOL_SUBSCR_ATTACH_LOST);
 			}
 			continue;
 		}
@@ -1050,9 +1050,9 @@ struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 					cnpool->peer_name, cnlink->nr);
 			} else {
 				LOG_NRI(LOGL_INFO, "NRI match selects %s %d\n", cnpool->peer_name, cnlink->nr);
-				rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_SUBSCR_KNOWN));
+				CNLINK_CTR_INC(cnlink, CNLINK_CTR_CNPOOL_SUBSCR_KNOWN);
 				if (map->l3.is_emerg) {
-					rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_EMERG_FORWARDED));
+					CNLINK_CTR_INC(cnlink, CNLINK_CTR_CNPOOL_EMERG_FORWARDED);
 					rate_ctr_inc(rate_ctr_group_get_ctr(cnpool->ctrs, CNPOOL_CTR_EMERG_FORWARDED));
 				}
 				return cnlink;
@@ -1099,12 +1099,12 @@ struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 	LOG_MAP(map, DCN, LOGL_INFO, "CN link round-robin selects %s %d\n", cnpool->peer_name, cnlink->nr);
 
 	if (is_null_nri)
-		rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_SUBSCR_REATTACH));
+		CNLINK_CTR_INC(cnlink, CNLINK_CTR_CNPOOL_SUBSCR_REATTACH);
 	else
-		rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_SUBSCR_NEW));
+		CNLINK_CTR_INC(cnlink, CNLINK_CTR_CNPOOL_SUBSCR_NEW);
 
 	if (map->l3.is_emerg) {
-		rate_ctr_inc(rate_ctr_group_get_ctr(cnlink->ctrs, CNLINK_CTR_CNPOOL_EMERG_FORWARDED));
+		CNLINK_CTR_INC(cnlink, CNLINK_CTR_CNPOOL_EMERG_FORWARDED);
 		rate_ctr_inc(rate_ctr_group_get_ctr(cnpool->ctrs, CNPOOL_CTR_EMERG_FORWARDED));
 	}
 

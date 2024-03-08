@@ -240,6 +240,8 @@ struct hnbgw_cnlink {
 #define LOG_CNLINK(CNLINK, SUBSYS, LEVEL, FMT, ARGS...) \
 	LOGP(SUBSYS, LEVEL, "(%s) " FMT, (CNLINK) ? (CNLINK)->name : "null", ##ARGS)
 
+#define CNLINK_CTR_INC(cnlink, x) rate_ctr_inc2((cnlink)->ctrs, x)
+
 struct hnbgw_cnlink *cnlink_get_nr(struct hnbgw_cnpool *cnpool, int nr, bool create_if_missing);
 
 static inline bool cnlink_is_cs(const struct hnbgw_cnlink *cnlink)
