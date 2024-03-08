@@ -395,6 +395,11 @@ const struct rate_ctr_desc hnb_ctr_description[] = {
 	[HNB_CTR_RUA_UDT_DL] = {
 		"rua:unit_data:dl", "Transmitted RUA UnitData (UDT) in downlink" },
 
+	[HNB_CTR_PS_PAGING_ATTEMPTED] = {
+		"paging:ps:attempted", "Transmitted PS Paging requests" },
+	[HNB_CTR_CS_PAGING_ATTEMPTED] = {
+		"paging:cs:attempted", "Transmitted CS Paging requests" },
+
 	[HNB_CTR_RAB_ACTIVE_MILLISECONDS_TOTAL] = {
 		"rab:cs:active_milliseconds:total", "Cumulative number of milliseconds of CS RAB activity" },
 };

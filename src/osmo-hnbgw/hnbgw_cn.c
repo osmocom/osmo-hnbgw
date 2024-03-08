@@ -293,6 +293,7 @@ static int cn_ranap_rx_paging_cmd(struct hnbgw_cnlink *cnlink,
 {
 	const char *errmsg;
 	struct hnb_context *hnb;
+	bool is_ps = cnlink->pool->domain == DOMAIN_PS;
 
 	errmsg = cnlink_paging_add_ranap(cnlink, imsg);
 	if (errmsg) {
@@ -307,6 +308,10 @@ static int cn_ranap_rx_paging_cmd(struct hnbgw_cnlink *cnlink,
 	llist_for_each_entry(hnb, &g_hnbgw->hnb_list, list) {
 		if (!hnb->hnb_registered)
 			continue;
+		if (is_ps)
+			HNBP_CTR_INC(hnb->persistent, HNB_CTR_PS_PAGING_ATTEMPTED);
+		else
+			HNBP_CTR_INC(hnb->persistent, HNB_CTR_CS_PAGING_ATTEMPTED);
 		rua_tx_udt(hnb, data, len);
 	}
 
