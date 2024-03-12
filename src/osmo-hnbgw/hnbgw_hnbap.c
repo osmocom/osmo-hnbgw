@@ -441,6 +441,7 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 		return hnbgw_tx_hnb_register_rej(ctx);
 	}
 	ctx->persistent = hnbp;
+	hnbp->ctx = ctx;
 
 
 	llist_for_each_entry_safe(hnb, tmp, &g_hnbgw->hnb_list, list) {
