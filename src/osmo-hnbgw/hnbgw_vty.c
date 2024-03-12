@@ -204,6 +204,7 @@ static void vty_dump_hnb_info(struct vty *vty, struct hnb_context *hnb)
 	struct hnbgw_context_map *map;
 	unsigned int map_count[2] = {};
 	unsigned int state_count[2][MAP_S_NUM_STATES + 1] = {};
+	unsigned long long sec;
 
 	vty_out(vty, "HNB ");
 	vty_out_ofd_addr(vty, hnb->conn? osmo_stream_srv_get_ofd(hnb->conn) : NULL);
@@ -218,6 +219,12 @@ static void vty_dump_hnb_info(struct vty *vty, struct hnb_context *hnb)
 	}
 	vty_dump_hnb_info__map_states(vty, "IuCS", map_count[0], state_count[0]);
 	vty_dump_hnb_info__map_states(vty, "IuPS", map_count[1], state_count[1]);
+
+	sec = hnb_get_updowntime(hnb);
+	if (sec) {
+		vty_out(vty, " Iuh Uptime: %llu days %llu hours %llu min. %llu sec.%s",
+			OSMO_SEC2DAY(sec), OSMO_SEC2HRS(sec), OSMO_SEC2MIN(sec), sec % 60, VTY_NEWLINE);
+	}
 }
 
 static void vty_dump_ue_info(struct vty *vty, struct ue_context *ue)

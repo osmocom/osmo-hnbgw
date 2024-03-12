@@ -430,3 +430,5 @@ static inline bool hnb_gw_is_gtp_mapping_enabled(void)
 struct msgb *hnbgw_ranap_msg_alloc(const char *name);
 
 int hnbgw_peek_l3_ul(struct hnbgw_context_map *map, struct msgb *ranap_msg);
+
+unsigned long long hnb_get_updowntime(const struct hnb_context *ctx);

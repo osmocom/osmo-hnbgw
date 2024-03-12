@@ -441,6 +441,13 @@ static unsigned long long hnbp_get_updowntime(const struct hnb_persistent *hnbp)
 	return difftime(tp.tv_sec, hnbp->updowntime);
 }
 
+unsigned long long hnb_get_updowntime(const struct hnb_context *ctx)
+{
+	if (!ctx->persistent)
+		return 0;
+	return hnbp_get_updowntime(ctx->persistent);
+}
+
 /* timer call-back: Update the HNB_STAT_UPTIME_SECONDS stat item of each hnb_persistent */
 static void hnbgw_store_hnb_uptime(void *data)
 {
