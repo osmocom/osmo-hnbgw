@@ -364,6 +364,59 @@ const struct rate_ctr_desc hnb_ctr_description[] = {
 	[HNB_CTR_RANAP_CS_RESET_REQ_UL] = {
 		"ranap:cs:reset_req:ul", "Received RESET Requests in Uplink (CS Domain)" },
 
+
+	[HNB_CTR_RANAP_PS_RAB_ACT_REQ] = {
+		"ranap:ps:rab_act:req", "PS RAB Activations requested" },
+	[HNB_CTR_RANAP_CS_RAB_ACT_REQ] = {
+		"ranap:cs:rab_act:req", "CS RAB Activations requested" },
+
+	[HNB_CTR_RANAP_PS_RAB_ACT_CNF] = {
+		"ranap:ps:rab_act:cnf", "PS RAB Activations confirmed" },
+	[HNB_CTR_RANAP_CS_RAB_ACT_CNF] = {
+		"ranap:cs:rab_act:cnf", "CS RAB Activations confirmed" },
+
+	[HNB_CTR_RANAP_PS_RAB_ACT_FAIL] = {
+		"ranap:ps:rab_act:fail", "PS RAB Activations failed" },
+	[HNB_CTR_RANAP_CS_RAB_ACT_FAIL] = {
+		"ranap:cs:rab_act:fail", "CS RAB Activations failed" },
+
+
+	[HNB_CTR_RANAP_PS_RAB_MOD_REQ] = {
+		"ranap:ps:rab_mod:req", "PS RAB Modifications requested" },
+	[HNB_CTR_RANAP_CS_RAB_MOD_REQ] = {
+		"ranap:cs:rab_mod:req", "CS RAB Modifications requested" },
+
+	[HNB_CTR_RANAP_PS_RAB_MOD_CNF] = {
+		"ranap:ps:rab_mod:cnf", "PS RAB Modifications confirmed" },
+	[HNB_CTR_RANAP_CS_RAB_MOD_CNF] = {
+		"ranap:cs:rab_mod:cnf", "CS RAB Modifications confirmed" },
+
+	[HNB_CTR_RANAP_PS_RAB_MOD_FAIL] = {
+		"ranap:ps:rab_mod:fail", "PS RAB Modifications failed" },
+	[HNB_CTR_RANAP_CS_RAB_MOD_FAIL] = {
+		"ranap:cs:rab_mod:fail", "CS RAB Modifications failed" },
+
+
+	[HNB_CTR_RANAP_PS_RAB_REL_REQ] = {
+		"ranap:ps:rab_rel:req", "PS RAB Release requested" },
+	[HNB_CTR_RANAP_CS_RAB_REL_REQ] = {
+		"ranap:cs:rab_rel:req", "CS RAB Release requested" },
+
+	[HNB_CTR_RANAP_PS_RAB_REL_CNF] = {
+		"ranap:ps:rab_rel:cnf", "PS RAB Release confirmed" },
+	[HNB_CTR_RANAP_CS_RAB_REL_CNF] = {
+		"ranap:cs:rab_rel:cnf", "CS RAB Release confirmed" },
+
+	[HNB_CTR_RANAP_PS_RAB_REL_FAIL] = {
+		"ranap:ps:rab_rel:fail", "PS RAB Release failed" },
+	[HNB_CTR_RANAP_CS_RAB_REL_FAIL] = {
+		"ranap:cs:rab_rel:fail", "CS RAB Release failed" },
+
+	[HNB_CTR_RANAP_PS_RAB_REL_IMPLICIT] = {
+		"ranap:ps:rab_rel:implicit", "PS RAB Release implicit (during Iu Release)" },
+	[HNB_CTR_RANAP_CS_RAB_REL_IMPLICIT] = {
+		"ranap:cs:rab_rel:implicit", "CS RAB Release implicit (during Iu Release)" },
+
 	[HNB_CTR_RUA_ERR_IND] = {
 		"rua:error_ind", "Received RUA Error Indications" },
 

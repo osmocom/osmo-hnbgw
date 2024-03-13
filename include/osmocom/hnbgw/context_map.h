@@ -101,6 +101,14 @@ struct hnbgw_l3_peek {
 	bool from_other_plmn;
 };
 
+/* used in hnbgw_context_map.rab_state[] */
+enum rab_state {
+	RAB_STATE_INACTIVE,
+	RAB_STATE_ACT_REQ,
+	RAB_STATE_ACTIVE,
+	RAB_STATE_REL_REQ,
+};
+
 struct hnbgw_context_map {
 	/* entry in the per-CN list of mappings */
 	struct llist_head hnbgw_cnlink_entry;
@@ -159,6 +167,9 @@ struct hnbgw_context_map {
 	/* All PS RABs and their GTP tunnel mappings. list of struct ps_rab. Each ps_rab FSM handles the PFCP
 	 * communication for one particular RAB ID. */
 	struct llist_head ps_rabs;
+
+	/* RAB state tracking. As RAB-ID is an 8-bit integer, we need 256 elements in the array */
+	uint8_t rab_state[256];
 
 	/* Flag to prevent calling context_map_free() from cleanup code paths triggered by context_map_free() itself. */
 	bool deallocating;

@@ -36,6 +36,7 @@
 #include <osmocom/hnbgw/hnbgw_rua.h>
 #include <osmocom/hnbgw/mgw_fsm.h>
 #include <osmocom/hnbgw/ps_rab_ass_fsm.h>
+#include <osmocom/hnbgw/kpi.h>
 
 enum map_rua_fsm_state {
 	MAP_RUA_ST_INIT,
@@ -168,6 +169,8 @@ static int handle_rx_rua(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 			LOGPFSML(fi, LOGL_DEBUG, "rx from RUA: RANAP %s\n",
 				 get_value_string(ranap_procedure_code_vals, message->procedureCode));
 
+			kpi_ranap_process_ul(map, message);
+
 			switch (message->procedureCode) {
 			case RANAP_ProcedureCode_id_RAB_Assignment:
 				/* mgw_fsm_handle_rab_ass_resp() takes ownership of prim->oph and (ranap) message */
@@ -181,6 +184,8 @@ static int handle_rx_rua(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 		if (message) {
 			LOGPFSML(fi, LOGL_DEBUG, "rx from RUA: RANAP %s\n",
 				 get_value_string(ranap_procedure_code_vals, message->procedureCode));
+
+			kpi_ranap_process_ul(map, message);
 
 			switch (message->procedureCode) {
 			case RANAP_ProcedureCode_id_RAB_Assignment:
