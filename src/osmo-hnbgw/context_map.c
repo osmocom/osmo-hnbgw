@@ -89,6 +89,8 @@ struct hnbgw_context_map *context_map_alloc(struct hnb_context *hnb, uint32_t ru
 	map->is_ps = is_ps;
 	INIT_LLIST_HEAD(&map->ps_rab_ass);
 	INIT_LLIST_HEAD(&map->ps_rabs);
+	map->rab_active_mask.bv.data = map->rab_active_mask.data;
+	map->rab_active_mask.bv.data_len = sizeof(map->rab_active_mask.data);
 
 	map_rua_fsm_alloc(map);
 

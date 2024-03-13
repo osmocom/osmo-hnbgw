@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <osmocom/core/linuxlist.h>
+#include <osmocom/core/bitvec.h>
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/gsm/gsm48.h>
 
@@ -159,6 +160,12 @@ struct hnbgw_context_map {
 	/* All PS RABs and their GTP tunnel mappings. list of struct ps_rab. Each ps_rab FSM handles the PFCP
 	 * communication for one particular RAB ID. */
 	struct llist_head ps_rabs;
+
+	/* bit-mask of RABs currently active.  As RAB-ID is an 8-bit integer, we need 256 bits */
+	struct {
+		struct bitvec bv;
+		uint8_t data[256/8];
+	} rab_active_mask;
 
 	/* Flag to prevent calling context_map_free() from cleanup code paths triggered by context_map_free() itself. */
 	bool deallocating;

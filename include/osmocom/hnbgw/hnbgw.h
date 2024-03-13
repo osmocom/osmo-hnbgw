@@ -80,6 +80,18 @@ enum hnb_rate_ctr {
 	HNB_CTR_RANAP_PS_RESET_REQ_UL,
 	HNB_CTR_RANAP_CS_RESET_REQ_UL,
 
+	HNB_CTR_RANAP_PS_RAB_ACT_REQ,
+	HNB_CTR_RANAP_CS_RAB_ACT_REQ,
+
+	HNB_CTR_RANAP_PS_RAB_MOD_REQ,
+	HNB_CTR_RANAP_CS_RAB_MOD_REQ,
+
+	HNB_CTR_RANAP_PS_RAB_REL_REQ,
+	HNB_CTR_RANAP_CS_RAB_REL_REQ,
+
+	HNB_CTR_RANAP_PS_RAB_REL_CNF,
+	HNB_CTR_RANAP_CS_RAB_REL_CNF,
+
 	HNB_CTR_RUA_ERR_IND,
 
 	HNB_CTR_RUA_PS_CONNECT_UL,
@@ -301,6 +313,7 @@ struct hnb_context {
 
 #define HNBP_CTR(hnbp, x) rate_ctr_group_get_ctr((hnbp)->ctrs, x)
 #define HNBP_CTR_INC(hnbp, x) rate_ctr_inc(HNBP_CTR(hnbp, x))
+#define HNBP_CTR_ADD(hnbp, x, y) rate_ctr_add2((hnbp)->ctrs, x, y)
 
 #define HNBP_STAT(hbp, x) osmo_stat_item_group_get_item((hnbp)->statg, x)
 #define HNBP_STAT_SET(hnbp, x, val) osmo_stat_item_set(HNBP_STAT(hnbp, x), val)
