@@ -161,39 +161,33 @@ static int handle_rx_rua(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 	if (!msg_has_l2_data(ranap_msg))
 		return 0;
 
-	/* See if it is a RAB Assignment Response message from RUA to SCCP, where we need to change the user plane
-	 * information, for RTP mapping via MGW, or GTP mapping via UPF. */
-	if (!map->is_ps) {
-		ranap_message *message = hnbgw_decode_ranap_co(ranap_msg);
-		if (message) {
-			LOGPFSML(fi, LOGL_DEBUG, "rx from RUA: RANAP %s\n",
-				 get_value_string(ranap_procedure_code_vals, message->procedureCode));
+	ranap_message *message = hnbgw_decode_ranap_co(ranap_msg);
+	if (message) {
+		LOGPFSML(fi, LOGL_DEBUG, "rx from RUA: RANAP %s\n",
+			 get_value_string(ranap_procedure_code_vals, message->procedureCode));
 
-			kpi_ranap_process_ul(map, message);
+		kpi_ranap_process_ul(map, message);
 
+		if (!map->is_ps) {
+			/* See if it is a RAB Assignment Response message from RUA to SCCP, where we need to change the user plane
+			 * information, for RTP mapping via MGW, or GTP mapping via UPF. */
 			switch (message->procedureCode) {
 			case RANAP_ProcedureCode_id_RAB_Assignment:
 				/* mgw_fsm_handle_rab_ass_resp() takes ownership of prim->oph and (ranap) message */
 				return mgw_fsm_handle_cs_rab_ass_resp(map, ranap_msg, message);
 			}
-		}
+		} else {
 #if ENABLE_PFCP
-	} else if (hnb_gw_is_gtp_mapping_enabled()) {
-		/* map->is_ps == true and PFCP is enabled in osmo-hnbgw.cfg */
-		ranap_message *message = hnbgw_decode_ranap_co(ranap_msg);
-		if (message) {
-			LOGPFSML(fi, LOGL_DEBUG, "rx from RUA: RANAP %s\n",
-				 get_value_string(ranap_procedure_code_vals, message->procedureCode));
-
-			kpi_ranap_process_ul(map, message);
-
-			switch (message->procedureCode) {
-			case RANAP_ProcedureCode_id_RAB_Assignment:
-				/* ps_rab_ass_fsm takes ownership of prim->oph and RANAP message */
-				return hnbgw_gtpmap_rx_rab_ass_resp(map, ranap_msg, message);
+			if (hnb_gw_is_gtp_mapping_enabled()) {
+				/* map->is_ps == true and PFCP is enabled in osmo-hnbgw.cfg */
+				switch (message->procedureCode) {
+				case RANAP_ProcedureCode_id_RAB_Assignment:
+					/* ps_rab_ass_fsm takes ownership of prim->oph and RANAP message */
+					return hnbgw_gtpmap_rx_rab_ass_resp(map, ranap_msg, message);
+				}
 			}
-		}
 #endif
+		}
 	}
 
 	/* It was not a RAB Assignment Response that needed to be intercepted. Forward as-is to SCCP. */
