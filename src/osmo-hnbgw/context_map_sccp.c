@@ -204,19 +204,19 @@ static int handle_rx_sccp(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 
 	/* See if it is a RAB Assignment Request message from SCCP to RUA, where we need to change the user plane
 	 * information, for RTP mapping via MGW, or GTP mapping via UPF. */
-	if (!map->is_ps) {
-		ranap_message *message;
-		/* Circuit-Switched. Set up mapping of RTP ports via MGW */
-		message = talloc_zero(OTC_SELECT, ranap_message);
-		rc = ranap_ran_rx_co_decode(message, message, msgb_l2(ranap_msg), msgb_l2len(ranap_msg));
+	ranap_message *message;
+	message = talloc_zero(OTC_SELECT, ranap_message);
+	rc = ranap_ran_rx_co_decode(message, message, msgb_l2(ranap_msg), msgb_l2len(ranap_msg));
+	if (rc == 0) {
+		talloc_set_destructor(message, destruct_ranap_ran_rx_co_ies);
 
-		if (rc == 0) {
-			talloc_set_destructor(message, destruct_ranap_ran_rx_co_ies);
+		LOGPFSML(fi, LOGL_DEBUG, "rx from SCCP: RANAP %s\n",
+			 get_value_string(ranap_procedure_code_vals, message->procedureCode));
 
-			LOGPFSML(fi, LOGL_DEBUG, "rx from SCCP: RANAP %s\n",
-				 get_value_string(ranap_procedure_code_vals, message->procedureCode));
+		kpi_ranap_process_dl(map, message);
 
-			kpi_ranap_process_dl(map, message);
+		if (!map->is_ps) {
+			/* Circuit-Switched. Set up mapping of RTP ports via MGW */
 
 			switch (message->procedureCode) {
 			case RANAP_ProcedureCode_id_RAB_Assignment:
@@ -228,24 +228,9 @@ static int handle_rx_sccp(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 				mgw_fsm_release(map);
 				break;
 			}
-		}
 #if ENABLE_PFCP
-	} else {
-		ranap_message *message;
-		/* Packet-Switched. Set up mapping of GTP ports via UPF */
-		message = talloc_zero(OTC_SELECT, ranap_message);
-		rc = ranap_ran_rx_co_decode(message, message, msgb_l2(ranap_msg), msgb_l2len(ranap_msg));
-
-		if (rc == 0) {
-			talloc_set_destructor(message, destruct_ranap_ran_rx_co_ies);
-
-			LOGPFSML(fi, LOGL_DEBUG, "rx from SCCP: RANAP %s\n",
-				 get_value_string(ranap_procedure_code_vals, message->procedureCode));
-
-			kpi_ranap_process_dl(map, message);
-
+		} else {
 			switch (message->procedureCode) {
-
 			case RANAP_ProcedureCode_id_RAB_Assignment:
 				/* If a UPF is configured, handle the RAB Assignment via ps_rab_ass_fsm, and replace the
 				 * GTP F-TEIDs in the RAB Assignment message before passing it on to RUA. */
@@ -265,8 +250,8 @@ static int handle_rx_sccp(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 				hnbgw_gtpmap_release(map);
 				break;
 			}
-		}
 #endif
+		}
 	}
 
 	/* It was not a RAB Assignment Request that needed to be intercepted. Forward as-is to RUA. */
