@@ -39,6 +39,34 @@ osmo-build-dep.sh libasn1c
 osmo-build-dep.sh osmo-iuh
 osmo-build-dep.sh osmo-mgw
 
+# build libnftnl and libnftables from git.netfilter.org -- copied from osmo-upf/contrib/jenkins.sh
+build_from_netfilter() {
+###  TODO: enable osmo-build-dep.sh to build from git.netfilter.org URL?
+	project="$1"
+	set +x
+	echo
+	echo
+	echo
+	echo " =============================== $project ==============================="
+	echo
+	set -x
+	if [ -d "./$project" ]; then
+		rm -rf "./$project"
+	fi
+	git clone "git://git.netfilter.org/$project" "$project"
+	cd "$project"
+	autoreconf --install --force
+	./configure \
+		--prefix="$inst/stow/$project" \
+		--without-cli \
+		--disable-man-doc \
+		--enable-python=no
+	$MAKE $PARALLEL_MAKE install
+	STOW_DIR="$inst/stow" stow --restow $project
+}
+build_from_netfilter libnftnl
+build_from_netfilter nftables
+
 # Additional configure options and depends
 CONFIG=""
 if [ "$PFCP" = "1" ]; then

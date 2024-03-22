@@ -49,7 +49,7 @@ AC_SEARCH_LIBS([sctp_recvmsg], [sctp], [
 LIBS=$old_LIBS
 
 PKG_CHECK_MODULES(LIBASN1C, libasn1c >= 0.9.30)
-PKG_CHECK_MODULES(LIBOSMOCORE, libosmocore >= 1.9.0)
+PKG_CHECK_MODULES(LIBOSMOCORE, libosmocore > 1.9.0)
 PKG_CHECK_MODULES(LIBOSMOVTY, libosmovty >= 1.9.0)
 PKG_CHECK_MODULES(LIBOSMOCTRL, libosmoctrl >= 1.9.0)
 PKG_CHECK_MODULES(LIBOSMOGSM, libosmogsm >= 1.9.0)
@@ -59,6 +59,7 @@ PKG_CHECK_MODULES(LIBOSMORUA, libosmo-rua >= 1.5.0)
 PKG_CHECK_MODULES(LIBOSMORANAP, libosmo-ranap >= 1.5.0)
 PKG_CHECK_MODULES(LIBOSMOHNBAP, libosmo-hnbap >= 1.5.0)
 PKG_CHECK_MODULES(LIBOSMOMGCPCLIENT, libosmo-mgcp-client >= 1.12.0)
+PKG_CHECK_MODULES(LIBNFTABLES, libnftables >= 1.0.2)
 
 # Enable PFCP support for GTP tunnel mapping via UPF
 AC_ARG_ENABLE([pfcp], [AS_HELP_STRING([--enable-pfcp], [Build with PFCP support, for GTP tunnel mapping via UPF])],

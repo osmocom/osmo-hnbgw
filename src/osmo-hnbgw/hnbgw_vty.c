@@ -35,6 +35,7 @@
 #include <osmocom/hnbgw/hnbgw_cn.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/tdefs.h>
+#include <osmocom/hnbgw/nft_kpi.h>
 #include <osmocom/sigtran/protocol/sua.h>
 #include <osmocom/sigtran/sccp_helpers.h>
 #include <osmocom/netif/stream.h>
