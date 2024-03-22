@@ -553,6 +553,8 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 
 	ctx->hnb_registered = true;
 
+	hnb_persistent_update_addr(ctx->persistent, osmo_stream_srv_get_fd(ctx->conn));
+
 	/* Send HNBRegisterAccept */
 	rc = hnbgw_tx_hnb_register_acc(ctx);
 	hnbap_free_hnbregisterrequesties(&ies);
