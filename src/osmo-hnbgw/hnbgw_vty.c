@@ -35,6 +35,7 @@
 #include <osmocom/hnbgw/hnbgw_cn.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/tdefs.h>
+#include <osmocom/hnbgw/nft_kpi.h>
 #include <osmocom/sigtran/protocol/sua.h>
 #include <osmocom/sigtran/sccp_helpers.h>
 #include <osmocom/netif/stream.h>
@@ -741,6 +742,14 @@ DEFUN(show_nri, show_nri_cmd,
 	return CMD_SUCCESS;
 }
 
+DEFUN(show_nft, show_nft_cmd,
+      "show nft",
+      SHOW_STR "nft counters")
+{
+	vty_out(vty, "%s%s", nft_kpi_read_counters(), VTY_NEWLINE);
+	return CMD_SUCCESS;
+}
+
 /* Hidden since it exists only for use by ttcn3 tests */
 DEFUN_HIDDEN(cnpool_roundrobin_next, cnpool_roundrobin_next_cmd,
 	     "cnpool roundrobin next (msc|sgsn) " CNLINK_NR_RANGE,
@@ -1164,4 +1173,6 @@ void hnbgw_vty_init(void)
 	install_element_ve(&show_nri_cmd);
 	install_element(ENABLE_NODE, &cnpool_roundrobin_next_cmd);
 	install_element(ENABLE_NODE, &cnlink_ranap_reset_cmd);
+
+	install_element_ve(&show_nft_cmd);
 }

@@ -6,6 +6,7 @@
 #include <osmocom/core/write_queue.h>
 #include <osmocom/core/timer.h>
 #include <osmocom/core/rate_ctr.h>
+#include <osmocom/core/sockaddr_str.h>
 #include <osmocom/gsm/gsm23003.h>
 #include <osmocom/sigtran/sccp_sap.h>
 #include <osmocom/sigtran/osmo_ss7.h>
@@ -18,6 +19,8 @@
 #include <osmocom/mgcp_client/mgcp_client.h>
 #include <osmocom/mgcp_client/mgcp_client_pool.h>
 
+#include <osmocom/hnbgw/nft_kpi.h>
+
 #define STORE_UPTIME_INTERVAL	10 /* seconds */
 #define HNB_STORE_RAB_DURATIONS_INTERVAL 1 /* seconds */
 
@@ -29,6 +32,7 @@ enum {
 	DMGW,
 	DHNB,
 	DCN,
+	DNFT,
 };
 
 extern const struct log_info hnbgw_log_info;
@@ -132,6 +136,11 @@ enum hnb_rate_ctr {
 	HNB_CTR_CS_PAGING_ATTEMPTED,
 
 	HNB_CTR_RAB_ACTIVE_MILLISECONDS_TOTAL,
+
+	HNB_CTR_GTPU_DOWNLOAD_PACKETS,
+	HNB_CTR_GTPU_DOWNLOAD_GTP_BYTES,
+	HNB_CTR_GTPU_UPLOAD_PACKETS,
+	HNB_CTR_GTPU_UPLOAD_GTP_BYTES,
 };
 
 enum hnb_stat {
@@ -353,6 +362,14 @@ struct hnb_persistent {
 
 	struct rate_ctr_group *ctrs;
 	struct osmo_stat_item_group *statg;
+
+	struct {
+		struct osmo_sockaddr_str addr_remote;
+		struct {
+			struct nft_kpi_val rx;
+			struct nft_kpi_val tx;
+		} last;
+	} nft_kpi;
 };
 
 struct ue_context {
@@ -450,7 +467,9 @@ void hnb_context_release(struct hnb_context *ctx);
 void hnb_context_release_ue_state(struct hnb_context *ctx);
 
 struct hnb_persistent *hnb_persistent_alloc(const struct umts_cell_id *id);
-struct hnb_persistent *hnb_persistent_find_by_id(const struct umts_cell_id *id);
+struct hnb_persistent *hnb_persistent_find_by_id(const struct umts_cell_id *id_str);
+struct hnb_persistent *hnb_persistent_find_by_id_str(const char *id);
+void hnb_persistent_update_addr(struct hnb_persistent *hnbp, int new_fd);
 void hnb_persistent_free(struct hnb_persistent *hnbp);
 
 void hnbgw_vty_init(void);

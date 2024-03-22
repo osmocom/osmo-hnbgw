@@ -340,8 +340,10 @@ void hnb_context_release(struct hnb_context *ctx)
 	}
 
 	/* remove back reference from hnb_persistent to context */
-	if (ctx->persistent)
+	if (ctx->persistent) {
+		hnb_nft_kpi_end(ctx->persistent);
 		ctx->persistent->ctx = NULL;
+	}
 
 	talloc_free(ctx);
 }
@@ -455,6 +457,24 @@ const struct rate_ctr_desc hnb_ctr_description[] = {
 
 	[HNB_CTR_RAB_ACTIVE_MILLISECONDS_TOTAL] = {
 		"rab:cs:active_milliseconds:total", "Cumulative number of milliseconds of CS RAB activity" },
+
+	[HNB_CTR_GTPU_DOWNLOAD_PACKETS] = {
+		"gtpu:dl:packets",
+		"Count of total GTP-U packets sent to the HNB.",
+	},
+	[HNB_CTR_GTPU_DOWNLOAD_GTP_BYTES] = {
+		"gtpu:dl:gtpbytes",
+		"Count of total GTP-U bytes sent to the HNB, including the GTP-U header.",
+	},
+	[HNB_CTR_GTPU_UPLOAD_PACKETS] = {
+		"gtpu:ul:packets",
+		"Count of total GTP-U packets received from the HNB.",
+	},
+	[HNB_CTR_GTPU_UPLOAD_GTP_BYTES] = {
+		"gtpu:ul:gtpbytes",
+		"Count of total GTP-U bytes received from the HNB, including the GTP-U header.",
+	},
+
 };
 
 const struct rate_ctr_group_desc hnb_ctrg_desc = {
@@ -517,9 +537,49 @@ struct hnb_persistent *hnb_persistent_find_by_id(const struct umts_cell_id *id)
 	return NULL;
 }
 
+struct hnb_persistent *hnb_persistent_find_by_id_str(const char *id_str)
+{
+	struct hnb_persistent *hnbp;
+	llist_for_each_entry(hnbp, &g_hnbgw->hnb_persistent_list, list) {
+		if (strcmp(hnbp->id_str, id_str))
+			continue;
+		return hnbp;
+	}
+	return NULL;
+}
+
+void hnb_persistent_update_addr(struct hnb_persistent *hnbp, int new_fd)
+{
+	int rc;
+	socklen_t socklen;
+	struct osmo_sockaddr osa;
+	struct osmo_sockaddr_str remote_str;
+
+	socklen = sizeof(struct osmo_sockaddr);
+	rc = getpeername(new_fd, &osa.u.sa, &socklen);
+	if (!rc)
+		rc = osmo_sockaddr_str_from_osa(&remote_str, &osa);
+	if (rc < 0) {
+		LOGP(DHNB, LOGL_ERROR, "cannot read remote hNodeB address from Iuh file descriptor\n");
+		return;
+	}
+
+	if (!osmo_sockaddr_str_cmp(&remote_str, &hnbp->nft_kpi.addr_remote)) {
+		/* The remote address is unchanged, no need to update the nft probe */
+		return;
+	}
+
+	/* The remote address has changed. Cancel previous probe, if any, and start a new one. */
+	if (osmo_sockaddr_str_is_nonzero(&hnbp->nft_kpi.addr_remote))
+		hnb_nft_kpi_end(hnbp);
+	hnbp->nft_kpi.addr_remote = remote_str;
+	hnb_nft_kpi_start(hnbp);
+}
+
 void hnb_persistent_free(struct hnb_persistent *hnbp)
 {
 	/* FIXME: check if in use? */
+	hnb_nft_kpi_end(hnbp);
 	llist_del(&hnbp->list);
 	talloc_free(hnbp);
 }
@@ -844,6 +904,11 @@ static const struct log_info_cat hnbgw_log_cat[] = {
 		.name = "DCN", .loglevel = LOGL_NOTICE, .enabled = 1,
 		.color = OSMO_LOGCOLOR_DARKYELLOW,
 		.description = "Core Network side (via SCCP)",
+	},
+	[DNFT] = {
+		.name = "DNFT", .loglevel = LOGL_NOTICE, .enabled = 1,
+		.color = OSMO_LOGCOLOR_BLUE,
+		.description = "netfilter counters for per-HNB traffic counters",
 	},
 };
 
