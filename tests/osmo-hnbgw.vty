@@ -20,6 +20,7 @@ OsmoHNBGW(config-hnbgw)# list
   iups
   hnb UMTS_CELL_ID
   no hnb IDENTITY_INFO
+  nft-kpi [TABLE_NAME]
 ...
 
 OsmoHNBGW(config-hnbgw)# plmn?
@@ -82,3 +83,39 @@ hnbgw
 ...
  rnc-id 42
 ...
+
+OsmoHNBGW(config-hnbgw)# nft-kpi?
+  nft-kpi  Retrieve traffic counters from nftables
+OsmoHNBGW(config-hnbgw)# nft-kpi ?
+  [TABLE_NAME]  Set a custom nft table name to use, instead of 'osmo-hnbgw'
+
+OsmoHNBGW(config-hnbgw)# show running-config
+... !nft-kpi
+
+OsmoHNBGW(config-hnbgw)# nft-kpi
+% WARNING: nft configuration changes need a restart of osmo-hnbw
+OsmoHNBGW(config-hnbgw)# show running-config
+...
+hnbgw
+...
+ nft-kpi
+...
+
+OsmoHNBGW(config-hnbgw)# no nft-kpi
+% WARNING: nft configuration changes need a restart of osmo-hnbw
+OsmoHNBGW(config-hnbgw)# show running-config
+... !nft-kpi
+
+OsmoHNBGW(config-hnbgw)# nft-kpi maple
+% WARNING: nft configuration changes need a restart of osmo-hnbw
+OsmoHNBGW(config-hnbgw)# show running-config
+...
+hnbgw
+...
+ nft-kpi maple
+...
+
+OsmoHNBGW(config-hnbgw)# no nft-kpi
+% WARNING: nft configuration changes need a restart of osmo-hnbw
+OsmoHNBGW(config-hnbgw)# show running-config
+... !nft-kpi

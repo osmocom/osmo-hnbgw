@@ -328,6 +328,16 @@ int main(int argc, char **argv)
 	/* If UPF is configured, set up PFCP socket and send Association Setup Request to UPF */
 	hnbgw_pfcp_init();
 #endif
+#if ENABLE_NFTABLES
+	/* If nftables is enabled, initialize the nft table now or fail startup. This is important to immediately let
+	 * the user know if cap_net_admin privileges are missing, and not only when the first hNodeB connects. */
+	if (g_hnbgw->config.nft_kpi.enable) {
+		if (nft_kpi_init(g_hnbgw->config.nft_kpi.table_name)) {
+			perror("Failed to initialize nft KPI, probably missing cap_net_admin");
+			exit(1);
+		}
+	}
+#endif
 
 	hnbgw_cnpool_start(&g_hnbgw->sccp.cnpool_iucs);
 	hnbgw_cnpool_start(&g_hnbgw->sccp.cnpool_iups);

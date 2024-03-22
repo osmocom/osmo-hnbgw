@@ -342,8 +342,10 @@ void hnb_context_release(struct hnb_context *ctx)
 	}
 
 	/* remove back reference from hnb_persistent to context */
-	if (ctx->persistent)
+	if (ctx->persistent) {
+		hnb_nft_kpi_end(ctx->persistent);
 		ctx->persistent->ctx = NULL;
+	}
 
 	talloc_free(ctx);
 }
@@ -464,6 +466,24 @@ const struct rate_ctr_desc hnb_ctr_description[] = {
 
 	[HNB_CTR_RAB_ACTIVE_MILLISECONDS_TOTAL] = {
 		"rab:cs:active_milliseconds:total", "Cumulative number of milliseconds of CS RAB activity" },
+
+	[HNB_CTR_GTPU_PACKETS_UL] = {
+		"gtpu:packets:ul",
+		"Count of GTP-U packets received from the HNB",
+	},
+	[HNB_CTR_GTPU_TOTAL_BYTES_UL] = {
+		"gtpu:total_bytes:ul",
+		"Count of total GTP-U bytes received from the HNB, including the GTP-U/UDP/IP headers",
+	},
+	[HNB_CTR_GTPU_PACKETS_DL] = {
+		"gtpu:packets:dl",
+		"Count of GTP-U packets sent to the HNB",
+	},
+	[HNB_CTR_GTPU_TOTAL_BYTES_DL] = {
+		"gtpu:total_bytes:dl",
+		"Count of total GTP-U bytes sent to the HNB, including the GTP-U/UDP/IP headers",
+	},
+
 };
 
 const struct rate_ctr_group_desc hnb_ctrg_desc = {
@@ -526,9 +546,46 @@ struct hnb_persistent *hnb_persistent_find_by_id(const struct umts_cell_id *id)
 	return NULL;
 }
 
+struct hnb_persistent *hnb_persistent_find_by_id_str(const char *id_str)
+{
+	struct hnb_persistent *hnbp;
+	llist_for_each_entry (hnbp, &g_hnbgw->hnb_persistent_list, list) {
+		if (strcmp(hnbp->id_str, id_str))
+			continue;
+		return hnbp;
+	}
+	return NULL;
+}
+
+/* Read the peer's remote IP address from the Iuh conn's fd, and set up GTP-U counters for that remote address. */
+void hnb_persistent_update_addr(struct hnb_persistent *hnbp, int new_fd)
+{
+	int rc;
+	socklen_t socklen;
+	struct osmo_sockaddr osa;
+	struct osmo_sockaddr_str remote_str;
+
+	socklen = sizeof(struct osmo_sockaddr);
+	rc = getpeername(new_fd, &osa.u.sa, &socklen);
+	if (!rc)
+		rc = osmo_sockaddr_str_from_osa(&remote_str, &osa);
+	if (rc < 0) {
+		LOGP(DHNB, LOGL_ERROR, "cannot read remote hNodeB address from Iuh file descriptor\n");
+		return;
+	}
+
+	/* We got the remote address from the RUA link, and now we are blatantly assuming that the hNodeB has its GTP
+	 * endpoint on the same IP address, just with UDP port 2152 (the fixed GTP port as per 3GPP spec). */
+	remote_str.port = 2152;
+
+	if (g_hnbgw->config.nft_kpi.enable)
+		hnb_nft_kpi_start(hnbp, &remote_str);
+}
+
 void hnb_persistent_free(struct hnb_persistent *hnbp)
 {
 	/* FIXME: check if in use? */
+	hnb_nft_kpi_end(hnbp);
 	llist_del(&hnbp->list);
 	talloc_free(hnbp);
 }
@@ -853,6 +910,11 @@ static const struct log_info_cat hnbgw_log_cat[] = {
 		.name = "DCN", .loglevel = LOGL_NOTICE, .enabled = 1,
 		.color = OSMO_LOGCOLOR_DARKYELLOW,
 		.description = "Core Network side (via SCCP)",
+	},
+	[DNFT] = {
+		.name = "DNFT", .loglevel = LOGL_NOTICE, .enabled = 1,
+		.color = OSMO_LOGCOLOR_BLUE,
+		.description = "nftables interaction for retrieving stats",
 	},
 };
 

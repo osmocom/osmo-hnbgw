@@ -44,11 +44,18 @@
 %:
 	dh $@ --with autoreconf
 
-# debmake generated override targets
-CONFIGURE_FLAGS += --with-systemdsystemunitdir=/lib/systemd/system --enable-manuals
-CONFIGURE_FLAGS += --enable-pfcp
+# libnftables is too old in Debian 10 (OS#6425)
 override_dh_auto_configure:
-	dh_auto_configure -- $(CONFIGURE_FLAGS)
+	CONFIGURE_FLAGS=" \
+		--enable-manuals \
+		--enable-pfcp \
+		--with-systemdsystemunitdir=/lib/systemd/system \
+	"; \
+	if pkg-config --exists libnftables --atleast-version=1.0.2; then \
+		CONFIGURE_FLAGS="$$CONFIGURE_FLAGS --enable-nftables"; \
+	fi; \
+	dh_auto_configure -- $$CONFIGURE_FLAGS
+
 #
 # Do not install libtool archive, python .pyc .pyo
 #override_dh_install:

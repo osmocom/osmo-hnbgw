@@ -35,6 +35,7 @@
 #include <osmocom/hnbgw/hnbgw_cn.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/tdefs.h>
+#include <osmocom/hnbgw/nft_kpi.h>
 #include <osmocom/sigtran/protocol/sua.h>
 #include <osmocom/sigtran/sccp_helpers.h>
 #include <osmocom/netif/stream.h>
@@ -878,6 +879,38 @@ DEFUN(cfg_hnbgw_no_hnb, cfg_hnbgw_no_hnb_cmd,
 	return CMD_SUCCESS;
 }
 
+#define NFT_KPI_STR "Retrieve traffic counters from nftables\n"
+
+DEFUN(cfg_hnbgw_nft_kpi, cfg_hnbgw_nft_kpi_cmd,
+      "nft-kpi [TABLE_NAME]",
+      NFT_KPI_STR
+      "Set a custom nft table name to use, instead of 'osmo-hnbgw'\n")
+{
+	const char *set_table_name = NULL;
+	if (argc > 0)
+		set_table_name = argv[0];
+
+	if (vty->type == VTY_TERM)
+		vty_out(vty, "%% WARNING: nft configuration changes need a restart of osmo-hnbw%s", VTY_NEWLINE);
+
+	g_hnbgw->config.nft_kpi.enable = true;
+	if (g_hnbgw->config.nft_kpi.table_name)
+		talloc_free(g_hnbgw->config.nft_kpi.table_name);
+	g_hnbgw->config.nft_kpi.table_name = talloc_strdup(g_hnbgw, set_table_name);
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(cfg_hnbgw_no_nft_kpi, cfg_hnbgw_no_nft_kpi_cmd,
+	"no nft-kpi",
+	NO_STR NFT_KPI_STR)
+{
+	if (vty->type == VTY_TERM)
+		vty_out(vty, "%% WARNING: nft configuration changes need a restart of osmo-hnbw%s", VTY_NEWLINE);
+	g_hnbgw->config.nft_kpi.enable = false;
+	return CMD_SUCCESS;
+}
+
 #if ENABLE_PFCP
 
 static struct cmd_node pfcp_node = {
@@ -1000,6 +1033,12 @@ static int config_write_hnbgw(struct vty *vty)
 
 	_config_write_cnpool(vty, &g_hnbgw->sccp.cnpool_iucs);
 	_config_write_cnpool(vty, &g_hnbgw->sccp.cnpool_iups);
+
+	if (g_hnbgw->config.nft_kpi.enable)
+		vty_out(vty, " nft-kpi%s%s%s",
+			g_hnbgw->config.nft_kpi.table_name ? " " : "",
+			g_hnbgw->config.nft_kpi.table_name ? : "",
+			VTY_NEWLINE);
 
 	return CMD_SUCCESS;
 }
@@ -1124,6 +1163,9 @@ void hnbgw_vty_init(void)
 	install_element(HNBGW_NODE, &cfg_hnbgw_hnb_cmd);
 	install_element(HNBGW_NODE, &cfg_hnbgw_no_hnb_cmd);
 	install_node(&hnb_node, NULL);
+
+	install_element(HNBGW_NODE, &cfg_hnbgw_nft_kpi_cmd);
+	install_element(HNBGW_NODE, &cfg_hnbgw_no_nft_kpi_cmd);
 
 	install_element_ve(&show_cnlink_cmd);
 	install_element_ve(&show_hnb_cmd);
