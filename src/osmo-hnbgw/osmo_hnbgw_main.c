@@ -222,6 +222,7 @@ int main(int argc, char **argv)
 	rc = osmo_init_logging2(g_hnbgw, &hnbgw_log_info);
 	if (rc < 0)
 		exit(1);
+	log_enable_multithread();
 
 	osmo_stats_init(g_hnbgw);
 	rc = rate_ctr_init(g_hnbgw);
@@ -328,6 +329,20 @@ int main(int argc, char **argv)
 	/* If UPF is configured, set up PFCP socket and send Association Setup Request to UPF */
 	hnbgw_pfcp_init();
 #endif
+
+	/* If nftables is enabled, initialize the nft table now or fail startup. This is important to immediately let
+	 * the user know if cap_net_admin privileges are missing, and not only when the first hNodeB connects. */
+	if (g_hnbgw->config.nft_kpi.enable) {
+#if ENABLE_NFTABLES
+		nft_kpi_init(g_hnbgw->config.nft_kpi.table_name);
+		/* There is no direct error handling here, because nftables initialization happens asynchronously.
+		 * See nft_kpi.c nft_thread_t2m_cb(), case NFT_THREAD_INIT_TABLE to see what happens when initializing
+		 * nftables failed. */
+#else
+		fprintf(stderr, "ERROR: Cannot enable nft KPI, this binary was built without nftables support\n");
+		exit(1);
+#endif
+	}
 
 	hnbgw_cnpool_start(&g_hnbgw->sccp.cnpool_iucs);
 	hnbgw_cnpool_start(&g_hnbgw->sccp.cnpool_iups);

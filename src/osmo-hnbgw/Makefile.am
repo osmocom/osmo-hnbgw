@@ -20,6 +20,7 @@ AM_CFLAGS = \
 	$(LIBOSMORANAP_CFLAGS) \
 	$(LIBOSMOHNBAP_CFLAGS) \
 	$(LIBOSMOMGCPCLIENT_CFLAGS) \
+	$(LIBNFTABLES_CFLAGS) \
 	$(NULL)
 
 AM_LDFLAGS = \
@@ -47,6 +48,7 @@ libhnbgw_la_SOURCES = \
 	kpi_dtap.c \
 	kpi_ranap.c \
 	tdefs.c \
+	nft_kpi.c \
 	$(NULL)
 
 libhnbgw_la_LIBADD = \
@@ -63,6 +65,7 @@ libhnbgw_la_LIBADD = \
 	$(LIBOSMOHNBAP_LIBS) \
 	$(LIBSCTP_LIBS) \
 	$(LIBOSMOMGCPCLIENT_LIBS) \
+	$(LIBNFTABLES_LIBS) \
 	$(NULL)
 
 if ENABLE_PFCP

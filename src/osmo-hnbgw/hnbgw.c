@@ -343,7 +343,7 @@ void hnb_context_release(struct hnb_context *ctx)
 
 	/* remove back reference from hnb_persistent to context */
 	if (ctx->persistent)
-		ctx->persistent->ctx = NULL;
+		hnb_persistent_deregistered(ctx->persistent);
 
 	talloc_free(ctx);
 }
@@ -476,6 +476,32 @@ const struct rate_ctr_desc hnb_ctr_description[] = {
 	[HNB_CTR_DTAP_PS_RAU_REQ] = { "dtap:ps:routing_area_update:req", "PS Routing Area Update Requests" },
 	[HNB_CTR_DTAP_PS_RAU_ACK] = { "dtap:ps:routing_area_update:accept", "PS Routing Area Update Accepts" },
 	[HNB_CTR_DTAP_PS_RAU_REJ] = { "dtap:ps:routing_area_update:reject", "PS Routing Area Update Rejects" },
+
+	[HNB_CTR_GTPU_PACKETS_UL] = {
+		"gtpu:packets:ul",
+		"Count of GTP-U packets received from the HNB",
+	},
+	[HNB_CTR_GTPU_TOTAL_BYTES_UL] = {
+		"gtpu:total_bytes:ul",
+		"Count of total GTP-U bytes received from the HNB, including the GTP-U/UDP/IP headers",
+	},
+	[HNB_CTR_GTPU_UE_BYTES_UL] = {
+		"gtpu:ue_bytes:ul",
+		"Assuming an IP header length of 20 bytes, GTP-U bytes received from the HNB, excluding the GTP-U/UDP/IP headers",
+	},
+	[HNB_CTR_GTPU_PACKETS_DL] = {
+		"gtpu:packets:dl",
+		"Count of GTP-U packets sent to the HNB",
+	},
+	[HNB_CTR_GTPU_TOTAL_BYTES_DL] = {
+		"gtpu:total_bytes:dl",
+		"Count of total GTP-U bytes sent to the HNB, including the GTP-U/UDP/IP headers",
+	},
+	[HNB_CTR_GTPU_UE_BYTES_DL] = {
+		"gtpu:ue_bytes:dl",
+		"Assuming an IP header length of 20 bytes, GTP-U bytes sent to the HNB, excluding the GTP-U/UDP/IP headers",
+	},
+
 };
 
 const struct rate_ctr_group_desc hnb_ctrg_desc = {
@@ -517,6 +543,9 @@ struct hnb_persistent *hnb_persistent_alloc(const struct umts_cell_id *id)
 
 	llist_add(&hnbp->list, &g_hnbgw->hnb_persistent_list);
 
+	if (g_hnbgw->nft_kpi.active)
+		nft_kpi_hnb_persistent_add(hnbp);
+
 	return hnbp;
 
 out_free_ctrs:
@@ -538,9 +567,76 @@ struct hnb_persistent *hnb_persistent_find_by_id(const struct umts_cell_id *id)
 	return NULL;
 }
 
+/* Read the peer's remote IP address from the Iuh conn's fd, and set up GTP-U counters for that remote address. */
+static void hnb_persistent_update_remote_addr(struct hnb_persistent *hnbp)
+{
+	socklen_t socklen;
+	struct osmo_sockaddr osa;
+	struct osmo_sockaddr_str remote_str;
+	int fd;
+
+	fd = osmo_stream_srv_get_fd(hnbp->ctx->conn);
+	if (fd < 0) {
+		LOGP(DHNB, LOGL_ERROR, "%s: no active socket fd, cannot set up traffic counters\n", hnbp->id_str);
+		return;
+	}
+
+	socklen = sizeof(struct osmo_sockaddr);
+	if (getpeername(fd, &osa.u.sa, &socklen)) {
+		LOGP(DHNB, LOGL_ERROR, "%s: cannot read remote address, cannot set up traffic counters\n",
+		     hnbp->id_str);
+		return;
+	}
+	if (osmo_sockaddr_str_from_osa(&remote_str, &osa)) {
+		LOGP(DHNB, LOGL_ERROR, "%s: cannot parse remote address, cannot set up traffic counters\n",
+		     hnbp->id_str);
+		return;
+	}
+
+	/* We got the remote address from the Iuh link (RUA), and now we are blatantly assuming that the hNodeB has its
+	 * GTP endpoint on the same IP address, just with UDP port 2152 (the fixed GTP port as per 3GPP spec). */
+	remote_str.port = 2152;
+
+	if (nft_kpi_hnb_start(hnbp, &remote_str))
+		LOGP(DHNB, LOGL_ERROR, "%s: failed to set up traffic counters\n", hnbp->id_str);
+}
+
+/* Whenever HNBAP registers a HNB, hnbgw_hnbap.c calls this function to let the hnb_persistent update its state to the
+ * (new) remote address being active. When calling this function, a hnbp->ctx should be present, with an active
+ * osmo_stream_srv conn. */
+void hnb_persistent_registered(struct hnb_persistent *hnbp)
+{
+	if (!hnbp->ctx) {
+		LOGP(DHNB, LOGL_ERROR, "hnb_persistent_registered() invoked, but there is no hnb_ctx\n");
+		return;
+	}
+
+	/* start counting traffic */
+	if (g_hnbgw->nft_kpi.active)
+		hnb_persistent_update_remote_addr(hnbp);
+}
+
+/* Whenever a HNB is regarded as no longer registered (HNBAP HNB De-Register, or the Iuh link drops), this function is
+ * called to to let the hnb_persistent update its state to the hNodeB being disconnected. Clear the ctx->persistent and
+ * hnbp->ctx relations; do not delete the hnb_persistent instance. */
+void hnb_persistent_deregistered(struct hnb_persistent *hnbp)
+{
+	/* clear out cross references of hnb_context and hnb_persistent */
+	if (hnbp->ctx) {
+		if (hnbp->ctx->persistent == hnbp)
+			hnbp->ctx->persistent = NULL;
+		hnbp->ctx = NULL;
+	}
+
+	/* stop counting traffic */
+	nft_kpi_hnb_stop(hnbp);
+}
+
 void hnb_persistent_free(struct hnb_persistent *hnbp)
 {
 	/* FIXME: check if in use? */
+	nft_kpi_hnb_stop(hnbp);
+	nft_kpi_hnb_persistent_remove(hnbp);
 	rate_ctr_group_free(hnbp->ctrs);
 	llist_del(&hnbp->list);
 	talloc_free(hnbp);
@@ -866,6 +962,11 @@ static const struct log_info_cat hnbgw_log_cat[] = {
 		.name = "DCN", .loglevel = LOGL_NOTICE, .enabled = 1,
 		.color = OSMO_LOGCOLOR_DARKYELLOW,
 		.description = "Core Network side (via SCCP)",
+	},
+	[DNFT] = {
+		.name = "DNFT", .loglevel = LOGL_NOTICE, .enabled = 1,
+		.color = OSMO_LOGCOLOR_BLUE,
+		.description = "nftables interaction for retrieving stats",
 	},
 };
 

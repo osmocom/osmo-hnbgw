@@ -22,6 +22,7 @@ Build-Depends: debhelper (>= 10),
                libosmo-ranap-dev (>= 1.5.0),
                libosmo-rua-dev (>= 1.5.0),
                libosmo-pfcp-dev (>= 0.3.0),
+               libnftables-dev,
                osmo-gsm-manuals-dev (>= 1.5.0)
 Standards-Version: 3.9.8
 Vcs-Git: https://gitea.osmocom.org/cellular-infrastructure/osmo-hnbgw

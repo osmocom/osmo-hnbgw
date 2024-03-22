@@ -6,6 +6,7 @@
 #include <osmocom/core/write_queue.h>
 #include <osmocom/core/timer.h>
 #include <osmocom/core/rate_ctr.h>
+#include <osmocom/core/sockaddr_str.h>
 #include <osmocom/gsm/gsm23003.h>
 #include <osmocom/sigtran/sccp_sap.h>
 #include <osmocom/sigtran/osmo_ss7.h>
@@ -18,6 +19,8 @@
 #include <osmocom/mgcp_client/mgcp_client.h>
 #include <osmocom/mgcp_client/mgcp_client_pool.h>
 
+#include <osmocom/hnbgw/nft_kpi.h>
+
 #define STORE_UPTIME_INTERVAL	10 /* seconds */
 #define HNB_STORE_RAB_DURATIONS_INTERVAL 1 /* seconds */
 
@@ -29,6 +32,7 @@ enum {
 	DMGW,
 	DHNB,
 	DCN,
+	DNFT,
 };
 
 extern const struct log_info hnbgw_log_info;
@@ -148,6 +152,13 @@ enum hnb_rate_ctr {
 	HNB_CTR_DTAP_PS_RAU_REQ,
 	HNB_CTR_DTAP_PS_RAU_ACK,
 	HNB_CTR_DTAP_PS_RAU_REJ,
+
+	HNB_CTR_GTPU_PACKETS_UL,
+	HNB_CTR_GTPU_TOTAL_BYTES_UL,
+	HNB_CTR_GTPU_UE_BYTES_UL,
+	HNB_CTR_GTPU_PACKETS_DL,
+	HNB_CTR_GTPU_TOTAL_BYTES_DL,
+	HNB_CTR_GTPU_UE_BYTES_DL,
 };
 
 enum hnb_stat {
@@ -369,6 +380,30 @@ struct hnb_persistent {
 
 	struct rate_ctr_group *ctrs;
 	struct osmo_stat_item_group *statg;
+
+	/* State that the main thread needs in order to know what was requested from the nft worker threads and what
+	 * still needs to be requested. */
+	struct {
+		/* Whether a persistent named counter was added in nftables for this cell id. */
+		bool persistent_counter_added;
+
+		/* The last hNodeB GTP-U address we asked the nft maintenance thread to set up.
+		 * osmo_sockaddr_str_is_nonzero(addr_remote) == false when no rules were added yet, and when
+		 * we asked the nft maintenance thread to remove the rules for this hNodeB because it has
+		 * disconnected. */
+		struct osmo_sockaddr_str addr_remote;
+
+		/* the nft handles needed to clean up the UL and DL rules when the hNodeB disconnects,
+		 * and the last seen counter value gotten from nft. */
+		struct {
+			struct nft_kpi_handle h;
+			struct nft_kpi_val v;
+		} ul;
+		struct {
+			struct nft_kpi_handle h;
+			struct nft_kpi_val v;
+		} dl;
+	} nft_kpi;
 };
 
 struct ue_context {
@@ -407,6 +442,12 @@ struct hnbgw {
 				char *core;
 			} netinst;
 		} pfcp;
+		struct {
+			bool enable;
+			/* The table name as used in nftables for the ruleset owned by this process. It is "osmo-hnbgw"
+			 * by default. */
+			char *table_name;
+		} nft_kpi;
 	} config;
 	/*! SCTP listen socket for incoming connections */
 	struct osmo_stream_srv_link *iuh;
@@ -440,6 +481,11 @@ struct hnbgw {
 	} pfcp;
 
 	struct osmo_timer_list hnb_store_rab_durations_timer;
+
+	struct {
+		bool active;
+		struct osmo_timer_list get_counters_timer;
+	} nft_kpi;
 };
 
 extern struct hnbgw *g_hnbgw;
@@ -467,6 +513,8 @@ void hnb_context_release_ue_state(struct hnb_context *ctx);
 
 struct hnb_persistent *hnb_persistent_alloc(const struct umts_cell_id *id);
 struct hnb_persistent *hnb_persistent_find_by_id(const struct umts_cell_id *id);
+void hnb_persistent_registered(struct hnb_persistent *hnbp);
+void hnb_persistent_deregistered(struct hnb_persistent *hnbp);
 void hnb_persistent_free(struct hnb_persistent *hnbp);
 
 void hnbgw_vty_init(void);

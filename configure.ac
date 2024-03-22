@@ -70,6 +70,16 @@ fi
 AM_CONDITIONAL(ENABLE_PFCP, test "x$osmo_ac_pfcp" = "xyes")
 AC_SUBST(osmo_ac_pfcp)
 
+# Enable libnftables support for traffic counters using nft
+AC_ARG_ENABLE([nftables], [AS_HELP_STRING([--enable-nftables], [Build with libnftables support, for traffic counters using nft])],
+    [osmo_ac_nftables="$enableval"],[osmo_ac_nftables="no"])
+if test "x$osmo_ac_nftables" = "xyes" ; then
+	PKG_CHECK_MODULES(LIBNFTABLES, libnftables >= 1.0.2)
+	AC_DEFINE(ENABLE_NFTABLES, 1, [Define to build with libnftables support])
+fi
+AM_CONDITIONAL(ENABLE_NFTABLES, test "x$osmo_ac_nftables" = "xyes")
+AC_SUBST(osmo_ac_nftables)
+
 dnl checks for header files
 AC_HEADER_STDC
 
