@@ -310,13 +310,15 @@ void hnb_context_release_ue_state(struct hnb_context *ctx)
 void hnb_context_release(struct hnb_context *ctx)
 {
 	struct hnbgw_context_map *map;
-	struct timespec tp;
-	int rc;
 
 	LOGHNB(ctx, DMAIN, LOGL_INFO, "Releasing HNB context\n");
 
-	rc = osmo_clock_gettime(CLOCK_MONOTONIC, &tp);
-	ctx->persistent->updowntime = (rc < 0) ? 0 : tp.tv_sec;
+	if (ctx->persistent) {
+		struct timespec tp;
+		int rc;
+		rc = osmo_clock_gettime(CLOCK_MONOTONIC, &tp);
+		ctx->persistent->updowntime = (rc < 0) ? 0 : tp.tv_sec;
+	}
 
 	/* remove from the list of HNB contexts */
 	llist_del(&ctx->list);
