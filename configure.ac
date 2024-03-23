@@ -75,6 +75,7 @@ AC_ARG_ENABLE([nftables], [AS_HELP_STRING([--enable-nftables], [Build with libnf
     [osmo_ac_nftables="$enableval"],[osmo_ac_nftables="no"])
 if test "x$osmo_ac_nftables" = "xyes" ; then
 	PKG_CHECK_MODULES(LIBNFTABLES, libnftables >= 1.0.2)
+	PKG_CHECK_MODULES(LIBJANSSON, jansson >= 2.14)
 	AC_DEFINE(ENABLE_NFTABLES, 1, [Define to build with libnftables support])
 fi
 AM_CONDITIONAL(ENABLE_NFTABLES, test "x$osmo_ac_nftables" = "xyes")

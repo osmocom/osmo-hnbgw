@@ -40,6 +40,7 @@ int hnb_nft_kpi_end(struct hnb_persistent *hnbp)
 #include <ctype.h>
 #include <inttypes.h>
 
+#include <jansson.h>
 #include <nftables/libnftables.h>
 
 #include <osmocom/core/timer.h>
@@ -70,7 +71,7 @@ static struct nft_ctx *g_nft_ctx(void)
 		OSMO_ASSERT(false);
 	}
 
-	nft_ctx_output_set_flags(s->nft.nft_ctx, NFT_CTX_OUTPUT_HANDLE);
+	nft_ctx_output_set_flags(s->nft.nft_ctx, NFT_CTX_OUTPUT_JSON);
 
 	return s->nft.nft_ctx;
 }
@@ -285,99 +286,123 @@ static void hnb_update_counters(struct hnb_persistent *hnbp, bool ul, int64_t pa
 		   &val->ue_bytes, bytes - OSMO_MIN(bytes, packets * (20 + 8 + 8)));
 }
 
-/* In the string section *pos .. end, find the first occurrence of after_str and return the following token, which ends
- * by a space or at end. If end is NULL, search until the '\0' termination of *pos.
- * Return true if after_str was found, copy the following token into buf, and in *pos, return the position just after
- * that token. */
-static bool get_token_after(char *buf, size_t buflen, const char **pos, const char *end, const char *after_str)
+static int hnb_update_counters_by_id(const char *id_str, bool ul, int64_t packets, int64_t bytes, int64_t handle,
+				     struct hnb_persistent **last_hnbp)
 {
-	const char *found = strstr(*pos, after_str);
-	const char *token_end;
-	size_t token_len;
-	if (!found)
-		return false;
-	if (end && found >= end) {
-		*pos = end;
-		return false;
+	struct hnb_persistent *hnbp;
+	LOGP(DNFT, LOGL_DEBUG, "%s(%s, %s, %"PRId64", %"PRId64", %"PRId64")\n", __func__,
+	     id_str, ul ? "ul" : "dl", packets, bytes, handle);
+
+	/* Half the time, we already have a pointer to the correct hnb */
+	if (last_hnbp && *last_hnbp && !strcmp((*last_hnbp)->id_str, id_str))
+		hnbp = *last_hnbp;
+	else
+		hnbp = hnb_persistent_find_by_id_str(id_str);
+	if (!hnbp) {
+		LOGP(DNFT, LOGL_DEBUG, "%s(): cannot update counters, hNodeB not found: %s\n", __func__, id_str);
+		return -ENOENT;
 	}
-	found += strlen(after_str);
-	while (*found && *found == ' ' && (!end || found < end))
-		found++;
-	token_end = found;
-	while (*token_end != ' ' && (!end || token_end < end))
-		token_end++;
-	if (token_end <= found) {
-		*pos = found;
-		return false;
-	}
-	if (*found == '"' && token_end > found + 1 && *(token_end - 1) == '"') {
-		found++;
-		token_end--;
-	}
-	token_len = token_end - found;
-	token_len = OSMO_MIN(token_len, buflen - 1);
-	memcpy(buf, found, token_len);
-	buf[token_len] = '\0';
-	*pos = token_end;
-	return true;
+	if (last_hnbp)
+		*last_hnbp = hnbp;
+	hnb_update_counters(hnbp, ul, packets, bytes, handle);
+	return 0;
 }
 
 static void decode_nft_response(const char *response)
 {
 	struct nft_kpi_state *s = &g_nft_kpi_state;
-	const char *pos;
-	char buf[128];
+	struct hnb_persistent *hnbp = NULL;
+	json_t *json;
+	json_error_t json_err;
+
+	json_t *nftables;
+	json_t *item;
+	int i;
 	int count = 0;
 
-	/* find and parse all occurences of strings like:
-	 *    [...] counter packets 3 bytes 129 comment "ul:001-01-L2-R3-S4-C1" # handle 10
-	 */
-	pos = response;
-	while (*pos) {
-		const char *line_end;
-		int64_t packets;
-		int64_t bytes;
-		int64_t handle = 0;
+	json = json_loads(response, 0, &json_err);
+	if (!json)
+		goto json_err;
+
+	nftables = json_object_get(json, "nftables");
+
+	if (!json_is_array(nftables))
+		goto json_inval;
+
+	json_array_foreach (nftables, i, item) {
+		json_t *rule = json_object_get(item, "rule");
+		json_t *handle;
+		json_t *comment;
+		json_t *expr;
+		json_t *expr_item;
+		json_t *packets;
+		json_t *bytes;
 		bool ul;
-		struct hnb_persistent *hnbp;
+		json_t *counter = NULL;
+		int j;
+		const char *comment_str;
+		const char *hnb_id;
 
-		if (!get_token_after(buf, sizeof(buf), &pos, NULL, "counter packets "))
-			break;
-		if (osmo_str_to_int64(&packets, buf, 10, 0, INT64_MAX))
-			break;
-		line_end = strchr(pos, '\n');
-		if (!line_end)
-			line_end = pos + strlen(pos);
+		if (!rule)
+			continue;
 
-		if (!get_token_after(buf, sizeof(buf), &pos, line_end, "bytes "))
-			break;
-		if (osmo_str_to_int64(&bytes, buf, 10, 0, INT64_MAX))
-			break;
+		comment = json_object_get(rule, "comment");
+		if (!comment || !json_is_string(comment))
+			continue;
 
-		if (!get_token_after(buf, sizeof(buf), &pos, line_end, "comment "))
-			break;
+		handle = json_object_get(rule, "handle");
+		if (!handle || !json_is_integer(handle))
+			continue;
 
-		if (osmo_str_startswith(buf, "ul:"))
+		expr = json_object_get(rule, "expr");
+		if (!json_is_array(expr))
+			continue;
+		json_array_foreach (expr, j, expr_item) {
+			counter = json_object_get(expr_item, "counter");
+			if (counter && !json_is_object(counter))
+				counter = NULL;
+			if (counter)
+				break;
+		}
+
+		if (!counter)
+			continue;
+
+		packets = json_object_get(counter, "packets");
+		if (!packets || !json_is_integer(packets))
+			continue;
+		bytes = json_object_get(counter, "bytes");
+		if (!bytes || !json_is_integer(bytes))
+			continue;
+
+		comment_str = json_string_value(comment);
+		if (osmo_str_startswith(comment_str, "ul:"))
 			ul = true;
-		else if (osmo_str_startswith(buf, "dl:"))
+		else if (osmo_str_startswith(comment_str, "dl:"))
 			ul = false;
 		else
-			break;
+			continue;
+		hnb_id = comment_str + 3;
 
-		hnbp = hnb_persistent_find_by_id_str(buf + 3);
-		if (!hnbp)
-			break;
-
-		if (!get_token_after(buf, sizeof(buf), &pos, line_end, "# handle "))
-			break;
-		if (osmo_str_to_int64(&handle, buf, 10, 0, INT64_MAX))
-			break;
-
-		hnb_update_counters(hnbp, ul, packets, bytes, handle);
+		if (hnb_update_counters_by_id(hnb_id,
+					      ul,
+					      json_integer_value(packets),
+					      json_integer_value(bytes),
+					      json_integer_value(handle),
+					      &hnbp))
+			continue;
 		count++;
 	}
 
 	LOGP(DNFT, LOGL_DEBUG, "read %d counters from nft table %s\n", count, s->nft.table_name);
+	return;
+
+json_err:
+	LOGP(DNFT, LOGL_ERROR, "failed to decode nft response: %d: %s\n",
+	     json_err.line, json_err.text);
+	return;
+json_inval:
+	LOGP(DNFT, LOGL_ERROR, "unexpected structure in nft response\n");
 }
 
 static void nft_kpi_read_counters(void)
