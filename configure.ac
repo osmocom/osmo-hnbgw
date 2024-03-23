@@ -60,6 +60,7 @@ PKG_CHECK_MODULES(LIBOSMORANAP, libosmo-ranap >= 1.5.0)
 PKG_CHECK_MODULES(LIBOSMOHNBAP, libosmo-hnbap >= 1.5.0)
 PKG_CHECK_MODULES(LIBOSMOMGCPCLIENT, libosmo-mgcp-client >= 1.12.0)
 PKG_CHECK_MODULES(LIBNFTABLES, libnftables >= 1.0.2)
+PKG_CHECK_MODULES(LIBJANSSON, jansson >= 2.14)
 
 # Enable PFCP support for GTP tunnel mapping via UPF
 AC_ARG_ENABLE([pfcp], [AS_HELP_STRING([--enable-pfcp], [Build with PFCP support, for GTP tunnel mapping via UPF])],
