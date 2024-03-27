@@ -434,11 +434,16 @@ static int hnbgw_tx_ue_register_acc_tmsi(struct hnb_context *hnb, HNBAP_UE_Ident
 static int hnbgw_rx_hnb_deregister(struct hnb_context *ctx, ANY_t *in)
 {
 	HNBAP_HNBDe_RegisterIEs_t ies;
+	HNBAP_Cause_t cause;
 	int rc;
 
 	rc = hnbap_decode_hnbde_registeries(&ies, in);
-	if (rc < 0)
-		return rc;
+	if (rc < 0) {
+		cause.present = HNBAP_Cause_PR_protocol;
+		cause.choice.radioNetwork = HNBAP_CauseProtocol_unspecified;
+		return hnbgw_tx_error_ind(ctx, &cause, HNBAP_ProcedureCode_id_HNBDe_Register, HNBAP_Criticality_ignore,
+					  HNBAP_TriggeringMessage_initiating_message);
+	}
 
 	LOGHNB(ctx, DHNBAP, LOGL_DEBUG, "HNB-DE-REGISTER cause=%s\n", hnbap_cause_str(&ies.cause));
 
@@ -641,8 +646,12 @@ static int hnbgw_rx_ue_deregister(struct hnb_context *ctx, ANY_t *in)
 	uint32_t ctxid;
 
 	rc = hnbap_decode_uede_registeries(&ies, in);
-	if (rc < 0)
-		return rc;
+	if (rc < 0) {
+		cause.present = HNBAP_Cause_PR_protocol;
+		cause.choice.protocol = HNBAP_CauseProtocol_unspecified;
+		return hnbgw_tx_error_ind(ctx, &cause, HNBAP_ProcedureCode_id_UEDe_Register,
+					  HNBAP_Criticality_ignore, HNBAP_TriggeringMessage_initiating_message);
+	}
 
 	ctxid = asn1bitstr_to_u24(&ies.context_ID);
 
@@ -681,6 +690,10 @@ static int hnbgw_rx_err_ind(struct hnb_context *hnb, ANY_t *in)
 
 static int hnbgw_rx_initiating_msg(struct hnb_context *hnb, HNBAP_InitiatingMessage_t *imsg)
 {
+	HNBAP_Cause_t cause = {
+		.present = HNBAP_Cause_PR_protocol,
+		.choice.protocol = HNBAP_CauseProtocol_unspecified,
+	};
 	int rc = 0;
 
 	switch (imsg->procedureCode) {
@@ -705,9 +718,11 @@ static int hnbgw_rx_initiating_msg(struct hnb_context *hnb, HNBAP_InitiatingMess
 	case HNBAP_ProcedureCode_id_U_RNTIQuery:	/* 8.12 */
 	case HNBAP_ProcedureCode_id_privateMessage:
 		LOGHNB(hnb, DHNBAP, LOGL_NOTICE, "Unimplemented HNBAP Procedure %ld\n", imsg->procedureCode);
+		rc = hnbgw_tx_error_ind(hnb, &cause, imsg->procedureCode, -1, HNBAP_TriggeringMessage_initiating_message);
 		break;
 	default:
 		LOGHNB(hnb, DHNBAP, LOGL_NOTICE, "Unknown HNBAP Procedure %ld\n", imsg->procedureCode);
+		rc = hnbgw_tx_error_ind(hnb, &cause, imsg->procedureCode, -1, HNBAP_TriggeringMessage_initiating_message);
 		break;
 	}
 
