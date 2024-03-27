@@ -49,6 +49,48 @@ static int hnbgw_hnbap_tx(struct hnb_context *ctx, struct msgb *msg)
 	return 0;
 }
 
+static int hnbgw_tx_error_ind(struct hnb_context *ctx, const HNBAP_Cause_t *cause,
+			      HNBAP_ProcedureCode_t proc_code, HNBAP_Criticality_t criticality,
+			      HNBAP_TriggeringMessage_t trig_msg)
+{
+	HNBAP_ErrorIndication_t err_ind;
+	HNBAP_ErrorIndicationIEs_t err_ind_ies;
+	struct msgb *msg;
+	int rc;
+
+	LOGHNB(ctx, DHNBAP, LOGL_ERROR, "Tx ErrorIndication cause=%s\n", hnbap_cause_str(cause));
+
+	err_ind_ies.presenceMask = 0;
+	err_ind_ies.cause = *cause;
+
+	if (proc_code != -1 || trig_msg != -1 || criticality != -1) {
+		err_ind_ies.presenceMask |= ERRORINDICATIONIES_HNBAP_CRITICALITYDIAGNOSTICS_PRESENT;
+		if (proc_code != -1)
+			err_ind_ies.criticalityDiagnostics.procedureCode = &proc_code;
+		if (trig_msg != -1)
+			err_ind_ies.criticalityDiagnostics.triggeringMessage = &trig_msg;
+		if (criticality != -1)
+			err_ind_ies.criticalityDiagnostics.procedureCriticality = &criticality;
+	}
+
+	memset(&err_ind, 0, sizeof(err_ind));
+	rc = hnbap_encode_errorindicationies(&err_ind, &err_ind_ies);
+	if (rc < 0) {
+		LOGHNB(ctx, DHNBAP, LOGL_ERROR, "Failure to encode ERROR-INDICATION to %s: rc=%d\n",
+			ctx->identity_info, rc);
+		return rc;
+	}
+
+	msg = hnbap_generate_initiating_message(HNBAP_ProcedureCode_id_ErrorIndication,
+						HNBAP_Criticality_ignore,
+						&asn_DEF_HNBAP_ErrorIndication,
+						&err_ind);
+
+	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_HNBAP_ErrorIndication, &err_ind);
+
+	return hnbgw_hnbap_tx(ctx, msg);
+}
+
 static int hnbgw_tx_hnb_register_rej(struct hnb_context *ctx, const HNBAP_Cause_t *cause)
 {
 	HNBAP_HNBRegisterReject_t reject_out;
@@ -514,14 +556,20 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 {
 	HNBAP_UERegisterRequestIEs_t ies;
+	HNBAP_Cause_t cause;
 	struct ue_context *ue;
 	struct ue_context *ue_allocated = NULL;
 	char imsi[16];
 	int rc;
 
 	rc = hnbap_decode_ueregisterrequesties(&ies, in);
-	if (rc < 0)
-		return rc;
+	if (rc < 0) {
+		LOGHNB(ctx, DHNBAP, LOGL_ERROR, "Failure to decode UE-REGISTER-REQ: rc=%d\n", rc);
+		cause.present = HNBAP_Cause_PR_protocol;
+		cause.choice.radioNetwork = HNBAP_CauseProtocol_unspecified;
+		return hnbgw_tx_error_ind(ctx, &cause, HNBAP_ProcedureCode_id_UERegister, HNBAP_Criticality_reject,
+					  HNBAP_TriggeringMessage_initiating_message);
+	}
 
 	switch (ies.uE_Identity.present) {
 	case HNBAP_UE_Identity_PR_iMSI:
@@ -541,12 +589,8 @@ static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 		if (g_hnbgw->config.hnbap_allow_tmsi) {
 			rc = hnbgw_tx_ue_register_acc_tmsi(ctx, &ies.uE_Identity);
 		} else {
-			struct HNBAP_Cause cause = {
-				.present = HNBAP_Cause_PR_radioNetwork,
-				.choice = {
-					.radioNetwork = HNBAP_CauseRadioNetwork_invalid_UE_identity,
-				},
-			};
+			cause.present = HNBAP_Cause_PR_radioNetwork;
+			cause.choice.radioNetwork = HNBAP_CauseRadioNetwork_invalid_UE_identity;
 			rc = hnbgw_tx_ue_register_rej(ctx, &ies.uE_Identity, &cause);
 		}
 		/* all has been handled by TMSI, skip the IMSI code below */
@@ -554,7 +598,9 @@ static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 	default:
 		LOGHNB(ctx, DHNBAP, LOGL_NOTICE, "UE-REGISTER-REQ with unsupported UE Id type %d\n",
 			ies.uE_Identity.present);
-		rc = -ENOTSUP;
+		cause.present = HNBAP_Cause_PR_radioNetwork;
+		cause.choice.radioNetwork = HNBAP_CauseRadioNetwork_invalid_UE_identity;
+		rc = hnbgw_tx_ue_register_rej(ctx, &ies.uE_Identity, &cause);
 		goto free_and_return_rc;
 	}
 
