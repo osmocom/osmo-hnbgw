@@ -571,6 +571,14 @@ static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 					  HNBAP_TriggeringMessage_initiating_message);
 	}
 
+	if (!ctx->hnb_registered) {
+		/* UE registration requires prior HNB registration; reject with proper cause */
+		cause.present = HNBAP_Cause_PR_radioNetwork;
+		cause.choice.radioNetwork = HNBAP_CauseRadioNetwork_hNB_not_registered;
+		rc = hnbgw_tx_ue_register_rej(ctx, &ies.uE_Identity, &cause);
+		goto free_and_return_rc;
+	}
+
 	switch (ies.uE_Identity.present) {
 	case HNBAP_UE_Identity_PR_iMSI:
 		ranap_bcd_decode(imsi, sizeof(imsi), ies.uE_Identity.choice.iMSI.buf,
@@ -627,6 +635,7 @@ free_and_return_rc:
 static int hnbgw_rx_ue_deregister(struct hnb_context *ctx, ANY_t *in)
 {
 	HNBAP_UEDe_RegisterIEs_t ies;
+	HNBAP_Cause_t cause;
 	struct ue_context *ue;
 	int rc;
 	uint32_t ctxid;
@@ -637,11 +646,19 @@ static int hnbgw_rx_ue_deregister(struct hnb_context *ctx, ANY_t *in)
 
 	ctxid = asn1bitstr_to_u24(&ies.context_ID);
 
-	LOGHNB(ctx, DHNBAP, LOGL_DEBUG, "UE-DE-REGISTER context=%u cause=%s\n", ctxid, hnbap_cause_str(&ies.cause));
-
-	ue = ue_context_by_id(ctxid);
-	if (ue)
-		ue_context_free(ue);
+	if (!ctx->hnb_registered) {
+		LOGHNB(ctx, DHNBAP, LOGL_NOTICE, "UE-DE-REGISTER context=%u cause=%s not permitted; HNB not registered\n",
+			ctxid, hnbap_cause_str(&ies.cause));
+		cause.present = HNBAP_Cause_PR_radioNetwork;
+		cause.choice.radioNetwork = HNBAP_CauseRadioNetwork_hNB_not_registered;
+		hnbgw_tx_error_ind(ctx, &cause, HNBAP_ProcedureCode_id_UEDe_Register,
+				   HNBAP_Criticality_ignore, HNBAP_TriggeringMessage_initiating_message);
+	} else {
+		LOGHNB(ctx, DHNBAP, LOGL_DEBUG, "UE-DE-REGISTER context=%u cause=%s\n", ctxid, hnbap_cause_str(&ies.cause));
+		ue = ue_context_by_id(ctxid);
+		if (ue)
+			ue_context_free(ue);
+	}
 
 	hnbap_free_uede_registeries(&ies);
 	return 0;
@@ -666,47 +683,32 @@ static int hnbgw_rx_initiating_msg(struct hnb_context *hnb, HNBAP_InitiatingMess
 {
 	int rc = 0;
 
-	if (!hnb->hnb_registered) {
-		switch (imsg->procedureCode) {
-		case HNBAP_ProcedureCode_id_HNBRegister:	/* 8.2 */
-			rc = hnbgw_rx_hnb_register_req(hnb, &imsg->value);
-			break;
-		case HNBAP_ProcedureCode_id_HNBDe_Register:	/* 8.3 */
-			rc = hnbgw_rx_hnb_deregister(hnb, &imsg->value);
-			break;
-		default:
-			LOGHNB(hnb, DHNBAP, LOGL_NOTICE, "HNBAP Procedure %ld not permitted for de-registered HNB\n",
-				imsg->procedureCode);
-			break;
-		}
-	} else {
-		switch (imsg->procedureCode) {
-		case HNBAP_ProcedureCode_id_HNBRegister:	/*  8.2.4: Abnormal Condition, Accept. */
-			rc = hnbgw_rx_hnb_register_req(hnb, &imsg->value);
-			break;
-		case HNBAP_ProcedureCode_id_HNBDe_Register:	/* 8.3 */
-			rc = hnbgw_rx_hnb_deregister(hnb, &imsg->value);
-			break;
-		case HNBAP_ProcedureCode_id_UERegister:		/* 8.4 */
-			rc = hnbgw_rx_ue_register_req(hnb, &imsg->value);
-			break;
-		case HNBAP_ProcedureCode_id_UEDe_Register:	/* 8.5 */
-			rc = hnbgw_rx_ue_deregister(hnb, &imsg->value);
-			break;
-		case HNBAP_ProcedureCode_id_ErrorIndication:	/* 8.6 */
-			rc = hnbgw_rx_err_ind(hnb, &imsg->value);
-			break;
-		case HNBAP_ProcedureCode_id_TNLUpdate:		/* 8.9 */
-		case HNBAP_ProcedureCode_id_HNBConfigTransfer:	/* 8.10 */
-		case HNBAP_ProcedureCode_id_RelocationComplete:	/* 8.11 */
-		case HNBAP_ProcedureCode_id_U_RNTIQuery:	/* 8.12 */
-		case HNBAP_ProcedureCode_id_privateMessage:
-			LOGHNB(hnb, DHNBAP, LOGL_NOTICE, "Unimplemented HNBAP Procedure %ld\n", imsg->procedureCode);
-			break;
-		default:
-			LOGHNB(hnb, DHNBAP, LOGL_NOTICE, "Unknown HNBAP Procedure %ld\n", imsg->procedureCode);
-			break;
-		}
+	switch (imsg->procedureCode) {
+	case HNBAP_ProcedureCode_id_HNBRegister:	/* 8.2 */
+		rc = hnbgw_rx_hnb_register_req(hnb, &imsg->value);
+		break;
+	case HNBAP_ProcedureCode_id_HNBDe_Register:	/* 8.3 */
+		rc = hnbgw_rx_hnb_deregister(hnb, &imsg->value);
+		break;
+	case HNBAP_ProcedureCode_id_UERegister:		/* 8.4 */
+		rc = hnbgw_rx_ue_register_req(hnb, &imsg->value);
+		break;
+	case HNBAP_ProcedureCode_id_UEDe_Register:	/* 8.5 */
+		rc = hnbgw_rx_ue_deregister(hnb, &imsg->value);
+		break;
+	case HNBAP_ProcedureCode_id_ErrorIndication:	/* 8.6 */
+		rc = hnbgw_rx_err_ind(hnb, &imsg->value);
+		break;
+	case HNBAP_ProcedureCode_id_TNLUpdate:		/* 8.9 */
+	case HNBAP_ProcedureCode_id_HNBConfigTransfer:	/* 8.10 */
+	case HNBAP_ProcedureCode_id_RelocationComplete:	/* 8.11 */
+	case HNBAP_ProcedureCode_id_U_RNTIQuery:	/* 8.12 */
+	case HNBAP_ProcedureCode_id_privateMessage:
+		LOGHNB(hnb, DHNBAP, LOGL_NOTICE, "Unimplemented HNBAP Procedure %ld\n", imsg->procedureCode);
+		break;
+	default:
+		LOGHNB(hnb, DHNBAP, LOGL_NOTICE, "Unknown HNBAP Procedure %ld\n", imsg->procedureCode);
+		break;
 	}
 
 	return rc;
