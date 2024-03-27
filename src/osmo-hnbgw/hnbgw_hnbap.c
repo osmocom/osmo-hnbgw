@@ -161,12 +161,14 @@ static int hnbgw_tx_ue_register_acc(struct ue_context *ue)
 	return hnbgw_hnbap_tx(ue->hnb, msg);
 }
 
-static int hnbgw_tx_ue_register_rej_tmsi(struct hnb_context *hnb, HNBAP_UE_Identity_t *ue_id)
+static int hnbgw_tx_ue_register_rej(struct hnb_context *hnb, HNBAP_UE_Identity_t *ue_id, const struct HNBAP_Cause *cause)
 {
 	HNBAP_UERegisterReject_t reject_out;
 	HNBAP_UERegisterRejectIEs_t reject;
 	struct msgb *msg;
 	int rc;
+
+	OSMO_ASSERT(cause);
 
 	memset(&reject, 0, sizeof(reject));
 	reject.uE_Identity.present = ue_id->present;
@@ -229,10 +231,9 @@ static int hnbgw_tx_ue_register_rej_tmsi(struct hnb_context *hnb, HNBAP_UE_Ident
 		return -1;
 	}
 
-	LOGHNB(hnb, DHNBAP, LOGL_ERROR, "Rejecting UE Register Request: TMSI identity registration is switched off\n");
+	LOGHNB(hnb, DHNBAP, LOGL_ERROR, "Rejecting UE Register Request cause=%s\n", hnbap_cause_str(cause));
 
-	reject.cause.present = HNBAP_Cause_PR_radioNetwork;
-	reject.cause.choice.radioNetwork = HNBAP_CauseRadioNetwork_invalid_UE_identity;
+	reject.cause = *cause;
 
 	memset(&reject_out, 0, sizeof(reject_out));
 	rc = hnbap_encode_ueregisterrejecties(&reject_out, &reject);
@@ -527,10 +528,17 @@ static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 		break;
 	case HNBAP_UE_Identity_PR_tMSILAI:
 	case HNBAP_UE_Identity_PR_pTMSIRAI:
-		if (g_hnbgw->config.hnbap_allow_tmsi)
+		if (g_hnbgw->config.hnbap_allow_tmsi) {
 			rc = hnbgw_tx_ue_register_acc_tmsi(ctx, &ies.uE_Identity);
-		else
-			rc = hnbgw_tx_ue_register_rej_tmsi(ctx, &ies.uE_Identity);
+		} else {
+			struct HNBAP_Cause cause = {
+				.present = HNBAP_Cause_PR_radioNetwork,
+				.choice = {
+					.radioNetwork = HNBAP_CauseRadioNetwork_invalid_UE_identity,
+				},
+			};
+			rc = hnbgw_tx_ue_register_rej(ctx, &ies.uE_Identity, &cause);
+		}
 		/* all has been handled by TMSI, skip the IMSI code below */
 		goto free_and_return_rc;
 	default:
