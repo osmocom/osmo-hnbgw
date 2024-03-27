@@ -422,7 +422,9 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	rc = hnbap_decode_hnbregisterrequesties(&ies, in);
 	if (rc < 0) {
 		LOGHNB(ctx, DHNBAP, LOGL_ERROR, "Failure to decode HNB-REGISTER-REQ: rc=%d\n", rc);
-		return rc;
+		cause.present = HNBAP_Cause_PR_protocol;
+		cause.choice.radioNetwork = HNBAP_CauseProtocol_unspecified;
+		return hnbgw_tx_hnb_register_rej(ctx, &cause);
 	}
 	asn1_strncpy(identity_str, &ies.hnB_Identity.hNB_Identity_Info, sizeof(identity_str));
 
