@@ -211,6 +211,7 @@ static int hnbgw_tx_ue_register_rej(struct hnb_context *hnb, HNBAP_UE_Identity_t
 {
 	HNBAP_UERegisterReject_t reject_out;
 	HNBAP_UERegisterRejectIEs_t reject;
+	char imsi[GSM23003_IMSI_MAX_DIGITS+1];
 	struct msgb *msg;
 	int rc;
 
@@ -271,6 +272,14 @@ static int hnbgw_tx_ue_register_rej(struct hnb_context *hnb, HNBAP_UE_Identity_t
 				     ue_id->choice.pTMSIRAI.rAI.rAC.size);
 		break;
 
+	case HNBAP_UE_Identity_PR_iMSI:
+		ranap_bcd_decode(imsi, sizeof(imsi), ue_id->choice.iMSI.buf, ue_id->choice.iMSI.size);
+		LOGHNB(hnb, DHNBAP, LOGL_DEBUG, "REJ UE_Id IMSI %s\n", imsi);
+
+		OCTET_STRING_fromBuf(&reject.uE_Identity.choice.iMSI,
+				     (const char *)ue_id->choice.iMSI.buf, ue_id->choice.iMSI.size);
+		break;
+
 	default:
 		LOGHNB(hnb, DHNBAP, LOGL_ERROR, "Cannot compose UE Register Reject:"
 		     " unsupported UE ID (present=%d)\n", ue_id->present);
@@ -312,6 +321,9 @@ static int hnbgw_tx_ue_register_rej(struct hnb_context *hnb, HNBAP_UE_Identity_t
 		ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_OCTET_STRING,
 					      &reject.uE_Identity.choice.pTMSIRAI.rAI.rAC);
 		break;
+	case HNBAP_UE_Identity_PR_iMSI:
+		ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_OCTET_STRING,
+					      &reject.uE_Identity.choice.iMSI);
 
 	default:
 		/* should never happen after above switch() */
