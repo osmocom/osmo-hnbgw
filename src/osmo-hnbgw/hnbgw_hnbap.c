@@ -49,16 +49,19 @@ static int hnbgw_hnbap_tx(struct hnb_context *ctx, struct msgb *msg)
 	return 0;
 }
 
-static int hnbgw_tx_hnb_register_rej(struct hnb_context *ctx)
+static int hnbgw_tx_hnb_register_rej(struct hnb_context *ctx, const HNBAP_Cause_t *cause)
 {
 	HNBAP_HNBRegisterReject_t reject_out;
 	HNBAP_HNBRegisterRejectIEs_t reject;
 	struct msgb *msg;
 	int rc;
 
-	reject.presenceMask = 0,
-	reject.cause.present = HNBAP_Cause_PR_radioNetwork;
-	reject.cause.choice.radioNetwork = HNBAP_CauseRadioNetwork_unspecified;
+	OSMO_ASSERT(cause);
+
+	LOGHNB(ctx, DHNBAP, LOGL_ERROR, "Rejecting HNB Register Request cause=%s\n", hnbap_cause_str(cause));
+
+	reject.presenceMask = 0;
+	reject.cause = *cause;
 
 	/* encode the Information Elements */
 	memset(&reject_out, 0, sizeof(reject_out));
@@ -414,6 +417,7 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	char identity_str[256];
 	const char *cell_id_str;
 	struct timespec tp;
+	HNBAP_Cause_t cause;
 
 	rc = hnbap_decode_hnbregisterrequesties(&ies, in);
 	if (rc < 0) {
@@ -440,7 +444,9 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	if (!hnbp) {
 		LOGHNB(ctx, DHNBAP, LOGL_NOTICE, "Rejecting unknonwn HNB with identity %s\n", identity_str);
 		hnbap_free_hnbregisterrequesties(&ies);
-		return hnbgw_tx_hnb_register_rej(ctx);
+		cause.present = HNBAP_Cause_PR_radioNetwork;
+		cause.choice.radioNetwork = HNBAP_CauseRadioNetwork_unauthorised_HNB;
+		return hnbgw_tx_hnb_register_rej(ctx, &cause);
 	}
 	ctx->persistent = hnbp;
 	hnbp->ctx = ctx;
@@ -480,7 +486,9 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 			 * misconfigurations or someone trying to impersonate an already working HNB: */
 			LOGHNB(ctx, DHNBAP, LOGL_ERROR, "rejecting HNB-REGISTER-REQ with duplicate cell identity %s\n", cell_id_str);
 			hnbap_free_hnbregisterrequesties(&ies);
-			return hnbgw_tx_hnb_register_rej(ctx);
+			cause.present = HNBAP_Cause_PR_radioNetwork;
+			cause.choice.radioNetwork = HNBAP_CauseRadioNetwork_hNB_parameter_mismatch;
+			return hnbgw_tx_hnb_register_rej(ctx, &cause);
 		}
 	}
 
