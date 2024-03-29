@@ -22,6 +22,7 @@
 #include <osmocom/core/utils.h>
 #include <osmocom/core/socket.h>
 #include <osmocom/gsm/gsm48.h>
+#include <osmocom/gsm/protocol/gsm_23_003.h>
 #include <osmocom/netif/stream.h>
 
 #include <unistd.h>
@@ -564,7 +565,7 @@ static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 	HNBAP_Cause_t cause;
 	struct ue_context *ue;
 	struct ue_context *ue_allocated = NULL;
-	char imsi[16];
+	char imsi[GSM23003_IMSI_MAX_DIGITS+1];
 	int rc;
 
 	rc = hnbap_decode_ueregisterrequesties(&ies, in);
