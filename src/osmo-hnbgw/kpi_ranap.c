@@ -36,14 +36,26 @@
 static void kpi_ranap_process_dl_iu_rel_cmd(struct hnbgw_context_map *map, const ranap_message *ranap)
 {
 	struct hnb_persistent *hnbp = map->hnb_ctx->persistent;
+	const RANAP_Cause_t *cause;
 
 	OSMO_ASSERT(ranap->procedureCode == RANAP_ProcedureCode_id_Iu_Release);
 
+	cause = &ranap->msg.iu_ReleaseCommandIEs.cause;
+
 	/* When Iu is released, all RABs are released implicitly */
 	for (unsigned int i = 0; i < ARRAY_SIZE(map->rab_state); i++) {
+		unsigned int ctr_num;
 		switch (map->rab_state[i]) {
 		case RAB_STATE_ACTIVE:
-			HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_REL_IMPLICIT : HNB_CTR_RANAP_CS_RAB_REL_IMPLICIT);
+			if (cause->present == RANAP_Cause_PR_nAS ||
+			    cause->choice.nAS == RANAP_CauseNAS_normal_release) {
+				ctr_num = HNB_CTR_RANAP_PS_RAB_REL_IMPLICIT;
+			} else {
+				ctr_num = HNB_CTR_RANAP_PS_RAB_REL_IMPLICIT_ABNORMAL;
+			}
+			if (!map->is_ps)
+				ctr_num++;
+			HNBP_CTR_INC(hnbp, ctr_num);
 			break;
 		}
 	}
@@ -106,10 +118,6 @@ static void kpi_ranap_process_dl_rab_ass_req(struct hnbgw_context_map *map, rana
 
 	if (ies->presenceMask & RAB_ASSIGNMENTREQUESTIES_RANAP_RAB_RELEASELIST_PRESENT) {
 		RANAP_RAB_ReleaseList_t *r_list = &ies->raB_ReleaseList;
-		/* increment number of released RABs, we don't need to do that individually during iteration */
-		HNBP_CTR_ADD(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_REL_REQ : HNB_CTR_RANAP_CS_RAB_REL_REQ,
-			     r_list->raB_ReleaseList_ies.list.count);
-
 		for (unsigned int i = 0; i < r_list->raB_ReleaseList_ies.list.count; i++) {
 			RANAP_IE_t *release_list_ie = r_list->raB_ReleaseList_ies.list.array[i];
 			RANAP_RAB_ReleaseItemIEs_t _rab_rel_item_ies = {};
@@ -133,6 +141,16 @@ static void kpi_ranap_process_dl_rab_ass_req(struct hnbgw_context_map *map, rana
 
 			switch (map->rab_state[rab_id]) {
 			case RAB_STATE_ACTIVE:
+				unsigned int ctr_num;
+				if (rab_rel_item->cause.present == RANAP_Cause_PR_nAS &&
+				    rab_rel_item->cause.choice.nAS == RANAP_CauseNAS_normal_release) {
+					ctr_num = HNB_CTR_RANAP_PS_RAB_REL_REQ;
+				} else {
+					ctr_num = HNB_CTR_RANAP_PS_RAB_REL_REQ_ABNORMAL;
+				}
+				if (!map->is_ps)
+					ctr_num++;
+				HNBP_CTR_INC(hnbp, ctr_num);
 				break;
 			default:
 				LOG_MAP(map, DRANAP, LOGL_NOTICE,
