@@ -398,11 +398,14 @@ const struct rate_ctr_desc hnb_ctr_description[] = {
 	[HNB_CTR_RANAP_CS_RAB_MOD_FAIL] = {
 		"ranap:cs:rab_mod:fail", "CS RAB Modifications failed" },
 
-
 	[HNB_CTR_RANAP_PS_RAB_REL_REQ] = {
-		"ranap:ps:rab_rel:req", "PS RAB Release requested" },
+		"ranap:ps:rab_rel:req:normal", "PS RAB Release requested (by CN), normal" },
 	[HNB_CTR_RANAP_CS_RAB_REL_REQ] = {
-		"ranap:cs:rab_rel:req", "CS RAB Release requested" },
+		"ranap:cs:rab_rel:req:normal", "CS RAB Release requested (by CN), normal" },
+	[HNB_CTR_RANAP_PS_RAB_REL_REQ_ABNORMAL] = {
+		"ranap:ps:rab_rel:req:abnormal", "PS RAB Release requested (by CN), abnormal" },
+	[HNB_CTR_RANAP_CS_RAB_REL_REQ_ABNORMAL] = {
+		"ranap:cs:rab_rel:req:abnormal", "CS RAB Release requested (by CN), abnormal" },
 
 	[HNB_CTR_RANAP_PS_RAB_REL_CNF] = {
 		"ranap:ps:rab_rel:cnf", "PS RAB Release confirmed" },
@@ -415,9 +418,13 @@ const struct rate_ctr_desc hnb_ctr_description[] = {
 		"ranap:cs:rab_rel:fail", "CS RAB Release failed" },
 
 	[HNB_CTR_RANAP_PS_RAB_REL_IMPLICIT] = {
-		"ranap:ps:rab_rel:implicit", "PS RAB Release implicit (during Iu Release)" },
+		"ranap:ps:rab_rel:implicit:normal", "PS RAB Release implicit (during Iu Release), normal" },
 	[HNB_CTR_RANAP_CS_RAB_REL_IMPLICIT] = {
-		"ranap:cs:rab_rel:implicit", "CS RAB Release implicit (during Iu Release)" },
+		"ranap:cs:rab_rel:implicit:normal", "CS RAB Release implicit (during Iu Release), normal" },
+	[HNB_CTR_RANAP_PS_RAB_REL_IMPLICIT_ABNORMAL] = {
+		"ranap:ps:rab_rel:implicit:abnormal", "PS RAB Release implicit (during Iu Release), abnormal" },
+	[HNB_CTR_RANAP_CS_RAB_REL_IMPLICIT_ABNORMAL] = {
+		"ranap:cs:rab_rel:implicit:abnormal", "CS RAB Release implicit (during Iu Release), abnormal" },
 
 	[HNB_CTR_RUA_ERR_IND] = {
 		"rua:error_ind", "Received RUA Error Indications" },
