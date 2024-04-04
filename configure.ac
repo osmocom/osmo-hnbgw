@@ -167,6 +167,17 @@ AC_MSG_CHECKING([whether to enable VTY/CTRL tests])
 AC_MSG_RESULT([$enable_ext_tests])
 AM_CONDITIONAL(ENABLE_EXT_TESTS, test "x$enable_ext_tests" = "xyes")
 
+AC_ARG_ENABLE([external_tests_qemu],
+		AC_HELP_STRING([--enable-external-tests-qemu],
+				[Run VTY/CTRL tests in QEMU [default=no]]),
+		[enable_ext_tests_qemu="$enableval"],[enable_ext_tests_qemu="no"])
+AC_MSG_CHECKING([whether to run VTY/CTRL tests in QEMU])
+AC_MSG_RESULT([$enable_ext_tests_qemu])
+AM_CONDITIONAL(ENABLE_EXT_TESTS_QEMU, test "x$enable_ext_tests_qemu" = "xyes")
+if test x"$exnable_ext_tests_qemu" = x"yes" && ! $srcdir/tests/qemu/check-depends.sh; then
+	AC_MSG_ERROR([missing programs for --enable-external-tests-qemu])
+fi
+
 # Generate manuals
 AC_ARG_ENABLE(manuals,
 	[AS_HELP_STRING(

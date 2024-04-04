@@ -39,12 +39,16 @@ DISTCLEANFILES = \
 	atconfig \
 	$(NULL)
 
+if ENABLE_EXT_TESTS_QEMU
+QEMU_EXT_TEST_WRAPPER = BUILDDIR=$(abs_top_builddir) $(abs_top_srcdir)/tests/qemu/ext_test_wrapper.sh
+endif
+
 if ENABLE_EXT_TESTS
 python-tests:
 	$(MAKE) vty-test
 	$(MAKE) config-tests
-	osmotestvty.py -p $(abs_top_srcdir) -w $(abs_top_builddir) -v
-	osmotestconfig.py -p $(abs_top_srcdir) -w $(abs_top_builddir) -v
+	$(QEMU_EXT_TEST_WRAPPER) osmotestvty.py -p $(abs_top_srcdir) -w $(abs_top_builddir) -v
+	$(QEMU_EXT_TEST_WRAPPER) osmotestconfig.py -p $(abs_top_srcdir) -w $(abs_top_builddir) -v
 else
 python-tests:
 	echo "Not running python-based tests (determined at configure-time)"
@@ -61,7 +65,7 @@ endif
 # pass -u to vty_script_runner.py by doing:
 #   make vty-test U=-u
 vty-test: $(top_builddir)/src/osmo-hnbgw/osmo-hnbgw
-	osmo_verify_transcript_vty.py -v \
+	$(QEMU_EXT_TEST_WRAPPER) osmo_verify_transcript_vty.py -v \
 		-n OsmoHNBGW -p 4261 \
 		-r "$(top_builddir)/src/osmo-hnbgw/osmo-hnbgw \
 		-c $(srcdir)/osmo-hnbgw-vty-test.cfg" \
@@ -72,7 +76,10 @@ vty-test: $(top_builddir)/src/osmo-hnbgw/osmo-hnbgw
 # To prevent 'make -j N' from running these tests in parallel, call a script with a linear for-loop.
 .PHONY: config-tests
 config-tests:
-	$(srcdir)/config/run_tests.sh "$(top_builddir)/src/osmo-hnbgw/osmo-hnbgw" "$(srcdir)/config/" $U
+	$(QEMU_EXT_TEST_WRAPPER) $(srcdir)/config/run_tests.sh \
+		"$(top_builddir)/src/osmo-hnbgw/osmo-hnbgw" \
+		"$(srcdir)/config/" \
+		$U
 
 # Run a specific test with: 'make ctrl-test CTRL_TEST=osmo-hnbgw.ctrl'
 CTRL_TEST ?= *.ctrl
@@ -81,7 +88,7 @@ CTRL_TEST ?= *.ctrl
 # pass -u to ctrl_script_runner.py by doing:
 #   make ctrl-test U=-u
 ctrl-test: $(top_builddir)/src/osmo-hnbgw/osmo-hnbgw
-	osmo_verify_transcript_ctrl.py -v \
+	$(QEMU_EXT_TEST_WRAPPER) osmo_verify_transcript_ctrl.py -v \
 		-p 4262 \
 		-r "$(top_builddir)/src/osmo-hnbgw/osmo-hnbgw -c $(top_srcdir)/doc/examples/osmo-hnbgw/osmo-hnbgw-cnpool.cfg" \
 		$(U) $(srcdir)/$(CTRL_TEST)
