@@ -15,7 +15,11 @@
  * GNU Affero General Public License for more details.
  */
 
+#include <pthread.h>
+#include <unistd.h>
+
 #include <osmocom/core/logging.h>
+#include <osmocom/core/stats.h>
 #include <osmocom/hnbgw/hnbgw.h>
 
 #include "config.h"
@@ -46,13 +50,68 @@ int hnb_nft_kpi_end(struct hnb_persistent *hnbp)
 #include <osmocom/hnbgw/nft_kpi.h>
 #include <osmocom/hnbgw/tdefs.h>
 
+/* Threading and locks in this implementation:
+ *
+ * - osmo_stats_report_lock() held while updating rate_ctr from nft results.
+ * - g_nft_kpi_state.lock held while running an nftables command buffer.
+ *
+ * contrived example:
+ *
+ *    Main Thread
+ *        |
+ *     osmo_stats_report_use_lock(true)
+ *        |
+ *     nft_kpi_init()
+ *     create nft ctx, create table
+ *        |
+ *        +--------------------------->  NFT thread
+ *        |                                 |
+ *        |                               sleep(X34)
+ *        |                                 |
+ *        |                               LOCK(g_nft_kpi_state.lock)
+ *        |                                         |
+ *      osmo_stats_report()                        query all nft counters
+ *      LOCK(osmo_stats_report_lock)                |
+ *              |                                  LOCK(osmo_stats_report_lock)
+ *             collect stats                        : wait because libosmocore stats reporting is busy
+ *              |                                   :
+ *      UNLOCK(osmo_stats_report_lock)             LOCK------|
+ *      send out stats                                      for all hnbp: rate_ctr_add2()
+ *        |                                                  |
+ *        |                                        UNLOCK(osmo_stats_report_lock)
+ *        |                                         |
+ *        |                               UNLOCK(g_nft_kpi_state.lock)
+ *        |                                 |
+ *      hnbgw_rx_hnb_register_req()       sleep(X34)
+ *      hnb_nft_kpi_start()                 |
+ *      LOCK(g_nft_kpi_state.lock)         ...
+ *                 |
+ *                nftables: add new rule
+ *                 |
+ *      UNLOCK(g_nft_kpi_state.lock)
+ *        |
+ *       ...
+ *
+ * So the NFT thread only retrieves counters. The main thread adds and removes NFT rules for counters. It is possible
+ * that a HNBAP HNB Register or HNB De-Register occurrs while the NFT thread holds the g_nft_kpi_state.lock, so that the
+ * main thread blocks until the NFT thread is done reading counters. Note, this happens only for HNB attach or detach.
+ *
+ * A more scalable solution is to move all NFT interaction to the thread. Instead of submitting rules from the main
+ * thread, we could submit instructions to an inter-thread queue that the NFT thread works off. This would add
+ * considerable complexity -- for now we accept the possible but rarely occurring short delay for HNB de/registration.
+ */
+
 struct nft_kpi_state {
+	/* lock this while modifying g_nft_kpi_state */
+	pthread_mutex_t lock;
+
 	struct {
 		struct nft_ctx *nft_ctx;
 		char *table_name;
 		bool table_created;
 	} nft;
-	struct osmo_timer_list period;
+
+	pthread_t thread;
 };
 
 static struct nft_kpi_state g_nft_kpi_state = {};
@@ -98,15 +157,22 @@ static int nft_run_now(const char *buffer)
 	return 0;
 }
 
-static void nft_kpi_period_cb(void *data);
+static void nft_kpi_period_cb(void);
 
-static void nft_kpi_period_schedule(void)
+void *nft_kpi_thread(void *arg)
 {
-	unsigned long period = osmo_tdef_get(hnbgw_T_defs, -34, OSMO_TDEF_S, 10);
-	if (period < 1)
-		period = 1;
-	osmo_timer_setup(&g_nft_kpi_state.period, nft_kpi_period_cb, NULL);
-	osmo_timer_schedule(&g_nft_kpi_state.period, period, 0);
+	OSMO_ASSERT(osmo_ctx_init(__func__) == 0);
+	while (1) {
+		/* Let's just hope that the unsigned long in the hnbgw_T_defs is not modified non-atomically while
+		 * reading the timeout value. */
+		unsigned long period = osmo_tdef_get(hnbgw_T_defs, -34, OSMO_TDEF_US, 1000000);
+		if (period < 1)
+			period = 1;
+		usleep(period);
+
+		nft_kpi_period_cb();
+	}
+	return NULL;
 }
 
 int nft_kpi_init(const char *table_name)
@@ -143,7 +209,11 @@ int nft_kpi_init(const char *table_name)
 		return -EIO;
 
 	s->nft.table_created = true;
-	nft_kpi_period_schedule();
+
+	/* Up to here, it was fine to dispatch nft without locking, because this is the initialization from the main
+	 * thread. From now on, whoever wants to use the g_nft_ctx must lock this mutex first. */
+	pthread_mutex_init(&s->lock, NULL);
+	pthread_create(&s->thread, NULL, nft_kpi_thread, NULL);
 	return 0;
 }
 
@@ -161,14 +231,19 @@ int hnb_nft_kpi_start(struct hnb_persistent *hnbp, const struct osmo_sockaddr_st
 		return -EINVAL;
 	}
 
+	/* Manipulating nft state, obtain lock */
+	pthread_mutex_lock(&s->lock);
+	/* { */
+
 	if (!osmo_sockaddr_str_cmp(gtpu_remote, &hnbp->nft_kpi.addr_remote)) {
 		/* The remote address is unchanged, no need to update the nft probe */
-		return 0;
+		rc = 0;
+		goto unlock_return;
 	}
 
 	/* When there is no table created, it means nft is disabled. Do not attempt to set up counters. */
 	if (!s->nft.table_created)
-		return 0;
+		goto unlock_return;
 
 	/* The remote address has changed. Cancel previous probe, if any, and start a new one. */
 	if (osmo_sockaddr_str_is_nonzero(&hnbp->nft_kpi.addr_remote))
@@ -194,6 +269,10 @@ int hnb_nft_kpi_start(struct hnb_persistent *hnbp, const struct osmo_sockaddr_st
 		/* There was an error running the rule, clear addr_remote to indicate that no rule exists. */
 		hnbp->nft_kpi.addr_remote = (struct osmo_sockaddr_str){};
 	}
+
+unlock_return:
+	/* } */
+	pthread_mutex_unlock(&s->lock);
 	return rc;
 }
 
@@ -204,15 +283,19 @@ int hnb_nft_kpi_end(struct hnb_persistent *hnbp)
 {
 	struct nft_kpi_state *s = &g_nft_kpi_state;
 	char *cmd;
+	int rc = 0;
 
 	/* When there is no table created, neither can there be any rules to be deleted.
 	 * The rules get removed, but the table remains present for as long as osmo-hnbgw runs. */
 	if (!s->nft.table_created)
 		return 0;
 
+	pthread_mutex_lock(&s->lock);
+	/* { */
+
 	/* presence of addr_remote indicates whether an nft rule has been submitted and still needs to be removed */
 	if (!osmo_sockaddr_str_is_nonzero(&hnbp->nft_kpi.addr_remote))
-		return 0;
+		goto unlock_return;
 
 	if (!hnbp->nft_kpi.last.ul.handle_present
 	    || !hnbp->nft_kpi.last.dl.handle_present) {
@@ -233,7 +316,12 @@ int hnb_nft_kpi_end(struct hnb_persistent *hnbp)
 			      hnbp->nft_kpi.last.ul.handle,
 			      s->nft.table_name,
 			      hnbp->nft_kpi.last.dl.handle);
-	return nft_run_now(cmd);
+	rc = nft_run_now(cmd);
+
+unlock_return:
+	/* } */
+	pthread_mutex_unlock(&s->lock);
+	return rc;
 }
 
 static void update_ctr(struct rate_ctr_group *cg, int cgidx, uint64_t *last_val, uint64_t new_val)
@@ -378,6 +466,7 @@ static void decode_nft_response(const char *response)
 	LOGP(DNFT, LOGL_DEBUG, "read %d counters from nft table %s\n", count, s->nft.table_name);
 }
 
+/* The caller must hold the g_nft_kpi_state.lock! */
 static void nft_kpi_read_counters(void)
 {
 	int rc;
@@ -394,6 +483,12 @@ static void nft_kpi_read_counters(void)
 	OSMO_STRBUF_PRINTF(sb, "list table inet %s", s->nft.table_name);
 	OSMO_ASSERT(sb.chars_needed < sizeof(cmd));
 
+	size_t l = strlen(cmd);
+	LOGP(DNFT, LOGL_DEBUG, "running nft request, %zu chars: \"%s%s\"\n",
+	     l,
+	     osmo_escape_cstr_c(OTC_SELECT, cmd, OSMO_MIN(logmax, l)),
+	     l > logmax ? "..." : "");
+
 	rc = nft_ctx_buffer_output(nft);
 	if (rc) {
 		LOGP(DNFT, LOGL_ERROR, "error: nft_ctx_buffer_output() returned failure: rc=%d cmd=%s\n",
@@ -408,29 +503,29 @@ static void nft_kpi_read_counters(void)
 	}
 
 	output = nft_ctx_get_output_buffer(nft);
-	if (log_check_level(DNFT, LOGL_DEBUG)) {
-		size_t l = strlen(cmd);
-		LOGP(DNFT, LOGL_DEBUG, "ran nft request, %zu chars: \"%s%s\"\n",
-		     l,
-		     osmo_escape_cstr_c(OTC_SELECT, cmd, OSMO_MIN(logmax, l)),
-		     l > logmax ? "..." : "");
-		l = strlen(output);
-		LOGP(DNFT, LOGL_DEBUG, "got nft response, %zu chars: \"%s%s\"\n",
-		     l,
-		     osmo_escape_cstr_c(OTC_SELECT, output, OSMO_MIN(logmax, l)),
-		     l > logmax ? "..." : "");
-	}
+	l = strlen(output);
+	LOGP(DNFT, LOGL_DEBUG, "got nft response, %zu chars: \"%s%s\"\n",
+	     l,
+	     osmo_escape_cstr_c(OTC_SELECT, output, OSMO_MIN(logmax, l)),
+	     l > logmax ? "..." : "");
 
+	osmo_stats_report_lock();
+	/* { */
 	decode_nft_response(output);
+	/* } */
+	osmo_stats_report_unlock();
 
 unbuffer_and_exit:
 	nft_ctx_unbuffer_output(nft);
 }
 
-static void nft_kpi_period_cb(void *data)
+static void nft_kpi_period_cb(void)
 {
+	pthread_mutex_lock(&g_nft_kpi_state.lock);
+	/* { */
 	nft_kpi_read_counters();
-	nft_kpi_period_schedule();
+	/* } */
+	pthread_mutex_unlock(&g_nft_kpi_state.lock);
 }
 
 #endif // ENABLE_NFTABLES

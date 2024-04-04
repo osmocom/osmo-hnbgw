@@ -35,8 +35,8 @@ struct osmo_tdef hnbgw_T_defs[] = {
 	{.T = 3113, .default_val = 15, .desc = "Time to keep Paging record, for CN pools with more than one link" },
 	{.T = 4, .default_val = 5, .desc = "Timeout to receive RANAP RESET ACKNOWLEDGE from an MSC/SGSN" },
 	{.T = -31, .default_val = 15, .desc = "Timeout for establishing and releasing context maps (RUA <-> SCCP)" },
+	{.T = -34, .default_val = 1000, .unit = OSMO_TDEF_MS, .desc = "Period to query network traffic stats from netfilter" },
 	{.T = -1002, .default_val = 10, .desc = "Timeout for the HNB to respond to PS RAB Assignment Request" },
-	{.T = -34, .default_val = 1, .desc = "Period to query network traffic stats from netfilter" },
 	{ }
 };
 

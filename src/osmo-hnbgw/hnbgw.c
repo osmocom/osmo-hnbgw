@@ -520,6 +520,12 @@ struct hnb_persistent *hnb_persistent_alloc(const struct umts_cell_id *id)
 	if (!hnbp)
 		return NULL;
 
+	/* nft_kpi.c updates hnb stats, and it locks osmo_stats_report_lock() while it does so. This here should run
+	 * in the same thread as stats reporting, so there should be no conflict with stats. But to avoid a hnb in flux
+	 * while nft_kpi.c looks up hnb, also obtain the osmo_stats_report_lock() while manipulating hnb records. */
+	osmo_stats_report_lock();
+	/* { */
+
 	hnbp->id = *id;
 	hnbp->id_str = talloc_strdup(hnbp, umts_cell_id_name(id));
 	hnbp->ctrs = rate_ctr_group_alloc(hnbp, &hnb_ctrg_desc, 0);
@@ -532,14 +538,21 @@ struct hnb_persistent *hnb_persistent_alloc(const struct umts_cell_id *id)
 	osmo_stat_item_group_set_name(hnbp->statg, hnbp->id_str);
 
 	llist_add(&hnbp->list, &g_hnbgw->hnb_persistent_list);
+	/* success */
+	goto out_unlock;
 
-	return hnbp;
-
+	/* failure */
 out_free_ctrs:
 	rate_ctr_group_free(hnbp->ctrs);
 out_free:
 	talloc_free(hnbp);
-	return NULL;
+	hnbp = NULL;
+
+	/* for both success and failure: */
+out_unlock:
+	/* } */
+	osmo_stats_report_unlock();
+	return hnbp;
 }
 
 struct hnb_persistent *hnb_persistent_find_by_id(const struct umts_cell_id *id)
