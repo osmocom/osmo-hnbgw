@@ -4,9 +4,11 @@
 # environment variables:
 # * PFCP: configure PFCP support if set to "1" (default)
 # * WITH_MANUALS: build manual PDFs if set to "1"
+# * NFTABLES: configure nftables support if set to "1" (default)
 # * PUBLISH: upload manuals after building if set to "1" (ignored without WITH_MANUALS = "1")
 #
 PFCP=${PFCP:-1}
+NFTABLES=${NFTABLES:-1}
 
 if ! [ -x "$(command -v osmo-build-dep.sh)" ]; then
 	echo "Error: We need to have scripts/osmo-deps.sh from http://git.osmocom.org/osmo-ci/ in PATH !"
@@ -44,6 +46,9 @@ CONFIG=""
 if [ "$PFCP" = "1" ]; then
 	osmo-build-dep.sh libosmo-pfcp
 	CONFIG="$CONFIG --enable-pfcp"
+fi
+if [ "$NFTABLES" = "1" ]; then
+	CONFIG="$CONFIG --enable-nftables"
 fi
 if [ "$WITH_MANUALS" = "1" ]; then
 	CONFIG="$CONFIG --enable-manuals"
