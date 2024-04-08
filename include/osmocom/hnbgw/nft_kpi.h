@@ -6,7 +6,8 @@ struct hnb_persistent;
 
 struct nft_kpi_val {
 	uint64_t packets;
-	uint64_t bytes;
+	uint64_t total_bytes;
+	uint64_t ue_bytes;
 
 	bool handle_present;
 	int64_t handle;

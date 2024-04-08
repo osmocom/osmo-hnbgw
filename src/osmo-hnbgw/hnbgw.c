@@ -475,6 +475,10 @@ const struct rate_ctr_desc hnb_ctr_description[] = {
 		"gtpu:total_bytes:ul",
 		"Count of total GTP-U bytes received from the HNB, including the GTP-U/UDP/IP headers",
 	},
+	[HNB_CTR_GTPU_UE_BYTES_UL] = {
+		"gtpu:ue_bytes:ul",
+		"Assuming an IP header length of 20 bytes, GTP-U bytes received from the HNB, excluding the GTP-U/UDP/IP headers",
+	},
 	[HNB_CTR_GTPU_PACKETS_DL] = {
 		"gtpu:packets:dl",
 		"Count of GTP-U packets sent to the HNB",
@@ -482,6 +486,10 @@ const struct rate_ctr_desc hnb_ctr_description[] = {
 	[HNB_CTR_GTPU_TOTAL_BYTES_DL] = {
 		"gtpu:total_bytes:dl",
 		"Count of total GTP-U bytes sent to the HNB, including the GTP-U/UDP/IP headers",
+	},
+	[HNB_CTR_GTPU_UE_BYTES_DL] = {
+		"gtpu:ue_bytes:dl",
+		"Assuming an IP header length of 20 bytes, GTP-U bytes sent to the HNB, excluding the GTP-U/UDP/IP headers",
 	},
 
 };

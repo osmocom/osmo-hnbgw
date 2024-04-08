@@ -268,7 +268,21 @@ static void hnb_update_counters(struct hnb_persistent *hnbp, bool ul, int64_t pa
 		   &val->packets, packets);
 	update_ctr(hnbp->ctrs,
 		   ul ? HNB_CTR_GTPU_TOTAL_BYTES_UL : HNB_CTR_GTPU_TOTAL_BYTES_DL,
-		   &val->bytes, bytes);
+		   &val->total_bytes, bytes);
+
+	/* Assuming an IP header of 20 bytes, derive the GTP-U payload size:
+	 *
+	 *  [...]             \              \
+	 *  [ UDP ][ TCP ]    | UE payload   | nft reports these bytes
+	 *  [ IP ]            /              |
+	 *  -- payload --                    |
+	 *  [ GTP-U 8 bytes ]                |   \
+	 *  [ UDP 8 bytes ]                  |   | need to subtract these, ~20 + 8 + 8
+	 *  [ IP 20 bytes ]                  /   /
+	 */
+	update_ctr(hnbp->ctrs,
+		   ul ? HNB_CTR_GTPU_UE_BYTES_UL : HNB_CTR_GTPU_UE_BYTES_DL,
+		   &val->ue_bytes, bytes - OSMO_MIN(bytes, packets * (20 + 8 + 8)));
 }
 
 /* In the string section *pos .. end, find the first occurrence of after_str and return the following token, which ends
