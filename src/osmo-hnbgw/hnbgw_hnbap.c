@@ -478,6 +478,8 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	const char *cell_id_str;
 	struct timespec tp;
 	HNBAP_Cause_t cause;
+	struct osmo_sockaddr cur_osa = {};
+	socklen_t len = sizeof(cur_osa);
 
 	rc = hnbap_decode_hnbregisterrequesties(&ies, in);
 	if (rc < 0) {
@@ -499,6 +501,15 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	ctx->id.mnc = plmn.mnc;
 	cell_id_str = umts_cell_id_name(&ctx->id);
 
+	if (getpeername(ofd->fd, &cur_osa.u.sa, &len) < 0) {
+		LOGHNB(ctx, DHNBAP, LOGL_ERROR, "HNB-REGISTER-REQ %s: rejecting due to getpeername() error: %s\n",
+		       cell_id_str, strerror(errno));
+		hnbap_free_hnbregisterrequesties(&ies);
+		cause.present = HNBAP_Cause_PR_radioNetwork;
+		cause.choice.radioNetwork = HNBAP_CauseRadioNetwork_hNB_parameter_mismatch;
+		return hnbgw_tx_hnb_register_rej(ctx, &cause);
+	}
+
 	hnbp = hnb_persistent_find_by_id(&ctx->id);
 	if (!hnbp && g_hnbgw->config.accept_all_hnb)
 		hnbp = hnb_persistent_alloc(&ctx->id);
@@ -510,6 +521,7 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 		cause.choice.radioNetwork = HNBAP_CauseRadioNetwork_unauthorised_HNB;
 		return hnbgw_tx_hnb_register_rej(ctx, &cause);
 	}
+
 	ctx->persistent = hnbp;
 	hnbp->ctx = ctx;
 
@@ -523,22 +535,13 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 			 * fault (bug), and we release the old context to keep going... */
 			struct osmo_fd *other_fd = osmo_stream_srv_get_ofd(hnb->conn);
 			struct osmo_sockaddr other_osa = {};
-			struct osmo_sockaddr cur_osa = {};
 			socklen_t len = sizeof(other_osa);
 			if (getpeername(other_fd->fd, &other_osa.u.sa, &len) < 0) {
 				LOGHNB(ctx, DHNBAP, LOGL_ERROR, "BUG! Found old registered HNB with invalid socket, releasing it\n");
 				hnb_context_release(hnb);
 				continue;
 			}
-			len = sizeof(cur_osa);
-			if (getpeername(ofd->fd, &cur_osa.u.sa, &len) < 0) {
-				LOGHNB(ctx, DHNBAP, LOGL_ERROR, "Error getpeername(): %s\n", strerror(errno));
-				if (osmo_sockaddr_cmp(&cur_osa, &other_osa) == 0) {
-					LOGHNB(ctx, DHNBAP, LOGL_ERROR, "BUG! Found old registered HNB with same remote address, releasing it\n");
-					hnb_context_release(hnb);
-					continue;
-				}
-			} else if (osmo_sockaddr_cmp(&cur_osa, &other_osa) == 0) {
+			if (osmo_sockaddr_cmp(&cur_osa, &other_osa) == 0) {
 				LOGHNB(ctx, DHNBAP, LOGL_ERROR, "BUG! Found old registered HNB with same remote address, releasing it\n");
 				hnb_context_release(hnb);
 				continue;
