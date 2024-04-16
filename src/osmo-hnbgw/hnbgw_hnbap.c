@@ -529,7 +529,9 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	rc = osmo_clock_gettime(CLOCK_MONOTONIC, &tp);
 	hnbp->updowntime = (rc < 0) ? 0 : tp.tv_sec;
 
+	LOGHNB(ctx, DHNBAP, LOGL_NOTICE, "PESPIN-NOW: identity_info=%s cell_id_str=%s ctx->id=%s registered=%d\n", ctx->identity_info, cell_id_str, umts_cell_id_name(&ctx->id), ctx->hnb_registered);
 	llist_for_each_entry_safe(hnb, tmp, &g_hnbgw->hnb_list, list) {
+		LOGHNB(hnb, DHNBAP, LOGL_NOTICE, "PESPIN-ITER: identity_info=%s cell_id_str=%s ctx->id=%s registered=%d\n", hnb->identity_info, cell_id_str, umts_cell_id_name(&hnb->id), hnb->hnb_registered);
 		if (hnb->hnb_registered && ctx != hnb && memcmp(&ctx->id, &hnb->id, sizeof(ctx->id)) == 0) {
 			/* If it's coming from the same remote IP addr+port, then it must be our internal
 			 * fault (bug), and we release the old context to keep going... */
