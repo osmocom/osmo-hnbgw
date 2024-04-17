@@ -220,10 +220,9 @@ static void map_rua_init_action(struct osmo_fsm_inst *fi, uint32_t event, void *
 	switch (event) {
 
 	case MAP_RUA_EV_RX_CONNECT:
+		/* not needed for RAB assignment scanning, but for KPI scanning */
+		handle_rx_rua(fi, ranap_msg);
 		map_rua_fsm_state_chg(MAP_RUA_ST_CONNECTED);
-		/* The Connect will never be a RAB Assignment response, so no need for handle_rx_rua() (which decodes
-		 * the RANAP message to detect a RAB Assignment response). Just forward to SCCP as is. */
-		map_sccp_dispatch(map, MAP_SCCP_EV_TX_DATA_REQUEST, ranap_msg);
 		return;
 
 	case MAP_RUA_EV_RX_DISCONNECT:

@@ -165,6 +165,18 @@ static void kpi_ranap_process_dl_rab_ass_req(struct hnbgw_context_map *map, rana
 	}
 }
 
+static void kpi_ranap_process_dl_direct_transfer(struct hnbgw_context_map *map, ranap_message *ranap)
+{
+	const RANAP_DirectTransferIEs_t *dt_ies = &ranap->msg.directTransferIEs;
+	uint8_t sapi = 0;
+
+	if (dt_ies->presenceMask & DIRECTTRANSFERIES_RANAP_SAPI_PRESENT) {
+		if (dt_ies->sapi == RANAP_SAPI_sapi_3)
+			sapi = 3;
+	}
+	kpi_dtap_process_dl(map, dt_ies->nas_pdu.buf, dt_ies->nas_pdu.size, sapi);
+}
+
 void kpi_ranap_process_dl(struct hnbgw_context_map *map, ranap_message *ranap)
 {
 	switch (ranap->procedureCode) {
@@ -173,6 +185,9 @@ void kpi_ranap_process_dl(struct hnbgw_context_map *map, ranap_message *ranap)
 		break;
 	case RANAP_ProcedureCode_id_Iu_Release:
 		kpi_ranap_process_dl_iu_rel_cmd(map, ranap);		/* IU RELEASE CMD (8.5) */
+		break;
+	case RANAP_ProcedureCode_id_DirectTransfer:
+		kpi_ranap_process_dl_direct_transfer(map, ranap);
 		break;
 	default:
 		break;
@@ -370,6 +385,24 @@ static void kpi_ranap_process_ul_rab_ass_resp(struct hnbgw_context_map *map, ran
 	}
 }
 
+static void kpi_ranap_process_ul_initial_ue(struct hnbgw_context_map *map, ranap_message *ranap)
+{
+	const RANAP_InitialUE_MessageIEs_t *iue_ies = &ranap->msg.initialUE_MessageIEs;
+	kpi_dtap_process_ul(map, iue_ies->nas_pdu.buf, iue_ies->nas_pdu.size, 0);
+}
+
+static void kpi_ranap_process_ul_direct_transfer(struct hnbgw_context_map *map, ranap_message *ranap)
+{
+	const RANAP_DirectTransferIEs_t *dt_ies = &ranap->msg.directTransferIEs;
+	uint8_t sapi = 0;
+
+	if (dt_ies->presenceMask & DIRECTTRANSFERIES_RANAP_SAPI_PRESENT) {
+		if (dt_ies->sapi == RANAP_SAPI_sapi_3)
+			sapi = 3;
+	}
+	kpi_dtap_process_ul(map, dt_ies->nas_pdu.buf, dt_ies->nas_pdu.size, sapi);
+}
+
 void kpi_ranap_process_ul(struct hnbgw_context_map *map, ranap_message *ranap)
 {
 	switch (ranap->procedureCode) {
@@ -381,6 +414,12 @@ void kpi_ranap_process_ul(struct hnbgw_context_map *map, ranap_message *ranap)
 		 * released.  For now we simply assume that all RABs are released in IU RELEASE during
 		 * processing of the downlink Iu Release Command.  It's not like the RNC/HNB has any way to
 		 * refuse the release anyway. */
+		break;
+	case RANAP_ProcedureCode_id_InitialUE_Message:
+		kpi_ranap_process_ul_initial_ue(map, ranap);
+		break;
+	case RANAP_ProcedureCode_id_DirectTransfer:
+		kpi_ranap_process_ul_direct_transfer(map, ranap);
 		break;
 	default:
 		break;

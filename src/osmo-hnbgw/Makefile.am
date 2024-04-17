@@ -44,6 +44,7 @@ libhnbgw_la_SOURCES = \
 	cnlink.c \
 	ranap_rab_ass.c \
 	mgw_fsm.c \
+	kpi_dtap.c \
 	kpi_ranap.c \
 	tdefs.c \
 	$(NULL)

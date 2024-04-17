@@ -464,6 +464,18 @@ const struct rate_ctr_desc hnb_ctr_description[] = {
 
 	[HNB_CTR_RAB_ACTIVE_MILLISECONDS_TOTAL] = {
 		"rab:cs:active_milliseconds:total", "Cumulative number of milliseconds of CS RAB activity" },
+
+	[HNB_CTR_DTAP_CS_LU_REQ] = { "dtap:cs:location_update:req", "CS Location Update Requests" },
+	[HNB_CTR_DTAP_CS_LU_ACC] = { "dtap:cs:location_update:accept", "CS Location Update Accepts" },
+	[HNB_CTR_DTAP_CS_LU_REJ] = { "dtap:cs:location_update:reject", "CS Location Update Rejects" },
+
+	[HNB_CTR_DTAP_PS_ATT_REQ] = { "dtap:ps:attach:req", "PS Attach Requests" },
+	[HNB_CTR_DTAP_PS_ATT_ACK] = { "dtap:ps:attach:accept", "PS Attach Accepts" },
+	[HNB_CTR_DTAP_PS_ATT_REJ] = { "dtap:ps:attach:reject", "PS Attach Rejects" },
+
+	[HNB_CTR_DTAP_PS_RAU_REQ] = { "dtap:ps:routing_area_update:req", "PS Routing Area Update Requests" },
+	[HNB_CTR_DTAP_PS_RAU_ACK] = { "dtap:ps:routing_area_update:accept", "PS Routing Area Update Accepts" },
+	[HNB_CTR_DTAP_PS_RAU_REJ] = { "dtap:ps:routing_area_update:reject", "PS Routing Area Update Rejects" },
 };
 
 const struct rate_ctr_group_desc hnb_ctrg_desc = {
