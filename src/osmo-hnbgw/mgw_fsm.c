@@ -175,7 +175,7 @@ static void mgw_fsm_crcx_hnb_onenter(struct osmo_fsm_inst *fi, uint32_t prev_sta
 	mgw_info = (struct mgcp_conn_peer) {
 		.call_id = (map->rua_ctx_id << 8) | mgw_fsm_priv->rab_id,
 		.ptime = 20,
-		.conn_mode = MGCP_CONN_LOOPBACK,
+		.conn_mode = MGCP_CONN_RECV_SEND,
 	};
 	mgw_info.codecs[0] = CODEC_IUFP;
 	mgw_info.codecs_len = 1;

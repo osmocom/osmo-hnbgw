@@ -8,3 +8,6 @@
 # If any interfaces have been removed or changed since the last public release: c:r:0.
 #library	what		description / commit summary line
 osmo-iuh  >1.5.0  proper decoding of X.213 IPv4 address len=7
+
+MGW	MGCP CRCX	osmo-hnbgw used to CRCX in loopback mode, to trigger a legacy IuUP hack. CRCX is no
+			longer in loopback mode now, so older osmo-mgw may fail to respond to IuUP Initialization.
