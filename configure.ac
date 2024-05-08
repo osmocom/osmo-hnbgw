@@ -236,5 +236,4 @@ AC_OUTPUT(
     doc/charts/Makefile
     contrib/Makefile
     contrib/systemd/Makefile
-    contrib/osmo-hnbgw.spec
     Makefile)
