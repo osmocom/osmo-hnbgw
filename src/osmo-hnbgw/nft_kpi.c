@@ -127,7 +127,6 @@ int nft_kpi_init(const char *table_name)
 			   "add chain inet %s gtpu-ul {"
 			   " type filter hook prerouting priority 0; policy accept;"
 			   " ip protocol != udp accept;"
-			   " udp sport != 2152 accept;"
 			   " udp dport != 2152 accept;"
 			   "};\n",
 			   s->nft.table_name);
@@ -135,7 +134,6 @@ int nft_kpi_init(const char *table_name)
 			   "add chain inet %s gtpu-dl {"
 			   " type filter hook postrouting priority 0; policy accept;"
 			   " ip protocol != udp accept;"
-			   " udp sport != 2152 accept;"
 			   " udp dport != 2152 accept;"
 			   "};\n",
 			   s->nft.table_name);
