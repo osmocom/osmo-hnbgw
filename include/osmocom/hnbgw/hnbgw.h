@@ -175,6 +175,7 @@ struct umts_cell_id {
 };
 const char *umts_cell_id_name(const struct umts_cell_id *ucid);
 int umts_cell_id_from_str(struct umts_cell_id *ucid, const char *instr);
+uint32_t umts_cell_id_hash(const struct umts_cell_id *ucid);
 
 /*! are both given umts_cell_id euqal? */
 static inline bool umts_cell_id_equal(const struct umts_cell_id *a, const struct umts_cell_id *b)
@@ -367,6 +368,8 @@ struct hnb_context {
 struct hnb_persistent {
 	/*! Entry in HNBGW-global list of hnb_persistent */
 	struct llist_head list;
+	/*! Entry in hash table g_hnbgw->hnb_persistent_by_id. */
+	struct hlist_node node_by_id;
 	/*! back-pointer to hnb_context.  Can be NULL if no context at this point */
 	struct hnb_context *ctx;
 
@@ -453,8 +456,12 @@ struct hnbgw {
 	struct osmo_stream_srv_link *iuh;
 	/* list of struct hnb_context */
 	struct llist_head hnb_list;
+
 	/* list of struct hnb_persistent */
 	struct llist_head hnb_persistent_list;
+	/* optimized lookup for hnb_persistent, by cell id string */
+	DECLARE_HASHTABLE(hnb_persistent_by_id, 5);
+
 	struct osmo_timer_list store_uptime_timer;
 	/* list of struct ue_context */
 	struct llist_head ue_list;

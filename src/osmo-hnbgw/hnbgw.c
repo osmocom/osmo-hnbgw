@@ -242,6 +242,32 @@ const char *umts_cell_id_name(const struct umts_cell_id *ucid)
 			       ucid->sac, ucid->cid);
 }
 
+/* source: http://www.cse.yorku.ca/~oz/hash.html */
+static inline void mkhash_init(uint32_t *hash)
+{
+	*hash = 5381;
+}
+static inline void mkhash_add(uint32_t *hash, int32_t val)
+{
+	uint32_t h = *hash;
+	h = ((h << 5) + h) ^ val; /* (h * 33) ^ val */
+	*hash = h;
+}
+
+/* Useful to index a hash table by struct umts_cell_id. */
+uint32_t umts_cell_id_hash(const struct umts_cell_id *ucid)
+{
+	uint32_t hash;
+	mkhash_init(&hash);
+	mkhash_add(&hash, ucid->mcc);
+	mkhash_add(&hash, ucid->mnc);
+	mkhash_add(&hash, ucid->lac);
+	mkhash_add(&hash, ucid->rac);
+	mkhash_add(&hash, ucid->sac);
+	mkhash_add(&hash, ucid->cid);
+	return hash;
+}
+
 /* parse a string representation of an umts_cell_id into its decoded representation */
 int umts_cell_id_from_str(struct umts_cell_id *ucid, const char *instr)
 {
@@ -542,6 +568,7 @@ struct hnb_persistent *hnb_persistent_alloc(const struct umts_cell_id *id)
 	osmo_stat_item_group_set_name(hnbp->statg, hnbp->id_str);
 
 	llist_add(&hnbp->list, &g_hnbgw->hnb_persistent_list);
+	hash_add(g_hnbgw->hnb_persistent_by_id, &hnbp->node_by_id, umts_cell_id_hash(&hnbp->id));
 
 	if (g_hnbgw->nft_kpi.active)
 		nft_kpi_hnb_persistent_add(hnbp);
@@ -558,12 +585,11 @@ out_free:
 struct hnb_persistent *hnb_persistent_find_by_id(const struct umts_cell_id *id)
 {
 	struct hnb_persistent *hnbp;
-
-	llist_for_each_entry(hnbp, &g_hnbgw->hnb_persistent_list, list) {
+	uint32_t id_hash = umts_cell_id_hash(id);
+	hash_for_each_possible (g_hnbgw->hnb_persistent_by_id, hnbp, node_by_id, id_hash) {
 		if (umts_cell_id_equal(&hnbp->id, id))
 			return hnbp;
 	}
-
 	return NULL;
 }
 
@@ -639,6 +665,7 @@ void hnb_persistent_free(struct hnb_persistent *hnbp)
 	nft_kpi_hnb_persistent_remove(hnbp);
 	rate_ctr_group_free(hnbp->ctrs);
 	llist_del(&hnbp->list);
+	hash_del(&hnbp->node_by_id);
 	talloc_free(hnbp);
 }
 
@@ -998,7 +1025,10 @@ void g_hnbgw_alloc(void *ctx)
 
 	g_hnbgw->next_ue_ctx_id = 23;
 	INIT_LLIST_HEAD(&g_hnbgw->hnb_list);
+
 	INIT_LLIST_HEAD(&g_hnbgw->hnb_persistent_list);
+	hash_init(g_hnbgw->hnb_persistent_by_id);
+
 	INIT_LLIST_HEAD(&g_hnbgw->ue_list);
 	INIT_LLIST_HEAD(&g_hnbgw->sccp.users);
 
