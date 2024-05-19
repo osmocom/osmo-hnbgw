@@ -6,14 +6,12 @@
 "001-001-L1-R1-S1-C1"
   -> umts_cell_id_from_str(): ok
   -> umts_cell_id_to_str_buf(): ok
-  ERROR: conversion to umts_cell_id and back to string doesn't return the original string
-  -> "001-01-L1-R1-S1-C1"
+  -> "001-001-L1-R1-S1-C1"
   umts_cell_id_equal(expected, parsed): ok
 "001-099-L1-R1-S1-C1"
   -> umts_cell_id_from_str(): ok
   -> umts_cell_id_to_str_buf(): ok
-  ERROR: conversion to umts_cell_id and back to string doesn't return the original string
-  -> "001-99-L1-R1-S1-C1"
+  -> "001-099-L1-R1-S1-C1"
   umts_cell_id_equal(expected, parsed): ok
 "001-99-L1-R1-S1-C1"
   -> umts_cell_id_from_str(): ok

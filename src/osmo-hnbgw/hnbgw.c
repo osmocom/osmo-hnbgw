@@ -234,12 +234,10 @@ static struct hnb_context *hnb_context_alloc(struct osmo_stream_srv_link *link, 
 
 int umts_cell_id_to_str_buf(char *buf, size_t buflen, const struct umts_cell_id *ucid)
 {
-	const char *fmtstr = "%03u-%02u-L%u-R%u-S%u-C%u";
-
-	if (g_hnbgw->config.plmn.mnc_3_digits)
-		fmtstr = "%03u-%03u-L%u-R%u-S%u-C%u";
-	return snprintf(buf, buflen, fmtstr, ucid->mcc, ucid->mnc, ucid->lac, ucid->rac,
-			ucid->sac, ucid->cid);
+	struct osmo_strbuf sb = { .buf = buf, .len = buflen };
+	OSMO_STRBUF_APPEND_NOLEN(sb, osmo_plmn_name_buf, &ucid->plmn);
+	OSMO_STRBUF_PRINTF(sb, "-L%u-R%u-S%u-C%u", ucid->lac, ucid->rac, ucid->sac, ucid->cid);
+	return sb.chars_needed;
 }
 
 char *umts_cell_id_to_str_c(void *ctx, const struct umts_cell_id *ucid)
@@ -262,22 +260,38 @@ uint32_t umts_cell_id_hash(const struct umts_cell_id *ucid)
 int umts_cell_id_from_str(struct umts_cell_id *ucid, const char *instr)
 {
 	int rc;
+	char buf[4];
+	const char *pos = instr;
+	const char *end;
 
 	/* We want to use struct umts_cell_id as hashtable key. If it ever happens to contain any padding bytes, make
 	 * sure everything is deterministically zero. */
 	memset(ucid, 0, sizeof(*ucid));
 
-	rc = sscanf(instr, "%hu-%hu-L%hu-R%hu-S%hu-C%u", &ucid->mcc, &ucid->mnc, &ucid->lac, &ucid->rac, &ucid->sac, &ucid->cid);
+	/* read MCC */
+	end = strchr(pos, '-');
+	if (!end || end <= pos || (end - pos) >= sizeof(buf))
+		return -EINVAL;
+	osmo_strlcpy(buf, pos, end - pos + 1);
+	if (osmo_mcc_from_str(buf, &ucid->plmn.mcc))
+		return -EINVAL;
+	pos = end + 1;
+
+	/* read MNC -- here the number of leading zeros matters. */
+	end = strchr(pos, '-');
+	if (!end || end == pos || (end - pos) >= sizeof(buf))
+		return -EINVAL;
+	osmo_strlcpy(buf, pos, end - pos + 1);
+	if (osmo_mnc_from_str(buf, &ucid->plmn.mnc, &ucid->plmn.mnc_3_digits))
+		return -EINVAL;
+	pos = end + 1;
+
+	/* parse the rest, where leading zeros do not matter */
+	rc = sscanf(pos, "L%hu-R%hu-S%hu-C%u", &ucid->lac, &ucid->rac, &ucid->sac, &ucid->cid);
 	if (rc < 0)
 		return -errno;
 
-	if (rc != 6)
-		return -EINVAL;
-
-	if (ucid->mcc > 999)
-		return -EINVAL;
-
-	if (ucid->mnc > 999)
+	if (rc != 4)
 		return -EINVAL;
 
 	if (ucid->lac == 0 || ucid->lac == 0xffff)

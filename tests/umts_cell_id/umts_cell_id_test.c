@@ -12,8 +12,10 @@ struct test tests[] = {
 	{
 		.id_str = "001-01-L1-R1-S1-C1",
 		.id = {
-			.mcc = 1,
-			.mnc = 1,
+			.plmn = {
+				.mcc = 1,
+				.mnc = 1,
+			},
 			.lac = 1,
 			.rac = 1,
 			.sac = 1,
@@ -25,8 +27,11 @@ struct test tests[] = {
 	{
 		.id_str = "001-001-L1-R1-S1-C1",
 		.id = {
-			.mcc = 1,
-			.mnc = 1,
+			.plmn = {
+				.mcc = 1,
+				.mnc = 1,
+				.mnc_3_digits = true,
+			},
 			.lac = 1,
 			.rac = 1,
 			.sac = 1,
@@ -36,8 +41,11 @@ struct test tests[] = {
 	{
 		.id_str = "001-099-L1-R1-S1-C1",
 		.id = {
-			.mcc = 1,
-			.mnc = 99,
+			.plmn = {
+				.mcc = 1,
+				.mnc = 99,
+				.mnc_3_digits = true,
+			},
 			.lac = 1,
 			.rac = 1,
 			.sac = 1,
@@ -47,8 +55,11 @@ struct test tests[] = {
 	{
 		.id_str = "001-99-L1-R1-S1-C1",
 		.id = {
-			.mcc = 1,
-			.mnc = 99,
+			.plmn = {
+				.mcc = 1,
+				.mnc = 99,
+				.mnc_3_digits = false,
+			},
 			.lac = 1,
 			.rac = 1,
 			.sac = 1,
@@ -59,8 +70,11 @@ struct test tests[] = {
 	{
 		.id_str = "999-999-L65534-R65535-S65535-C268435455",
 		.id = {
-			.mcc = 999,
-			.mnc = 999,
+			.plmn = {
+				.mcc = 999,
+				.mnc = 999,
+				.mnc_3_digits = true,
+			},
 			.lac = 65534,
 			.rac = 65535,
 			.sac = 65535,
@@ -94,12 +108,7 @@ struct test tests[] = {
 
 int main(void)
 {
-	struct hnbgw hnbgw_dummy = {};
 	struct test *t;
-
-	/* umts_cell_id_to_str() accesses g_hnbgw->config.plmn.mnc_3_digits, so make sure it is valid mem: */
-	g_hnbgw = &hnbgw_dummy;
-
 	for (t = tests; (t - tests) < ARRAY_SIZE(tests); t++) {
 		int rc;
 		struct umts_cell_id parsed;

@@ -210,8 +210,9 @@ static void vty_dump_hnb_info(struct vty *vty, struct hnb_context *hnb)
 	vty_out(vty, "HNB ");
 	vty_out_ofd_addr(vty, hnb->conn? osmo_stream_srv_get_ofd(hnb->conn) : NULL);
 	vty_out(vty, " \"%s\"%s", hnb->identity_info, VTY_NEWLINE);
-	vty_out(vty, "    MCC %u MNC %u LAC %u RAC %u SAC %u CID %u SCTP-stream:HNBAP=%u,RUA=%u%s",
-		hnb->id.mcc, hnb->id.mnc, hnb->id.lac, hnb->id.rac, hnb->id.sac, hnb->id.cid,
+	vty_out(vty, "    MCC %s MNC %s LAC %u RAC %u SAC %u CID %u SCTP-stream:HNBAP=%u,RUA=%u%s",
+		osmo_mcc_name(hnb->id.plmn.mcc), osmo_mnc_name(hnb->id.plmn.mnc, hnb->id.plmn.mnc_3_digits),
+		hnb->id.lac, hnb->id.rac, hnb->id.sac, hnb->id.cid,
 		hnb->hnbap_stream, hnb->rua_stream, VTY_NEWLINE);
 
 	llist_for_each_entry(map, &hnb->map_list, hnb_list) {

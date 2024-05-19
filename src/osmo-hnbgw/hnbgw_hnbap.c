@@ -472,7 +472,6 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	struct hnb_context *hnb, *tmp;
 	HNBAP_HNBRegisterRequestIEs_t ies;
 	int rc;
-	struct osmo_plmn_id plmn;
 	struct osmo_fd *ofd = osmo_stream_srv_get_ofd(ctx->conn);
 	char identity_str[256];
 	const char *cell_id_str;
@@ -500,9 +499,7 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	ctx->id.sac = asn1str_to_u16(&ies.sac);
 	ctx->id.rac = asn1str_to_u8(&ies.rac);
 	ctx->id.cid = asn1bitstr_to_u28(&ies.cellIdentity);
-	osmo_plmn_from_bcd(ies.plmNidentity.buf, &plmn);
-	ctx->id.mcc = plmn.mcc;
-	ctx->id.mnc = plmn.mnc;
+	osmo_plmn_from_bcd(ies.plmNidentity.buf, &ctx->id.plmn);
 	cell_id_str = umts_cell_id_to_str(&ctx->id);
 
 	if (getpeername(ofd->fd, &cur_osa.u.sa, &len) < 0) {
@@ -761,8 +758,7 @@ static int hnbgw_rx_unsuccessful_outcome_msg(struct hnb_context *hnb, HNBAP_Unsu
 {
 	/* We don't care much about HNBAP */
 	LOGHNB(hnb, DHNBAP, LOGL_ERROR, "Received Unsuccessful Outcome, procedureCode %ld, criticality %ld,"
-		" cell mcc %u mnc %u lac %u rac %u sac %u cid %u\n", msg->procedureCode, msg->criticality,
-		hnb->id.mcc, hnb->id.mnc, hnb->id.lac, hnb->id.rac, hnb->id.sac, hnb->id.cid);
+		" cell %s\n", msg->procedureCode, msg->criticality, umts_cell_id_to_str(&hnb->id));
 	return 0;
 }
 
