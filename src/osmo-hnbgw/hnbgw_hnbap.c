@@ -503,7 +503,7 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	osmo_plmn_from_bcd(ies.plmNidentity.buf, &plmn);
 	ctx->id.mcc = plmn.mcc;
 	ctx->id.mnc = plmn.mnc;
-	cell_id_str = umts_cell_id_name(&ctx->id);
+	cell_id_str = umts_cell_id_to_str(&ctx->id);
 
 	if (getpeername(ofd->fd, &cur_osa.u.sa, &len) < 0) {
 		LOGHNB(ctx, DHNBAP, LOGL_ERROR, "HNB-REGISTER-REQ %s: rejecting due to getpeername() error: %s\n",

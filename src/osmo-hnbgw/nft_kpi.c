@@ -361,7 +361,7 @@ static int do_hnbp_init(struct nft_thread_req *req)
 {
 	char cmd[1024];
 	struct osmo_strbuf sb = { .buf = cmd, .len = sizeof(cmd) };
-	const char *cell_id_str = umts_cell_id_name(&req->hnbp_init_remove.cell_id);
+	const char *cell_id_str = umts_cell_id_to_str(&req->hnbp_init_remove.cell_id);
 	OSMO_STRBUF_PRINTF(sb,
 			   "add counter inet %s ul-%s;\n"
 			   "add counter inet %s dl-%s;\n",
@@ -376,7 +376,7 @@ static int do_hnbp_remove(struct nft_thread_req *req)
 {
 	char cmd[1024];
 	struct osmo_strbuf sb = { .buf = cmd, .len = sizeof(cmd) };
-	const char *cell_id_str = umts_cell_id_name(&req->hnbp_init_remove.cell_id);
+	const char *cell_id_str = umts_cell_id_to_str(&req->hnbp_init_remove.cell_id);
 	OSMO_STRBUF_PRINTF(sb,
 			   "delete counter inet %s ul-%s;\n"
 			   "delete counter inet %s dl-%s;\n",
@@ -406,7 +406,7 @@ static int do_hnb_start(struct nft_thread_req *req)
 {
 	char cmd[1024];
 	struct osmo_strbuf sb = { .buf = cmd, .len = sizeof(cmd) };
-	const char *cell_id_str = umts_cell_id_name(&req->hnb_start.cell_id);
+	const char *cell_id_str = umts_cell_id_to_str(&req->hnb_start.cell_id);
 	int rc;
 
 	OSMO_STRBUF_PRINTF(sb,
@@ -911,7 +911,7 @@ static void main_thread_handle_hnb_start_resp(struct nft_thread_req *req)
 		/* Paranoid corner case: while we added the rules for this hNodeB, it was apparently removed and does
 		 * not exist anymore. We need to just drop the rules again right away. */
 		LOGP(DNFT, LOGL_ERROR, "Added nft rules for unknown cell %s; removing rules again\n",
-		     umts_cell_id_name(&req->hnb_start.cell_id));
+		     umts_cell_id_to_str(&req->hnb_start.cell_id));
 		drop_again = true;
 	}
 
@@ -921,7 +921,7 @@ static void main_thread_handle_hnb_start_resp(struct nft_thread_req *req)
 		 * drop the rules again right away. */
 		LOGP(DNFT, LOGL_INFO,
 		     "Cell %s disconnected before adding counter rules completed. removing rules again\n",
-		     umts_cell_id_name(&req->hnb_start.cell_id));
+		     umts_cell_id_to_str(&req->hnb_start.cell_id));
 		drop_again = true;
 	}
 

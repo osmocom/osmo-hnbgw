@@ -232,7 +232,7 @@ static struct hnb_context *hnb_context_alloc(struct osmo_stream_srv_link *link, 
 	return ctx;
 }
 
-const char *umts_cell_id_name(const struct umts_cell_id *ucid)
+const char *umts_cell_id_to_str(const struct umts_cell_id *ucid)
 {
 	const char *fmtstr = "%03u-%02u-L%u-R%u-S%u-C%u";
 
@@ -304,7 +304,7 @@ const char *hnb_context_name(struct hnb_context *ctx)
 	if (g_hnbgw->config.log_prefix_hnb_id)
 		result = talloc_asprintf(OTC_SELECT, "%s %s", result, ctx->identity_info);
 	else
-		result = talloc_asprintf(OTC_SELECT, "%s %s", result, umts_cell_id_name(&ctx->id));
+		result = talloc_asprintf(OTC_SELECT, "%s %s", result, umts_cell_id_to_str(&ctx->id));
 	return result;
 }
 
@@ -544,7 +544,7 @@ struct hnb_persistent *hnb_persistent_alloc(const struct umts_cell_id *id)
 		return NULL;
 
 	hnbp->id = *id;
-	hnbp->id_str = talloc_strdup(hnbp, umts_cell_id_name(id));
+	hnbp->id_str = talloc_strdup(hnbp, umts_cell_id_to_str(id));
 	hnbp->ctrs = rate_ctr_group_alloc(hnbp, &hnb_ctrg_desc, 0);
 	if (!hnbp->ctrs)
 		goto out_free;
