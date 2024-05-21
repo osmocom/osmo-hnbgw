@@ -214,7 +214,6 @@ static int forward_ranap_to_rua(struct hnbgw_context_map *map, struct msgb *rana
 
 static void map_rua_init_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
 {
-	struct hnbgw_context_map *map = fi->priv;
 	struct msgb *ranap_msg = data;
 
 	switch (event) {
