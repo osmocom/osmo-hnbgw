@@ -6,3 +6,9 @@ AT_KEYWORDS([ranap_rab_ass])
 cat $abs_srcdir/ranap_rab_ass/ranap_rab_ass_test.ok > expout
 AT_CHECK([$abs_top_builddir/tests/ranap_rab_ass/ranap_rab_ass_test], [0], [expout], [ignore])
 AT_CLEANUP
+
+AT_SETUP([umts_cell_id])
+AT_KEYWORDS([umts_cell_id])
+cat $abs_srcdir/umts_cell_id/umts_cell_id_test.ok > expout
+AT_CHECK([$abs_top_builddir/tests/umts_cell_id/umts_cell_id_test], [0], [expout], [ignore])
+AT_CLEANUP

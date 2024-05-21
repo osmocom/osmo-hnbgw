@@ -240,6 +240,7 @@ AC_OUTPUT(
     tests/Makefile
     tests/atlocal
     tests/ranap_rab_ass/Makefile
+    tests/umts_cell_id/Makefile
     doc/Makefile
     doc/examples/Makefile
     doc/manuals/Makefile
