@@ -173,6 +173,8 @@ struct umts_cell_id {
 	uint16_t sac;	/*!< Service Area Code */
 	uint32_t cid;	/*!< Cell ID */
 };
+int umts_cell_id_to_str_buf(char *buf, size_t buflen, const struct umts_cell_id *ucid);
+char *umts_cell_id_to_str_c(void *ctx, const struct umts_cell_id *ucid);
 const char *umts_cell_id_to_str(const struct umts_cell_id *ucid);
 int umts_cell_id_from_str(struct umts_cell_id *ucid, const char *instr);
 uint32_t umts_cell_id_hash(const struct umts_cell_id *ucid);

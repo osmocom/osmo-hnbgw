@@ -232,15 +232,24 @@ static struct hnb_context *hnb_context_alloc(struct osmo_stream_srv_link *link, 
 	return ctx;
 }
 
-const char *umts_cell_id_to_str(const struct umts_cell_id *ucid)
+int umts_cell_id_to_str_buf(char *buf, size_t buflen, const struct umts_cell_id *ucid)
 {
 	const char *fmtstr = "%03u-%02u-L%u-R%u-S%u-C%u";
 
 	if (g_hnbgw->config.plmn.mnc_3_digits)
 		fmtstr = "%03u-%03u-L%u-R%u-S%u-C%u";
+	return snprintf(buf, buflen, fmtstr, ucid->mcc, ucid->mnc, ucid->lac, ucid->rac,
+			ucid->sac, ucid->cid);
+}
 
-	return talloc_asprintf(OTC_SELECT, fmtstr, ucid->mcc, ucid->mnc, ucid->lac, ucid->rac,
-			       ucid->sac, ucid->cid);
+char *umts_cell_id_to_str_c(void *ctx, const struct umts_cell_id *ucid)
+{
+	OSMO_NAME_C_IMPL(ctx, 64, "ERROR", umts_cell_id_to_str_buf, ucid)
+}
+
+const char *umts_cell_id_to_str(const struct umts_cell_id *ucid)
+{
+	return umts_cell_id_to_str_c(OTC_SELECT, ucid);
 }
 
 /* Useful to index a hash table by struct umts_cell_id. */
