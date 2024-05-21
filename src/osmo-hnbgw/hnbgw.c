@@ -44,6 +44,7 @@
 #include <osmocom/hnbgw/hnbgw_cn.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/mgw_fsm.h>
+#include <osmocom/hnbgw/tdefs.h>
 
 struct hnbgw *g_hnbgw = NULL;
 
@@ -560,6 +561,24 @@ const struct osmo_stat_item_group_desc hnb_statg_desc = {
 	.item_desc = hnb_stat_desc,
 };
 
+static void hnb_persistent_disconnected_timeout_cb(void *data)
+{
+	hnb_persistent_free(data);
+}
+
+static void hnb_persistent_disconnected_timeout_schedule(struct hnb_persistent *hnbp)
+{
+	unsigned long period_s = osmo_tdef_get(hnbgw_T_defs, -35, OSMO_TDEF_S, 60*60*24*7);
+	if (period_s < 1) {
+		LOG_HNBP(hnbp, LOGL_INFO,
+			 "timer X35 is zero, not setting a disconnected timeout for this hnb-persistent instance.\n");
+		return;
+	}
+	/* It is fine if the timer is already active, osmo_timer_del() is done implicitly by the osmo_timer API. */
+	osmo_timer_setup(&hnbp->disconnected_timeout, hnb_persistent_disconnected_timeout_cb, hnbp);
+	osmo_timer_schedule(&hnbp->disconnected_timeout, period_s, 0);
+}
+
 struct hnb_persistent *hnb_persistent_alloc(const struct umts_cell_id *id)
 {
 	struct hnb_persistent *hnbp = talloc_zero(g_hnbgw, struct hnb_persistent);
@@ -582,6 +601,11 @@ struct hnb_persistent *hnb_persistent_alloc(const struct umts_cell_id *id)
 
 	if (g_hnbgw->nft_kpi.active)
 		nft_kpi_hnb_persistent_add(hnbp);
+
+	/* Normally the disconnected timer runs only when the hNodeB is not currently connected on Iuh. This here is paranoia:
+	 * In case we have to HNBAP HNB Register Reject, the disconnected timer should be active on this unused hnbp.
+	 * On success, hnb_persistent_registered() will stop the disconnected timer directly after this. */
+	hnb_persistent_disconnected_timeout_schedule(hnbp);
 
 	return hnbp;
 
@@ -645,6 +669,9 @@ void hnb_persistent_registered(struct hnb_persistent *hnbp)
 		return;
 	}
 
+	/* The hNodeB is now connected, i.e. not disconnected. */
+	osmo_timer_del(&hnbp->disconnected_timeout);
+
 	/* start counting traffic */
 	if (g_hnbgw->nft_kpi.active)
 		hnb_persistent_update_remote_addr(hnbp);
@@ -664,11 +691,15 @@ void hnb_persistent_deregistered(struct hnb_persistent *hnbp)
 
 	/* stop counting traffic */
 	nft_kpi_hnb_stop(hnbp);
+
+	/* The hNodeB is now disconnected. Clear out hnb_persistent when the disconnected timeout has passed. */
+	hnb_persistent_disconnected_timeout_schedule(hnbp);
 }
 
 void hnb_persistent_free(struct hnb_persistent *hnbp)
 {
 	/* FIXME: check if in use? */
+	osmo_timer_del(&hnbp->disconnected_timeout);
 	nft_kpi_hnb_stop(hnbp);
 	nft_kpi_hnb_persistent_remove(hnbp);
 	osmo_stat_item_group_free(hnbp->statg);

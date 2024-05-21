@@ -412,6 +412,8 @@ struct hnb_persistent {
 			struct nft_kpi_val v;
 		} dl;
 	} nft_kpi;
+
+	struct osmo_timer_list disconnected_timeout;
 };
 
 struct ue_context {

@@ -36,6 +36,12 @@ struct osmo_tdef hnbgw_T_defs[] = {
 	{.T = 4, .default_val = 5, .desc = "Timeout to receive RANAP RESET ACKNOWLEDGE from an MSC/SGSN" },
 	{.T = -31, .default_val = 15, .desc = "Timeout for establishing and releasing context maps (RUA <-> SCCP)" },
 	{.T = -34, .default_val = 1000, .unit = OSMO_TDEF_MS, .desc = "Period to query network traffic stats from netfilter" },
+	{
+		.T = -35,
+		.default_val = 60*60*24*7,
+		.desc = "Clean up all hNodeB persistent state after this time of the hNodeB being disconnected."
+			" Set to zero to never clear hNodeB persistent state. (default is 60*60*24*27 = a week)",
+	},
 	{.T = -1002, .default_val = 10, .desc = "Timeout for the HNB to respond to PS RAB Assignment Request" },
 	{ }
 };
