@@ -663,6 +663,7 @@ void hnb_persistent_free(struct hnb_persistent *hnbp)
 	/* FIXME: check if in use? */
 	nft_kpi_hnb_stop(hnbp);
 	nft_kpi_hnb_persistent_remove(hnbp);
+	osmo_stat_item_group_free(hnbp->statg);
 	rate_ctr_group_free(hnbp->ctrs);
 	llist_del(&hnbp->list);
 	hash_del(&hnbp->node_by_id);
