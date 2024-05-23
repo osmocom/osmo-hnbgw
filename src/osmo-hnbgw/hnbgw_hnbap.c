@@ -492,6 +492,10 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 
 	/* copy all identity parameters from the message to ctx */
 	OSMO_STRLCPY_ARRAY(ctx->identity_info, identity_str);
+
+	/* We want to use struct umts_cell_id as hashtable key. If it ever happens to contain any padding bytes, make
+	 * sure everything is deterministically zero. */
+	memset(&ctx->id, 0, sizeof(ctx->id));
 	ctx->id.lac = asn1str_to_u16(&ies.lac);
 	ctx->id.sac = asn1str_to_u16(&ies.sac);
 	ctx->id.rac = asn1str_to_u8(&ies.rac);

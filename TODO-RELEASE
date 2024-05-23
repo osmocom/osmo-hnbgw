@@ -12,3 +12,4 @@ osmo-iuh  >1.5.0  proper decoding of X.213 IPv4 address len=7
 MGW	MGCP CRCX	osmo-hnbgw used to CRCX in loopback mode, to trigger a legacy IuUP hack. CRCX is no
 			longer in loopback mode now, so older osmo-mgw may fail to respond to IuUP Initialization.
 osmo-iuh >1.5.1	decoding of more RANAP procedures in ranap_common required for DTAP rate_counters
+libosmocore >1.9.0	require osmo_jhash from osmocom/core/jhash.h added in I0c9652bbc9e2a18b1200e7d63bb6f64ded7d75fa

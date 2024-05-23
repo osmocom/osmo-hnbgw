@@ -25,6 +25,7 @@
 #include <osmocom/core/stats.h>
 #include <osmocom/core/rate_ctr.h>
 #include <osmocom/core/stat_item.h>
+#include <osmocom/core/jhash.h>
 
 #include <osmocom/vty/vty.h>
 
@@ -242,36 +243,22 @@ const char *umts_cell_id_name(const struct umts_cell_id *ucid)
 			       ucid->sac, ucid->cid);
 }
 
-/* source: http://www.cse.yorku.ca/~oz/hash.html */
-static inline void mkhash_init(uint32_t *hash)
-{
-	*hash = 5381;
-}
-static inline void mkhash_add(uint32_t *hash, int32_t val)
-{
-	uint32_t h = *hash;
-	h = ((h << 5) + h) ^ val; /* (h * 33) ^ val */
-	*hash = h;
-}
-
 /* Useful to index a hash table by struct umts_cell_id. */
 uint32_t umts_cell_id_hash(const struct umts_cell_id *ucid)
 {
-	uint32_t hash;
-	mkhash_init(&hash);
-	mkhash_add(&hash, ucid->mcc);
-	mkhash_add(&hash, ucid->mnc);
-	mkhash_add(&hash, ucid->lac);
-	mkhash_add(&hash, ucid->rac);
-	mkhash_add(&hash, ucid->sac);
-	mkhash_add(&hash, ucid->cid);
-	return hash;
+	return osmo_jhash(ucid, sizeof(*ucid), 0x423423);
 }
 
 /* parse a string representation of an umts_cell_id into its decoded representation */
 int umts_cell_id_from_str(struct umts_cell_id *ucid, const char *instr)
 {
-	int rc = sscanf(instr, "%hu-%hu-L%hu-R%hu-S%hu-C%u", &ucid->mcc, &ucid->mnc, &ucid->lac, &ucid->rac, &ucid->sac, &ucid->cid);
+	int rc;
+
+	/* We want to use struct umts_cell_id as hashtable key. If it ever happens to contain any padding bytes, make
+	 * sure everything is deterministically zero. */
+	memset(ucid, 0, sizeof(*ucid));
+
+	rc = sscanf(instr, "%hu-%hu-L%hu-R%hu-S%hu-C%u", &ucid->mcc, &ucid->mnc, &ucid->lac, &ucid->rac, &ucid->sac, &ucid->cid);
 	if (rc < 0)
 		return -errno;
 
