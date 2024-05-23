@@ -541,6 +541,7 @@ struct hnb_persistent *hnb_persistent_find_by_id(const struct umts_cell_id *id)
 void hnb_persistent_free(struct hnb_persistent *hnbp)
 {
 	/* FIXME: check if in use? */
+	rate_ctr_group_free(hnbp->ctrs);
 	llist_del(&hnbp->list);
 	talloc_free(hnbp);
 }
