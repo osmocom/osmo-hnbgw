@@ -613,19 +613,17 @@ static void hnb_persistent_update_remote_addr(struct hnb_persistent *hnbp)
 
 	fd = osmo_stream_srv_get_fd(hnbp->ctx->conn);
 	if (fd < 0) {
-		LOGP(DHNB, LOGL_ERROR, "%s: no active socket fd, cannot set up traffic counters\n", hnbp->id_str);
+		LOG_HNBP(hnbp, LOGL_ERROR, "no active socket fd, cannot set up traffic counters\n");
 		return;
 	}
 
 	socklen = sizeof(struct osmo_sockaddr);
 	if (getpeername(fd, &osa.u.sa, &socklen)) {
-		LOGP(DHNB, LOGL_ERROR, "%s: cannot read remote address, cannot set up traffic counters\n",
-		     hnbp->id_str);
+		LOG_HNBP(hnbp, LOGL_ERROR, "cannot read remote address, cannot set up traffic counters\n");
 		return;
 	}
 	if (osmo_sockaddr_str_from_osa(&remote_str, &osa)) {
-		LOGP(DHNB, LOGL_ERROR, "%s: cannot parse remote address, cannot set up traffic counters\n",
-		     hnbp->id_str);
+		LOG_HNBP(hnbp, LOGL_ERROR, "cannot parse remote address, cannot set up traffic counters\n");
 		return;
 	}
 
@@ -634,7 +632,7 @@ static void hnb_persistent_update_remote_addr(struct hnb_persistent *hnbp)
 	remote_str.port = 2152;
 
 	if (nft_kpi_hnb_start(hnbp, &remote_str))
-		LOGP(DHNB, LOGL_ERROR, "%s: failed to set up traffic counters\n", hnbp->id_str);
+		LOG_HNBP(hnbp, LOGL_ERROR, "failed to set up traffic counters\n");
 }
 
 /* Whenever HNBAP registers a HNB, hnbgw_hnbap.c calls this function to let the hnb_persistent update its state to the
@@ -643,7 +641,7 @@ static void hnb_persistent_update_remote_addr(struct hnb_persistent *hnbp)
 void hnb_persistent_registered(struct hnb_persistent *hnbp)
 {
 	if (!hnbp->ctx) {
-		LOGP(DHNB, LOGL_ERROR, "hnb_persistent_registered() invoked, but there is no hnb_ctx\n");
+		LOG_HNBP(hnbp, LOGL_ERROR, "hnb_persistent_registered() invoked, but there is no hnb_ctx\n");
 		return;
 	}
 

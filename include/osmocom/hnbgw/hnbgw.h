@@ -41,6 +41,12 @@ extern struct vty_app_info hnbgw_vty_info;
 #define LOGHNB(HNB_CTX, ss, lvl, fmt, args ...) \
 	LOGP(ss, lvl, "(%s) " fmt, hnb_context_name(HNB_CTX), ## args)
 
+#define LOG_HNBP(HNBP, lvl, fmt, args...) \
+	LOGP(DHNB, lvl, "(%s) " fmt, \
+	     (HNBP) ? \
+		     (((HNBP)->id_str && *(HNBP)->id_str) ? (HNBP)->id_str : "no-cell-id") \
+		     : "null", ## args)
+
 #define DOMAIN_CS RANAP_CN_DomainIndicator_cs_domain
 #define DOMAIN_PS RANAP_CN_DomainIndicator_ps_domain
 
