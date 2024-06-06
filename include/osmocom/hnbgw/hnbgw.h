@@ -499,6 +499,7 @@ struct hnbgw {
 	struct {
 		bool active;
 		struct osmo_timer_list get_counters_timer;
+		struct timespec next_timer;
 	} nft_kpi;
 };
 

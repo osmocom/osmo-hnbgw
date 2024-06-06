@@ -690,15 +690,47 @@ static void nft_kpi_get_counters_cb(void *data)
 /* main thread */
 static void nft_kpi_get_counters_schedule(void)
 {
-	unsigned long period_s;
+	struct timespec now;
+	struct timespec period;
+	struct timespec diff;
+	struct timespec *next = &g_hnbgw->nft_kpi.next_timer;
 	unsigned long period_us = osmo_tdef_get(hnbgw_T_defs, -34, OSMO_TDEF_US, 1000000);
-	if (period_us < 1)
-		period_us = 1;
-	period_s = period_us / 1000000;
-	period_us %= 1000000;
 
+	period.tv_sec = period_us / 1000000;
+	period.tv_nsec = (period_us % 1000000) * 1000;
+
+	/* Try to keep the period of getting counters close to the configured period, i.e. don't drift by the time it
+	 * takes to read counters. */
+	osmo_clock_gettime(CLOCK_MONOTONIC, &now);
+
+	if (!next->tv_sec && !next->tv_nsec) {
+		/* Not yet initialized. Schedule to get counters one 'period' from 'now':
+		 * Set 'next' to 'now', and the period is added by timespecadd() below.
+		 * (We could retrieve counters immediately -- but at startup counters are then queried even before the
+		 * nft table was created by the maintenance thread. That is not harmful, but it causes an ugly error
+		 * message in the logs. So rather wait one period.)
+		 */
+		*next = now;
+	}
+	timespecadd(next, &period, next);
+	if (timespeccmp(next, &now, <)) {
+		/* The time that has elapsed since last scheduling counter retrieval is already more than the configured
+		 * period. Continue counting the time period from 'now', and ask for counters right now. */
+		timespecsub(&now, next, &diff);
+		LOGP(DNFT, LOGL_NOTICE, "nft-kpi: retrieving counters took %ld.%06ld s longer"
+		     " than the timeout configured in timer hnbgw X34.\n", diff.tv_sec, diff.tv_nsec / 1000);
+		*next = now;
+		nft_kpi_get_counters_cb(NULL);
+		return;
+	}
+
+	/* next > now, wait for the remaining time. */
+	timespecsub(next, &now, &diff);
+	LOGP(DNFT, LOGL_DEBUG, "nft-kpi: scheduling timer: period is %ld.%06ld s, next occurrence in %ld.%06ld s\n",
+	     period.tv_sec, period.tv_nsec / 1000,
+	     diff.tv_sec, diff.tv_nsec / 1000);
 	osmo_timer_setup(&g_hnbgw->nft_kpi.get_counters_timer, nft_kpi_get_counters_cb, NULL);
-	osmo_timer_schedule(&g_hnbgw->nft_kpi.get_counters_timer, period_s, period_us);
+	osmo_timer_schedule(&g_hnbgw->nft_kpi.get_counters_timer, diff.tv_sec, diff.tv_nsec / 1000);
 }
 
 /* from main(), initialize all worker threads and other nft state. */
