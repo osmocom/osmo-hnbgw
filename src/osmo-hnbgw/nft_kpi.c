@@ -983,7 +983,7 @@ static void main_thread_handle_get_counters_resp(struct nft_thread_req *req)
 	struct hnb_persistent *hnbp = NULL;
 	int count = 0;
 
-	LOGP(DNFT, LOGL_DEBUG, "main thread: updating %zu hnbp with rate counters from nft response\n",
+	LOGP(DNFT, LOGL_DEBUG, "main thread: updating %zu rate counters from nft response (2 counters per hNodeB)\n",
 	     req->get_counters.counters_len);
 
 	for (; c < end; c++) {
@@ -997,8 +997,8 @@ static void main_thread_handle_get_counters_resp(struct nft_thread_req *req)
 			count++;
 	}
 
-	LOGP(DNFT, LOGL_DEBUG, "main thread: rate counters for %d of %zu hnbp have incremented\n", count,
-	     req->get_counters.counters_len);
+	LOGP(DNFT, LOGL_DEBUG, "main thread: %d of %zu rate counters have incremented (2 counters per hNodeB)\n",
+	     count, req->get_counters.counters_len);
 }
 
 /* main thread: handle responses from a worker thread */
