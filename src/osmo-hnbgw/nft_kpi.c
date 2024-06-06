@@ -990,7 +990,14 @@ static void nft_thread_t2m_cb(struct osmo_it_q *q, struct llist_head *item)
 		break;
 
 	case NFT_THREAD_GET_COUNTERS:
-		main_thread_handle_get_counters_resp(req);
+		if (req->rc) {
+			/* Maybe we requested counters before the table was created by the maintenance thread. If so,
+			 * it's not harmful and we can just try again next time. */
+			LOGP(DNFT, LOGL_ERROR, "Retrieving counters from nftables failed. Trying again (timer X34).\n");
+		} else {
+			main_thread_handle_get_counters_resp(req);
+		}
+		/* Schedule the next counter retrieval. */
 		nft_kpi_get_counters_schedule();
 		break;
 
