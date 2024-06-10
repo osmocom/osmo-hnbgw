@@ -198,6 +198,10 @@ static int handle_rx_sccp(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 	struct hnbgw_context_map *map = fi->priv;
 	int rc;
 
+	/* If the FSM instance has already terminated, don't dispatch anything. */
+	if (fi->proc.terminating)
+		return 0;
+
 	/* When there was no message received along with the received event, then there is nothing to forward to RUA. */
 	if (!msg_has_l2_data(ranap_msg))
 		return 0;

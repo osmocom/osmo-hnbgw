@@ -360,6 +360,8 @@ int main(int argc, char **argv)
 	signal(SIGUSR2, &signal_handler);
 	osmo_init_ignore_signals();
 
+	osmo_fsm_set_dealloc_ctx(OTC_SELECT);
+
 	while (1) {
 		rc = osmo_select_main_ctx(0);
 		if (rc < 0)

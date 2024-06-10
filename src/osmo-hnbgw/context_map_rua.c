@@ -158,6 +158,11 @@ ranap_message *hnbgw_decode_ranap_co(struct msgb *ranap_msg)
 static int handle_rx_rua(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 {
 	struct hnbgw_context_map *map = fi->priv;
+
+	/* If the FSM instance has already terminated, don't dispatch anything. */
+	if (fi->proc.terminating)
+		return 0;
+
 	if (!msg_has_l2_data(ranap_msg))
 		return 0;
 
