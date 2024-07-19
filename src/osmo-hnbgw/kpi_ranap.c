@@ -179,6 +179,13 @@ static void kpi_ranap_process_dl_direct_transfer(struct hnbgw_context_map *map, 
 
 void kpi_ranap_process_dl(struct hnbgw_context_map *map, ranap_message *ranap)
 {
+	if (map->hnb_ctx == NULL) {
+		/* This can happen if the HNB has disconnected and we are processing downlink messages
+		 * from the CN which were already in flight before the CN side has realized the HNB
+		 * is gone. */
+		return;
+	}
+
 	switch (ranap->procedureCode) {
 	case RANAP_ProcedureCode_id_RAB_Assignment:			/* RAB ASSIGNMENT REQ (8.2) */
 		kpi_ranap_process_dl_rab_ass_req(map, ranap);
@@ -405,6 +412,9 @@ static void kpi_ranap_process_ul_direct_transfer(struct hnbgw_context_map *map, 
 
 void kpi_ranap_process_ul(struct hnbgw_context_map *map, ranap_message *ranap)
 {
+	/* we should never be processing uplink messages from a non-existant HNB */
+	OSMO_ASSERT(map->hnb_ctx);
+
 	switch (ranap->procedureCode) {
 	case RANAP_ProcedureCode_id_RAB_Assignment:			/* RAB ASSIGNMENT REQ (8.2) */
 		kpi_ranap_process_ul_rab_ass_resp(map, ranap);
