@@ -1,15 +1,9 @@
 # When cleaning up this file: bump API version in corresponding Makefile.am and rename corresponding debian/lib*.install
-# according to https://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html#Updating-version-info
-# In short:
+# according to https://osmocom.org/projects/cellular-infrastructure/wiki/Make_a_new_release
+# In short: https://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html#Updating-version-info
 # LIBVERSION=c:r:a
 # If the library source code has changed at all since the last update, then increment revision: c:r + 1:a.
-# If any interfaces have been added, removed, or changed since the last update: c + 1:0:0.
+# If any interfaces have been added, removed, or changed since the last update: c + 1:0:a.
 # If any interfaces have been added since the last public release: c:r:a + 1.
 # If any interfaces have been removed or changed since the last public release: c:r:0.
-#library	what		description / commit summary line
-osmo-iuh  >1.5.0  proper decoding of X.213 IPv4 address len=7
-
-MGW	MGCP CRCX	osmo-hnbgw used to CRCX in loopback mode, to trigger a legacy IuUP hack. CRCX is no
-			longer in loopback mode now, so older osmo-mgw may fail to respond to IuUP Initialization.
-osmo-iuh >1.5.1	decoding of more RANAP procedures in ranap_common required for DTAP rate_counters
-libosmocore >1.9.0	require osmo_jhash from osmocom/core/jhash.h added in I0c9652bbc9e2a18b1200e7d63bb6f64ded7d75fa
+#library	what			description / commit summary line

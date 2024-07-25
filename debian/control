@@ -13,17 +13,17 @@ Build-Depends: debhelper (>= 10),
                libtalloc-dev,
                libasn1c-dev (>= 0.9.30),
                libsctp-dev,
-               libosmocore-dev (>= 1.9.0),
-               libosmo-sigtran-dev (>= 1.8.0),
-               libosmo-abis-dev (>= 1.5.0),
-               libosmo-netif-dev (>= 1.4.0),
-               libosmo-mgcp-client-dev (>= 1.12.0),
-               libosmo-hnbap-dev (>= 1.5.0),
-               libosmo-ranap-dev (>= 1.5.0),
-               libosmo-rua-dev (>= 1.5.0),
-               libosmo-pfcp-dev (>= 0.3.0),
+               libosmocore-dev (>= 1.10.0),
+               libosmo-sigtran-dev (>= 1.9.0),
+               libosmo-abis-dev (>= 1.6.0),
+               libosmo-netif-dev (>= 1.5.0),
+               libosmo-mgcp-client-dev (>= 1.13.0),
+               libosmo-hnbap-dev (>= 1.6.0),
+               libosmo-ranap-dev (>= 1.6.0),
+               libosmo-rua-dev (>= 1.6.0),
+               libosmo-pfcp-dev (>= 0.4.0),
                libnftables-dev,
-               osmo-gsm-manuals-dev (>= 1.5.0)
+               osmo-gsm-manuals-dev (>= 1.6.0)
 Standards-Version: 3.9.8
 Vcs-Git: https://gitea.osmocom.org/cellular-infrastructure/osmo-hnbgw
 Vcs-Browser: https://gitea.osmocom.org/cellular-infrastructure/osmo-hnbgw

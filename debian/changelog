@@ -1,3 +1,101 @@
+osmo-hnbgw (1.6.0) unstable; urgency=medium
+
+  [ Pau Espin Pedrol ]
+  * hnbgw_cn: Remove assert hit due to wrong assumption
+  * Increase default X31 val from 5 to 15 seconds
+  * context_map_sccp: Fix assert hit due to missing ev handling
+  * tests/ranap_rab_ass: Test RAB-Ass.req with X.213 IPv4 address len=7
+  * mgw_fsm: Assume IuUP HNB IP addr = Iuh during MGCP CRCX on RAN side
+  * mgw_fsm: Modify RAB on HNB if IuUP local IP addr at MGW changes during MDCX
+  * hnbap: Avoid calling duplicate getpeername() for each registered HNB
+
+  [ Neels Janosch Hofmeyr ]
+  * X31: fix vty doc
+  * allow (second) CS RAB Assignment Request without RTP info
+  * systemd,manual: set LimitNOFILE=65536
+  * rua: validate correct RUA ctx state per RUA message type
+  * rua: move from ERROR to DEBUG log: stray RUA Disconnect
+  * pfcp: fix modification of wrong FAR ID
+  * tweak vty doc: "UDP port"
+  * add tests/pfcp_cfg.vty.with_pfcp
+  * pfcp: fix missing vty_write of pfcp local-port
+  * pfcp: implement sending Network Instance IEs
+  * fix null deref on hnb_context_release
+  * drop legacy hack: do not start MGW endp in loopback mode
+  * fixup: compilation error: unused var in map_rua_init_action()
+  * fix rate_ctr leak in hnb_persistent_free()
+  * per-HNB GTP-U traffic counters via nft
+  * add hnb_persistent hashtable: optimize lookup by cell id
+  * fix stat_item leak in hnb_persistent_free()
+  * use osmo_jhash for the hnb_persistent hashtable
+  * rename to umts_cell_id_to_str()
+  * umts_cell_id: add umts_cell_id_to_str_buf()
+  * add umts_cell_id_test.c
+  * 3-digit MNC: use osmo_plmn_id in struct umts_cell_id
+  * add LOG_HNBP() for hnb_persistent
+  * hnb_persistent: introduce disconnected timeout
+  * prevent use-after-free after FSM instance termination
+  * improve HNBAP error logging
+  * nft-kpi: log errors of counter retrieval
+  * nft-kpi: remove X34 drifting: adjust delay by elapsed time
+  * drop list of HNBAP UE Context
+  * dbg log: nft kpi: clarify nr of rate ctrs vs nr of hnbp
+  * fix MGCP compat with osmo-mgw <= 1.12.2: CRCX in recvonly
+
+  [ Andreas Eversberg ]
+  * Use uniform log format for default config files
+
+  [ Harald Welte ]
+  * Display RANAP state during 'show cnlink'
+  * Fix license headers: Should have been AGPLv3+, not GPLv2+
+  * [cosmetic] re-order hnbgw.c to group code in major blocks
+  * umts_cell_id_name: Use 3-digit MCC and 2/3-digit MNC based on VTY config
+  * osmo_hnbgw_main: Install our usual SIGUSR1/SIGUSR2/SIGABRT handlers
+  * Introduce umts_cell_id_from_str() as inverse of umts_cell_id_name()
+  * Introduce concept of per-HNB persistent data structure
+  * Set persistent->ctx pointer on HNB REGISTER REQ
+  * New per-hnb rate_ctr and stat_item groups; track uptime
+  * Various new per-hnb RANAP and RUA counters
+  * stats: Introduce CNLINK counter macros
+  * stats: Introduce CNPOOL counter macro
+  * stats: Introduce basic counters for RANAP unit-data from CN links
+  * cosmetic: Fix comment in mgw_fsm.c: One RAB per context_map, not hnb!
+  * cosmetic: talk about cs_rab_ass_* when working in CS domain
+  * cosmetic: Rename hnbgw_rx_ranap and friends to *_rx_ranap_udt_ul
+  * rename hnbgw_peek_l3 to hnbgw_peek_l3_ul as it's uplink only
+  * don't forward paging requests to HNB's not yet registered
+  * vty: Print the uptime during 'show hnb' output
+  * Introduce counter for per-hnb cumulative active CS RAB duration
+  * stats: Add per-hnb paging:{cs,ps}:attempted counter
+  * cosmetic: align downlink RANAP unitdata function names with uplink
+  * mgw_fsm: Add some OSMO_ASSERT() to ensure only CS maps passed
+  * RAB activation/modification/release statistics
+  * context_map_{rua,sccp}: Re-order to always process KPIs
+  * generalize hnbgw_tx_ue_register_rej_tmsi() to hnbgw_tx_ue_register_rej()
+  * HNBAP: Use proper cause values during HNB-REGISTER-REQ processing
+  * HNBAP: Send HNB-REGISTER-REJ on ASN.1 decoding error
+  * HNBAP: Always respond to UE-REGISTER-REQUEST
+  * HNBAP: Make sure to respond with correct "reject"
+  * HNBAP: Transmit ErrorIndication in more situations
+  * HNBAP: use GSM23003_IMSI_MAX_DIGITS instead of magic number
+  * HNBAP: Support IMSI identity type in hnbgw_tx_ue_register_rej()
+  * counters: Distinguish between normal and abnormal release cause
+  * KPI: Add initial set of DTAP message type rate counters
+  * kpi_ranap: Avoid null pointer de-ref during HNB shutdown
+
+  [ Oliver Smith ]
+  * gitignore: add *.la, hnbgw_vty_reference.xml
+  * debian: fix having no manuals in osmo-hnbgw-doc
+  * .deb/.rpm: various fixes related to non-root
+  * contrib: remove rpm spec file
+  * debian/postinst: add checks, be verbose
+  * contrib/jenkins: set --enable-werror
+
+  [ Max ]
+  * .deb/.rpm: add osmocom user during package install
+
+ -- Oliver Smith <osmith@sysmocom.de>  Thu, 25 Jul 2024 10:05:58 +0200
+
 osmo-hnbgw (1.5.0) unstable; urgency=medium
 
   [ Neels Janosch Hofmeyr ]
