@@ -43,7 +43,6 @@ DISTCLEANFILES = \
 if ENABLE_EXT_TESTS
 python-tests:
 	$(MAKE) vty-test
-	$(MAKE) config-tests
 	osmotestvty.py -p $(abs_top_srcdir) -w $(abs_top_builddir) -v
 	osmotestconfig.py -p $(abs_top_srcdir) -w $(abs_top_builddir) -v
 else
@@ -69,6 +68,11 @@ vty-test: $(top_builddir)/src/osmo-hnbgw/osmo-hnbgw
 		$(U) $(srcdir)/$(VTY_TEST)
 
 # Test each config/*.cfg file with the corresponding config/*.vty transcript test.
+#
+# To be invoked manually only: This is not part of 'make check' because the
+# output may change when libosmo-sccp changes its VTY appearance, which can
+# cause annoying test fallout.
+#
 # Each config test runs an osmo-hnbgw process to talk to, so they must not run concurrently.
 # To prevent 'make -j N' from running these tests in parallel, call a script with a linear for-loop.
 .PHONY: config-tests
