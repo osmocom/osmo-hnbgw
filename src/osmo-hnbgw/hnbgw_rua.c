@@ -242,7 +242,6 @@ static int rua_to_scu(struct hnb_context *hnb,
 	struct msgb *ranap_msg = NULL;
 	struct hnbgw_context_map *map = NULL;
 	bool is_ps;
-	int logl;
 
 	switch (cN_DomainIndicator) {
 	case RUA_CN_DomainIndicator_cs_domain:
@@ -267,7 +266,6 @@ static int rua_to_scu(struct hnb_context *hnb,
 	}
 
 	map = context_map_find_by_rua_ctx_id(hnb, context_id, is_ps);
-	logl = LOGL_ERROR;
 
 	switch (rua_procedure) {
 	case RUA_ProcedureCode_id_Connect:
@@ -293,13 +291,19 @@ static int rua_to_scu(struct hnb_context *hnb,
 		/* For RUA Disconnect, do not spam the ERROR log. It is just a stray Disconnect, no harm done.
 		 * Context: some CN are known to rapidly tear down SCCP without waiting for RUA to disconnect gracefully
 		 * (IU Release Complete). Such CN would cause ERROR logging for each and every released context map. */
-		logl = LOGL_DEBUG;
-		/* fall thru */
+		if (!map) {
+			LOGHNB(hnb, DRUA, LOGL_DEBUG, "rx RUA %s for unknown RUA context %u\n",
+			       rua_procedure_code_name(rua_procedure), context_id);
+			return -EINVAL;
+		}
+		break;
+
 	default:
 		/* Any message other than Connect must have a valid RUA context */
 		if (!map) {
-			LOGHNB(hnb, DRUA, logl, "rx RUA %s for unknown RUA context %u\n",
+			LOGHNB(hnb, DRUA, LOGL_ERROR, "rx RUA %s for unknown RUA context %u\n",
 			       rua_procedure_code_name(rua_procedure), context_id);
+			rua_tx_disc_conn_fail(hnb, is_ps, context_id);
 			return -EINVAL;
 		}
 		break;
