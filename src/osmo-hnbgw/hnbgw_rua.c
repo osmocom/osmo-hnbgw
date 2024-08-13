@@ -166,6 +166,20 @@ int rua_tx_disc(struct hnb_context *hnb, int is_ps, uint32_t context_id,
 	return hnbgw_rua_tx(hnb, msg);
 }
 
+/* Send Disconnect to RUA without RANAP data */
+static void rua_tx_disc_conn_fail(struct hnb_context *hnb, bool is_ps, uint32_t context_id)
+{
+	RUA_Cause_t rua_cause = {
+		.present = RUA_Cause_PR_radioNetwork,
+		.choice.radioNetwork = RUA_CauseRadioNetwork_connect_failed,
+	};
+
+	LOG_HNBP(hnb->persistent, LOGL_INFO, "Tx RUA Disconnect\n");
+
+	if (rua_tx_disc(hnb, is_ps, context_id, &rua_cause, NULL, 0))
+		LOG_HNBP(hnb->persistent, LOGL_ERROR, "Failed to send Disconnect to RUA\n");
+}
+
 static struct value_string rua_procedure_code_names[] = {
 	{ RUA_ProcedureCode_id_Connect, "Connect" },
 	{ RUA_ProcedureCode_id_DirectTransfer, "DirectTransfer" },
@@ -270,6 +284,7 @@ static int rua_to_scu(struct hnb_context *hnb,
 			LOGHNB(hnb, DRUA, LOGL_ERROR,
 			       "Failed to create context map for %s: rx RUA %s with %u bytes RANAP data\n",
 			       is_ps ? "IuPS" : "IuCS", rua_procedure_code_name(rua_procedure), data ? len : 0);
+			rua_tx_disc_conn_fail(hnb, is_ps, context_id);
 			return -EINVAL;
 		}
 		break;
