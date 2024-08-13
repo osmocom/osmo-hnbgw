@@ -229,6 +229,7 @@ static int rua_to_scu(struct hnb_context *hnb,
 	struct hnbgw_context_map *map = NULL;
 	bool is_ps;
 	int logl;
+	RUA_Cause_t rua_cause;
 
 	switch (cN_DomainIndicator) {
 	case RUA_CN_DomainIndicator_cs_domain:
@@ -270,7 +271,7 @@ static int rua_to_scu(struct hnb_context *hnb,
 			LOGHNB(hnb, DRUA, LOGL_ERROR,
 			       "Failed to create context map for %s: rx RUA %s with %u bytes RANAP data\n",
 			       is_ps ? "IuPS" : "IuCS", rua_procedure_code_name(rua_procedure), data ? len : 0);
-			return -EINVAL;
+			goto tx_disconnect;
 		}
 		break;
 
@@ -308,6 +309,17 @@ static int rua_to_scu(struct hnb_context *hnb,
 		/* No caller may ever pass a different RUA procedure code */
 		OSMO_ASSERT(false);
 	}
+
+tx_disconnect:
+	/* Send Disconnect to RUA without RANAP data. */
+	rua_cause = (RUA_Cause_t){
+		.present = RUA_Cause_PR_radioNetwork,
+		.choice.radioNetwork = RUA_CauseRadioNetwork_connect_failed,
+	};
+	LOG_HNBP(hnb->persistent, LOGL_INFO, "Tx RUA Disconnect\n");
+	if (rua_tx_disc(hnb, is_ps, context_id, &rua_cause, NULL, 0))
+		LOG_HNBP(hnb->persistent, LOGL_ERROR, "Failed to send Disconnect to RUA\n");
+	return -EINVAL;
 }
 
 static uint32_t rua_to_scu_cause(RUA_Cause_t *in)
