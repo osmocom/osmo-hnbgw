@@ -579,7 +579,7 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 {
 	HNBAP_UERegisterRequestIEs_t ies;
-	HNBAP_Cause_t cause;
+	HNBAP_Cause_t cause = {};
 	char imsi[GSM23003_IMSI_MAX_DIGITS+1];
 	int rc;
 
