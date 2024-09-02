@@ -446,7 +446,7 @@ static int hnbgw_tx_ue_register_acc_tmsi(struct hnb_context *hnb, HNBAP_UE_Ident
 static int hnbgw_rx_hnb_deregister(struct hnb_context *ctx, ANY_t *in)
 {
 	HNBAP_HNBDe_RegisterIEs_t ies;
-	HNBAP_Cause_t cause;
+	HNBAP_Cause_t cause = {};
 	int rc;
 
 	rc = hnbap_decode_hnbde_registeries(&ies, in);
