@@ -475,7 +475,7 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	char identity_str[256];
 	const char *cell_id_str;
 	struct timespec tp;
-	HNBAP_Cause_t cause;
+	HNBAP_Cause_t cause = {};
 	struct osmo_sockaddr cur_osa = {};
 	socklen_t len = sizeof(cur_osa);
 
