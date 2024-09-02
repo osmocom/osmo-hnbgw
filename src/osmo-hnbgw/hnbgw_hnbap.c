@@ -648,7 +648,7 @@ free_and_return_rc:
 static int hnbgw_rx_ue_deregister(struct hnb_context *ctx, ANY_t *in)
 {
 	HNBAP_UEDe_RegisterIEs_t ies;
-	HNBAP_Cause_t cause;
+	HNBAP_Cause_t cause = {};
 	int rc;
 	uint32_t ctxid;
 
