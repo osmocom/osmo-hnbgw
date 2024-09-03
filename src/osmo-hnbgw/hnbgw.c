@@ -497,22 +497,19 @@ static void hnb_persistent_disconnected_timeout_schedule(struct hnb_persistent *
 	osmo_timer_schedule(&hnbp->disconnected_timeout, period_s, 0);
 }
 
-static unsigned int g_hnbp_ctr_id;
-
 struct hnb_persistent *hnb_persistent_alloc(const struct umts_cell_id *id)
 {
 	struct hnb_persistent *hnbp = talloc_zero(g_hnbgw, struct hnb_persistent);
-	unsigned int ctr_id = g_hnbp_ctr_id++;
 	if (!hnbp)
 		return NULL;
 
 	hnbp->id = *id;
 	hnbp->id_str = talloc_strdup(hnbp, umts_cell_id_to_str(id));
-	hnbp->ctrs = rate_ctr_group_alloc(hnbp, &hnb_ctrg_desc, ctr_id);
+	hnbp->ctrs = rate_ctr_group_alloc(hnbp, &hnb_ctrg_desc, 0);
 	if (!hnbp->ctrs)
 		goto out_free;
 	rate_ctr_group_set_name(hnbp->ctrs, hnbp->id_str);
-	hnbp->statg = osmo_stat_item_group_alloc(hnbp, &hnb_statg_desc, ctr_id);
+	hnbp->statg = osmo_stat_item_group_alloc(hnbp, &hnb_statg_desc, 0);
 	if (!hnbp->statg)
 		goto out_free_ctrs;
 	osmo_stat_item_group_set_name(hnbp->statg, hnbp->id_str);
