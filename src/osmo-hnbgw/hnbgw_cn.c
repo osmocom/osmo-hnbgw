@@ -33,6 +33,7 @@
 #include <osmocom/gsm/gsm23236.h>
 
 #include <osmocom/sigtran/protocol/m3ua.h>
+#include <osmocom/sigtran/protocol/sua.h>
 #include <osmocom/sigtran/sccp_sap.h>
 #include <osmocom/sigtran/sccp_helpers.h>
 
@@ -508,14 +509,16 @@ static int handle_cn_disc_ind(struct hnbgw_sccp_user *hsu,
 			      struct osmo_prim_hdr *oph)
 {
 	struct hnbgw_context_map *map;
+	char cause_buf[128];
 
 	map = map_from_conn_id(hsu, param->conn_id, oph);
 	if (!map || !map->cnlink)
 		return -ENOENT;
 
-	LOGP(DCN, LOGL_DEBUG, "handle_cn_disc_ind() conn_id=%u responding_addr=%s\n",
+	LOGP(DCN, LOGL_DEBUG, "handle_cn_disc_ind() conn_id=%u responding_addr=%s cause=%s\n",
 	     param->conn_id,
-	     cnlink_sccp_addr_to_str(map->cnlink, &param->responding_addr));
+	     cnlink_sccp_addr_to_str(map->cnlink, &param->responding_addr),
+	     osmo_sua_sccp_cause_name(param->cause, cause_buf, sizeof(cause_buf)));
 
 	return map_sccp_dispatch(map, MAP_SCCP_EV_RX_RELEASED, oph->msg);
 }
