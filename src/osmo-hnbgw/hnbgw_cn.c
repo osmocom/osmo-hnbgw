@@ -103,6 +103,34 @@ static int cn_ranap_rx_reset_ack(struct hnbgw_cnlink *cnlink,
 	return 0;
 }
 
+#include <osmocom/ranap/ranap_ies_defs.h>
+static int cn_ranap_rx_reset_resource_ack(struct hnbgw_cnlink *cnlink,
+					  RANAP_SuccessfulOutcome_t *omsg)
+{
+	RANAP_CN_DomainIndicator_t domain;
+	RANAP_ResetResourceAcknowledgeIEs_t ies;
+	int rc;
+
+	rc = ranap_decode_resetresourceacknowledgeies(&ies, &omsg->value);
+	domain = ies.cN_DomainIndicator;
+	ranap_free_resetresourceacknowledgeies(&ies);
+
+	if (rc) {
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx RESET RESOURCE ACK: cannot decode IEs\n");
+		return -1;
+	}
+
+	if (cnlink->pool->domain != domain) {
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx RESET RESOURCE ACK indicates domain %s, but this is %s on domain %s\n",
+			   ranap_domain_name(domain), cnlink->name, ranap_domain_name(cnlink->pool->domain));
+		return -1;
+	}
+
+	LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "PESPIN: Rx RESET RESOURCE ACK NOT YET IMPLEMENTED!\n");
+	//cnlink_rx_reset_resource_ack(cnlink);
+	return 0;
+}
+
 struct cnlink_paging {
 	struct llist_head entry;
 
@@ -362,6 +390,9 @@ static int ranap_rx_udt_dl_successful_msg(struct hnbgw_cnlink *cnlink,
 		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_RESET);
 		return cn_ranap_rx_reset_ack(cnlink, omsg);
 	case RANAP_ProcedureCode_id_ResetResource: /* response */
+		//TODO:
+		//CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_RESET_RESOURCE_ACK);
+		return cn_ranap_rx_reset_resource_ack(cnlink, omsg);
 	case RANAP_ProcedureCode_id_InformationTransfer:
 	case RANAP_ProcedureCode_id_DirectInformationTransfer:
 	case RANAP_ProcedureCode_id_UplinkInformationExchange:

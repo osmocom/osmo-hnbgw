@@ -106,6 +106,16 @@ void cnlink_term_and_free(struct hnbgw_cnlink *cnlink)
 	talloc_free(cnlink);
 }
 
+int cn_link_tx_ranap_unitdata_msg(struct hnbgw_cnlink *cnlink, struct msgb *msg)
+{
+	int rc;
+	rc = osmo_sccp_tx_unitdata_msg(cnlink->hnbgw_sccp_user->sccp_user,
+				       &cnlink->hnbgw_sccp_user->local_addr,
+				       &cnlink->remote_addr,
+				       msg);
+	return rc;
+}
+
 static void link_up(struct hnbgw_cnlink *cnlink)
 {
 	LOGPFSML(cnlink->fi, LOGL_NOTICE, "link up\n");
@@ -175,10 +185,7 @@ static void tx_reset(struct hnbgw_cnlink *cnlink)
 
 	msg = ranap_new_msg_reset2(cnlink->pool->domain, &cause, use_grnc_id);
 	CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_TX_UDT_RESET);
-	osmo_sccp_tx_unitdata_msg(cnlink->hnbgw_sccp_user->sccp_user,
-				  &cnlink->hnbgw_sccp_user->local_addr,
-				  &cnlink->remote_addr,
-				  msg);
+	cn_link_tx_ranap_unitdata_msg(cnlink, msg);
 }
 
 static void tx_reset_ack(struct hnbgw_cnlink *cnlink)
@@ -371,4 +378,3 @@ void cnlink_rx_reset_ack(struct hnbgw_cnlink *cnlink)
 {
 	osmo_fsm_inst_dispatch(cnlink->fi, CNLINK_EV_RX_RESET_ACK, NULL);
 }
-

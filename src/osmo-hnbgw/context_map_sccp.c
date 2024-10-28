@@ -28,6 +28,7 @@
 #include <osmocom/sigtran/sccp_helpers.h>
 
 #include <osmocom/ranap/ranap_common_ran.h>
+#include <osmocom/ranap/ranap_msg_factory.h>
 
 #if ENABLE_PFCP
 #include <osmocom/pfcp/pfcp_cp_peer.h>
@@ -42,6 +43,7 @@
 
 enum map_sccp_fsm_state {
 	MAP_SCCP_ST_INIT,
+	MAP_SCCP_ST_WAIT_RESET_RESOURCE_ACK,
 	MAP_SCCP_ST_WAIT_CC,
 	MAP_SCCP_ST_CONNECTED,
 	MAP_SCCP_ST_WAIT_RLSD,
@@ -64,6 +66,7 @@ static struct osmo_fsm map_sccp_fsm;
 
 static const struct osmo_tdef_state_timeout map_sccp_fsm_timeouts[32] = {
 	[MAP_SCCP_ST_INIT] = { .T = -31 },
+	[MAP_SCCP_ST_WAIT_RESET_RESOURCE_ACK] = { .T = -31 },
 	[MAP_SCCP_ST_WAIT_CC] = { .T = -31 },
 	[MAP_SCCP_ST_CONNECTED] = { .T = 0 },
 	[MAP_SCCP_ST_WAIT_RLSD] = { .T = -31 },
@@ -99,6 +102,7 @@ enum hnbgw_context_map_state map_sccp_get_state(struct hnbgw_context_map *map)
 		return MAP_S_DISCONNECTING;
 	switch (map->sccp_fi->state) {
 	case MAP_SCCP_ST_INIT:
+	case MAP_SCCP_ST_WAIT_RESET_RESOURCE_ACK:
 	case MAP_SCCP_ST_WAIT_CC:
 		return MAP_S_CONNECTING;
 	case MAP_SCCP_ST_CONNECTED:
@@ -185,6 +189,45 @@ static int tx_sccp_rlsd(struct osmo_fsm_inst *fi)
 	}
 
 	return osmo_sccp_tx_disconn(map->cnlink->hnbgw_sccp_user->sccp_user, map->scu_conn_id, NULL, 0);
+}
+
+static int tx_ranap_reset_resource(struct hnbgw_context_map *map)
+{
+	struct msgb *msg;
+	RANAP_GlobalRNC_ID_t grnc_id;
+	RANAP_GlobalRNC_ID_t *use_grnc_id = NULL;
+	uint8_t plmn_buf[3];
+	const struct RANAP_Cause cause = {
+		.present = RANAP_Cause_PR_transmissionNetwork,
+		.choice.transmissionNetwork =
+			RANAP_CauseTransmissionNetwork_iu_transport_connection_failed_to_establish,
+	};
+
+	if (g_hnbgw->config.plmn.mcc) {
+		osmo_plmn_to_bcd(plmn_buf, &g_hnbgw->config.plmn);
+		grnc_id = (RANAP_GlobalRNC_ID_t){
+			.pLMNidentity = {
+				.buf = plmn_buf,
+				.size = 3,
+			},
+			.rNC_ID = g_hnbgw->config.rnc_id,
+		};
+		use_grnc_id = &grnc_id;
+	} /* else: no PLMN is configured, omit the Global RNC Id */
+
+	LOGPFSML(map->sccp_fi, LOGL_NOTICE, "PESPIN2: iuSignConId=0x%06x\n", map->l3.iu_sigconid);
+	msg = ranap_new_msg_reset_resource(map->is_ps, &cause,
+					   &map->l3.iu_sigconid, 1,
+					   use_grnc_id);
+	if (!msg) {
+		LOGPFSML(map->sccp_fi, LOGL_ERROR, "Failed generating RANAP Reset Resource\n");
+		OSMO_ASSERT(msg);
+	}
+	msg->l2h = msg->data;
+	talloc_steal(map->sccp_fi, msg);
+	LOGPFSML(map->sccp_fi, LOGL_NOTICE, "Tx RANAP Reset Resource\n");
+	return cn_link_tx_ranap_unitdata_msg(map->cnlink, msg);
+
 }
 
 static int destruct_ranap_ran_rx_co_ies(ranap_message *ranap_message_p)
@@ -297,6 +340,49 @@ static void map_sccp_init_action(struct osmo_fsm_inst *fi, uint32_t event, void 
 	}
 }
 
+static void map_sccp_wait_reset_resource_ack_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state)
+{
+	struct hnbgw_context_map *map = fi->priv;
+	LOGPFSML(fi, LOGL_INFO, "Resetting resource Iu Signalling Connection Identifier %u\n", map->scu_conn_id);
+	tx_ranap_reset_resource(map);
+}
+
+static void map_sccp_wait_reset_resource_ack_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
+{
+	struct hnbgw_context_map *map = fi->priv;
+	struct msgb *ranap_msg = data;
+
+	switch (event) {
+	case MAP_SCCP_EV_TX_DATA_REQUEST:
+		/* Now that we received RANAP Reset Resource Ack, attempt creating the Iu conn again
+		 * TODO: fixme we should have stored the initial ranap message somewhere in fi->priv. */
+		map_sccp_fsm_state_chg(MAP_SCCP_ST_INIT);
+		return;
+
+//IFDEF: REVIEW THIS IS FINE, COPIED FROM map_sccp_init_action()
+	case MAP_SCCP_EV_RAN_LINK_LOST:
+	case MAP_SCCP_EV_RAN_DISC:
+	case MAP_SCCP_EV_USER_ABORT:
+	case MAP_SCCP_EV_CN_LINK_LOST:
+		/* No CR has been sent yet, just go to disconnected state. */
+		if (msg_has_l2_data(ranap_msg))
+			LOG_MAP(map, DLSCCP, LOGL_ERROR, "SCCP not connected, cannot dispatch RANAP message\n");
+		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
+		return;
+
+	case MAP_SCCP_EV_RX_RELEASED:
+		/* SCCP RLSD received from CN. This will never happen since we haven't even asked for a connection, but
+		 * for completeness: */
+		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
+		return;
+//ENDIF
+
+	default:
+		OSMO_ASSERT(false);
+		/* TODO: copy from map_sccp_init_action */
+	}
+}
+
 static void map_sccp_wait_cc_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
 {
 	struct hnbgw_context_map *map = fi->priv;
@@ -325,12 +411,18 @@ static void map_sccp_wait_cc_action(struct osmo_fsm_inst *fi, uint32_t event, vo
 		return;
 
 	case MAP_SCCP_EV_RX_RELEASED:
-		/* SCCP RLSD received from CN. This will never happen since we haven't even received a Connection
-		 * Confirmed, but for completeness: */
-		handle_rx_sccp(fi, ranap_msg);
-		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
-		return;
-
+		/* SCCP CREF received from CN, our Conn Request was refused. */
+		if (msg_has_l2_data(ranap_msg)) {
+			/* We received something some RANAP data, let's simply forward
+			 * and leave it up to HNB to decide how to handle this: */
+			handle_rx_sccp(fi, ranap_msg);
+			map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
+			return;
+		}
+		/* SCCP CREF: Peer may be rejecting it because there's already an existing Iu (RANAP) Connecd Id.
+		 * Attempt resetting state at the peer and re-attempt the SCCP Conn Req: */
+		map_sccp_fsm_state_chg(MAP_SCCP_ST_WAIT_RESET_RESOURCE_ACK);
+		break;
 	default:
 		OSMO_ASSERT(false);
 	}
@@ -503,6 +595,7 @@ static int map_sccp_fsm_timer_cb(struct osmo_fsm_inst *fi)
 	/* Return 1 to terminate FSM instance, 0 to keep running */
 	switch (fi->state) {
 	case MAP_SCCP_ST_INIT:
+	case MAP_SCCP_ST_WAIT_RESET_RESOURCE_ACK:
 		/* cannot sent SCCP RLSD, because we haven't set up an SCCP link */
 		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
 		return 0;
@@ -552,6 +645,23 @@ static const struct osmo_fsm_state map_sccp_fsm_states[] = {
 			,
 		.action = map_sccp_init_action,
 	},
+	[MAP_SCCP_ST_WAIT_RESET_RESOURCE_ACK] = {
+		.name = "wait_reset_resource_ack",
+		.in_event_mask = 0
+			| S(MAP_SCCP_EV_TX_DATA_REQUEST)
+			| S(MAP_SCCP_EV_RAN_DISC)
+			| S(MAP_SCCP_EV_RAN_LINK_LOST)
+			| S(MAP_SCCP_EV_RX_RELEASED)
+			| S(MAP_SCCP_EV_USER_ABORT)
+			| S(MAP_SCCP_EV_CN_LINK_LOST)
+			,
+		.out_state_mask = 0
+			| S(MAP_SCCP_ST_INIT)
+			| S(MAP_SCCP_ST_DISCONNECTED)
+			,
+		.onenter = map_sccp_wait_reset_resource_ack_onenter,
+		.action = map_sccp_wait_reset_resource_ack_action,
+	},
 	[MAP_SCCP_ST_WAIT_CC] = {
 		.name = "wait_cc",
 		.in_event_mask = 0
@@ -564,6 +674,7 @@ static const struct osmo_fsm_state map_sccp_fsm_states[] = {
 			| S(MAP_SCCP_EV_CN_LINK_LOST)
 			,
 		.out_state_mask = 0
+			| S(MAP_SCCP_ST_WAIT_RESET_RESOURCE_ACK)
 			| S(MAP_SCCP_ST_CONNECTED)
 			| S(MAP_SCCP_ST_DISCONNECTED)
 			,

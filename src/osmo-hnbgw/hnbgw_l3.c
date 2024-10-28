@@ -294,6 +294,7 @@ static int peek_l3_ul_initial_ue(struct hnbgw_context_map *map, const RANAP_Init
 	}
 
 	map->l3.iu_sigconid = asn1bitstr_to_u24(&ies->iuSigConId);
+	LOGP(DCN, LOGL_NOTICE, "PESPIN: iuSignConId=0x%06x\n", map->l3.iu_sigconid);
 
 	return peek_l3_ul_nas(map, ies->nas_pdu.buf, ies->nas_pdu.size, &local_plmn);
 }

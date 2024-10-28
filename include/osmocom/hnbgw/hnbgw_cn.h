@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 #include <osmocom/core/rate_ctr.h>
 #include <osmocom/hnbgw/hnbgw.h>
 
@@ -20,6 +22,7 @@ void cnlink_rx_reset_cmd(struct hnbgw_cnlink *cnlink);
 void cnlink_rx_reset_ack(struct hnbgw_cnlink *cnlink);
 void cnlink_resend_reset(struct hnbgw_cnlink *cnlink);
 void cnlink_set_disconnected(struct hnbgw_cnlink *cnlink);
+int cn_link_tx_ranap_unitdata_msg(struct hnbgw_cnlink *cnlink, struct msgb *msg);
 
 enum hnbgw_cnpool_ctr {
 	/* TODO: basic counters completely missing
