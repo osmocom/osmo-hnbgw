@@ -108,6 +108,7 @@ struct hnbgw_l3_peek {
 	bool is_emerg;
 	/* True if the NAS PDU indicates that the UE was previously attached to a different PLMN than the local PLMN. */
 	bool from_other_plmn;
+	uint32_t iu_sigconid;
 };
 
 /* used in hnbgw_context_map.rab_state[] */

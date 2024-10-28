@@ -168,10 +168,6 @@ static int peek_l3_ul_nas(struct hnbgw_context_map *map, const uint8_t *nas_pdu,
 	struct osmo_routing_area_id old_ra = {};
 	int nri = -1;
 
-	map->l3 = (struct hnbgw_l3_peek){
-		.gmm_nri_container = -1,
-	};
-
 	/* Get the mobile identity from CS MM -- the PS GMM happens further down.
 	 * This will return an error for GMM messages, ignore that. */
 	if (!map->is_ps)
@@ -281,6 +277,10 @@ static int peek_l3_ul_initial_ue(struct hnbgw_context_map *map, const RANAP_Init
 {
 	struct osmo_plmn_id local_plmn;
 
+	map->l3 = (struct hnbgw_l3_peek){
+		.gmm_nri_container = -1,
+	};
+
 	if (g_hnbgw->config.plmn.mcc) {
 		/* The user has configured a PLMN */
 		local_plmn = g_hnbgw->config.plmn;
@@ -292,6 +292,8 @@ static int peek_l3_ul_initial_ue(struct hnbgw_context_map *map, const RANAP_Init
 		}
 		osmo_plmn_from_bcd(ies->lai.pLMNidentity.buf, &local_plmn);
 	}
+
+	map->l3.iu_sigconid = asn1bitstr_to_u24(&ies->iuSigConId);
 
 	return peek_l3_ul_nas(map, ies->nas_pdu.buf, ies->nas_pdu.size, &local_plmn);
 }
