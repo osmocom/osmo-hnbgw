@@ -55,9 +55,18 @@ enum map_sccp_fsm_event {
 	MAP_SCCP_EV_RX_DATA_INDICATION,
 	/* RUA has received some data from HNB to forward via SCCP to CN. */
 	MAP_SCCP_EV_TX_DATA_REQUEST,
-	/* The RAN side received a Disconnect, that means we are going to expect SCCP to disconnect too.
-	 * CN should have received an Iu-ReleaseComplete with or before this, give CN a chance to send an SCCP RLSD;
-	 * after a timeout we will send a non-standard RLSD to the CN instead. */
+	/* 3GPP TS 25.468 9.1.5: The RAN side received a RUA Disconnect.
+	 * - Under normal conditions (cause=Normal) the RUA Disconnect contains a RANAP Iu-ReleaseComplete.
+	 *   On SCCP, the Iu-ReleaseComplete should still be forwarded as N-Data SCCP Data Form 1),
+	 *   and we will expect the CN to send an SCCP RLSD soon. Hence, give CN a chance to send an SCCP RLSD;
+	 *   after a timeout we will send a non-standard RLSD to the CN instead.
+	 * - Under error conditions, cause!=Normal and there's no RANAP message.
+	 *   In that case, we need to tear down the associated SCCP link towards CN with an RLSD,
+	 *   which in turn will tear down the upper layer Iu conn.
+	 *
+	 * Parameter: bool rua_disconnect_err_condition, whether the disconnect
+	 *	      happened under error or normal conditions, as per the above.
+	 */
 	MAP_SCCP_EV_RAN_DISC,
 	/* The RAN released ungracefully. We will directly disconnect the SCCP connection, too. */
 	MAP_SCCP_EV_RAN_LINK_LOST,
@@ -126,6 +135,16 @@ struct hnbgw_context_map {
 	uint32_t rua_ctx_id;
 	/* FSM handling the RUA state for rua_ctx_id. */
 	struct osmo_fsm_inst *rua_fi;
+
+	/* State context related to field rua_fi above: */
+	struct {
+		/* Whether RUA Disconnect received from HNB happened as a normal condition or an error/abnormal condition.
+		* This is known based on cause and/or RANAP message included in the RUA
+		* Disconnect message, and tells us whether we should immediately
+		* terminate the related SCCP session or wait for CN to finish it.
+		* Defaults to false, only set to true explicitly when needed. */
+		bool rua_disconnect_err_condition;
+	} rua_fi_ctx;
 
 	/* Pointer to CN, to transceive SCCP. */
 	struct hnbgw_cnlink *cnlink;

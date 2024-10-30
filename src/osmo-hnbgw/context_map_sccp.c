@@ -349,26 +349,40 @@ static void map_sccp_connected_onenter(struct osmo_fsm_inst *fi, uint32_t prev_s
 
 static void map_sccp_connected_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
 {
-	struct msgb *ranap_msg = data;
+	struct msgb *ranap_msg;
+	bool rua_disconnect_err_condition;
 
 	switch (event) {
 
 	case MAP_SCCP_EV_RX_DATA_INDICATION:
+		ranap_msg = data;
 		/* forward RANAP from SCCP to RUA */
 		handle_rx_sccp(fi, ranap_msg);
 		return;
 
 	case MAP_SCCP_EV_TX_DATA_REQUEST:
+		ranap_msg = data;
 		/* Someone (usually the RUA side) wants us to send a RANAP payload to CN via SCCP */
 		tx_sccp_df1(fi, ranap_msg);
 		return;
 
 	case MAP_SCCP_EV_RAN_DISC:
-		/* RUA has disconnected, and usually has sent an Iu-ReleaseComplete along with its RUA Disconnect. On
-		 * SCCP, the Iu-ReleaseComplete should still be forwarded as N-Data (SCCP Data Form 1), and we will
-		 * expect the CN to send an SCCP RLSD soon. */
-		map_sccp_fsm_state_chg(MAP_SCCP_ST_WAIT_RLSD);
-		tx_sccp_df1(fi, ranap_msg);
+		rua_disconnect_err_condition = !!data;
+		/* 3GPP TS 25.468 9.1.5: RUA has disconnected.
+		 * - Under normal conditions (cause=Normal) the RUA Disconnect
+		 *   contained a RANAP Iu-ReleaseComplete which we already
+		 *   handled here through MAP_SCCP_EV_TX_DATA_REQUEST.
+		 *   On SCCP, We will expect the CN to send an SCCP RLSD soon.
+		 * - Under error conditions, cause!=Normal and there was no RANAP message.
+		 *   In that case, we need to tear down the associated SCCP link towards CN,
+		 *   which in turn will tear down the upper layer Iu conn.
+		 */
+		if (rua_disconnect_err_condition) {
+			tx_sccp_rlsd(fi);
+			map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
+		} else {
+			map_sccp_fsm_state_chg(MAP_SCCP_ST_WAIT_RLSD);
+		}
 		return;
 
 	case MAP_SCCP_EV_RAN_LINK_LOST:
@@ -377,6 +391,7 @@ static void map_sccp_connected_action(struct osmo_fsm_inst *fi, uint32_t event, 
 	case MAP_SCCP_EV_USER_ABORT:
 		/* The user is asking for disconnection, so there is no Iu Release in progress. Disconnect now. */
 	case MAP_SCCP_EV_CN_LINK_LOST:
+		ranap_msg = data;
 		/* The CN peer has sent a RANAP RESET, so the old link that this map ran on is lost */
 
 		/* There won't be any ranap_msg, but if a caller wants to dispatch a msg, forward it before
@@ -387,6 +402,7 @@ static void map_sccp_connected_action(struct osmo_fsm_inst *fi, uint32_t event, 
 		return;
 
 	case MAP_SCCP_EV_RX_RELEASED:
+		ranap_msg = data;
 		/* The CN sends an N-Disconnect (SCCP Released) out of the usual sequence. Not what we expected, but
 		 * handle it. */
 		LOGPFSML(fi, LOGL_ERROR, "CN sends SCCP Released sooner than expected\n");
@@ -395,6 +411,7 @@ static void map_sccp_connected_action(struct osmo_fsm_inst *fi, uint32_t event, 
 		return;
 
 	case MAP_SCCP_EV_RX_CONNECTION_CONFIRM:
+		ranap_msg = data;
 		/* Already connected. Unusual, but if there is data just forward it. */
 		LOGPFSML(fi, LOGL_ERROR, "Already connected, but received SCCP CC again\n");
 		handle_rx_sccp(fi, ranap_msg);

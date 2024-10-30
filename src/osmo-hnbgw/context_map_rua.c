@@ -287,15 +287,21 @@ static void map_rua_connected_action(struct osmo_fsm_inst *fi, uint32_t event, v
 		return;
 
 	case MAP_RUA_EV_RX_DISCONNECT:
-		/* received Disconnect from RUA. forward any payload to SCCP, and change state. */
-		if (!map_sccp_is_active(map)) {
-			/* If, unlikely, the SCCP is already gone, changing to MAP_RUA_ST_DISCONNECTED frees the
-			 * hnbgw_context_map. Avoid a use-after-free. */
-			map_rua_fsm_state_chg(MAP_RUA_ST_DISCONNECTED);
-			return;
+		/* 3GPP TS 25.468 9.1.5: RUA has disconnected.
+		 * - Under normal conditions (cause=Normal) the RUA Disconnect contains a RANAP Iu-ReleaseComplete.
+		 *   On SCCP, the Iu-ReleaseComplete should still be forwarded as N-Data SCCP Data Form 1),
+		 *   and we will expect the CN to send an SCCP RLSD soon.
+		 * - Under error conditions, cause!=Normal and there's no RANAP message.
+		 *   In that case, we need to tear down the associated SCCP link towards CN,
+		 *   which in turn will tear down the upper layer Iu conn.
+		 */
+		if (msg_has_l2_data(ranap_msg)) {
+			/* Forward any payload to SCCP before Disconnect. */
+			handle_rx_rua(fi, ranap_msg);
+		} else {
+			map->rua_fi_ctx.rua_disconnect_err_condition = true;
 		}
 		map_rua_fsm_state_chg(MAP_RUA_ST_DISCONNECTED);
-		handle_rx_rua(fi, ranap_msg);
 		return;
 
 	case MAP_RUA_EV_HNB_LINK_LOST:
@@ -315,13 +321,13 @@ static void map_rua_connected_action(struct osmo_fsm_inst *fi, uint32_t event, v
 	}
 }
 
-static void map_rua_free_if_done(struct hnbgw_context_map *map, uint32_t sccp_event)
+static void map_rua_free_if_done(struct hnbgw_context_map *map, uint32_t sccp_event, void *ev_data)
 {
 	/* From RUA's POV, we can now free the hnbgw_context_map.
 	 * If SCCP is still active, tell it to disconnect -- in that case the SCCP side will call context_map_free().
 	 * If SCCP is no longer active, free this map. */
 	if (map_sccp_is_active(map))
-		map_sccp_dispatch(map, sccp_event, NULL);
+		map_sccp_dispatch(map, sccp_event, ev_data);
 	else
 		context_map_free(map);
 }
@@ -329,7 +335,7 @@ static void map_rua_free_if_done(struct hnbgw_context_map *map, uint32_t sccp_ev
 static void map_rua_disconnected_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state)
 {
 	struct hnbgw_context_map *map = fi->priv;
-	map_rua_free_if_done(map, MAP_SCCP_EV_RAN_DISC);
+	map_rua_free_if_done(map, MAP_SCCP_EV_RAN_DISC, (void *)map->rua_fi_ctx.rua_disconnect_err_condition);
 }
 
 static void map_rua_disconnected_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
@@ -343,7 +349,7 @@ static void map_rua_disconnected_action(struct osmo_fsm_inst *fi, uint32_t event
 static void map_rua_disrupted_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state)
 {
 	struct hnbgw_context_map *map = fi->priv;
-	map_rua_free_if_done(map, MAP_SCCP_EV_RAN_LINK_LOST);
+	map_rua_free_if_done(map, MAP_SCCP_EV_RAN_LINK_LOST, NULL);
 }
 
 void map_rua_fsm_cleanup(struct osmo_fsm_inst *fi, enum osmo_fsm_term_cause cause)
