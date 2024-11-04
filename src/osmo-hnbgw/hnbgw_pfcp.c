@@ -20,12 +20,27 @@
  */
 
 #include <osmocom/core/sockaddr_str.h>
+#include <osmocom/core/stats.h>
+#include <osmocom/core/stat_item.h>
 #include <osmocom/pfcp/pfcp_endpoint.h>
 #include <osmocom/pfcp/pfcp_cp_peer.h>
 
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/ps_rab_fsm.h>
+#include <osmocom/hnbgw/hnbgw_pfcp.h>
+
+static const struct osmo_stat_item_desc hnbgw_upf_stat_item_description[] = {
+	[HNBGW_UPF_STAT_ASSOCIATED] = { "pfcp_associated", "Associated to UPF through PFCP", OSMO_STAT_ITEM_NO_UNIT, 16, 0},
+};
+
+static const struct osmo_stat_item_group_desc hnbgw_upf_statg_desc = {
+	"upf",
+	"UPF Peer Statistics",
+	OSMO_STATS_CLASS_PEER,
+	ARRAY_SIZE(hnbgw_upf_stat_item_description),
+	hnbgw_upf_stat_item_description,
+};
 
 static void pfcp_set_msg_ctx(struct osmo_pfcp_endpoint *ep, struct osmo_pfcp_msg *m, struct osmo_pfcp_msg *req)
 {
@@ -62,6 +77,12 @@ static void pfcp_rx_msg(struct osmo_pfcp_endpoint *ep, struct osmo_pfcp_msg *m, 
 	}
 }
 
+static void pfcp_cp_peer_assoc_cb(struct osmo_pfcp_cp_peer *cp_peer, bool associated)
+{
+	LOGP(DLPFCP, LOGL_NOTICE, "PFCP Peer associated: %s\n", associated ? "true" : "false");
+	HNBGW_UPF_STAT_SET(HNBGW_UPF_STAT_ASSOCIATED, associated ? 1 : 0);
+}
+
 int hnbgw_pfcp_init(void)
 {
 	struct osmo_pfcp_endpoint_cfg cfg;
@@ -78,6 +99,12 @@ int hnbgw_pfcp_init(void)
 
 	if (!g_hnbgw->config.pfcp.local_addr) {
 		LOGP(DLPFCP, LOGL_ERROR, "Configuration error: missing local PFCP address, required for Node Id\n");
+		return -1;
+	}
+
+	g_hnbgw->pfcp.statg = osmo_stat_item_group_alloc(g_hnbgw, &hnbgw_upf_statg_desc, 0);
+	if (!g_hnbgw->pfcp.statg) {
+		LOGP(DLPFCP, LOGL_ERROR, "Failed creating UPF stats item group\n");
 		return -1;
 	}
 
@@ -136,10 +163,22 @@ int hnbgw_pfcp_init(void)
 		LOGP(DLPFCP, LOGL_ERROR, "Cannot allocate PFCP CP Peer FSM\n");
 		return -1;
 	}
+	if (osmo_pfcp_cp_peer_set_associated_cb(g_hnbgw->pfcp.cp_peer, pfcp_cp_peer_assoc_cb)) {
+		LOGP(DLPFCP, LOGL_ERROR, "Cannot Set PFCP CP Peer associated callback\n");
+		return -1;
+	}
+
 	if (osmo_pfcp_cp_peer_associate(g_hnbgw->pfcp.cp_peer)) {
 		LOGP(DLPFCP, LOGL_ERROR, "Cannot start PFCP CP Peer FSM\n");
 		return -1;
 	}
 
 	return 0;
+}
+
+void hnbgw_pfcp_release(void)
+{
+	if (!hnb_gw_is_gtp_mapping_enabled())
+		return;
+	osmo_stat_item_group_free(g_hnbgw->pfcp.statg);
 }

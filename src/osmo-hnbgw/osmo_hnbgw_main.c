@@ -369,5 +369,8 @@ int main(int argc, char **argv)
 	}
 
 	/* not reached */
+#if ENABLE_PFCP
+	hnbgw_pfcp_release();
+#endif
 	exit(0);
 }
