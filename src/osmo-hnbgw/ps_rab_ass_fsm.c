@@ -294,7 +294,7 @@ static void ps_rab_ass_fsm_wait_local_f_teids(struct osmo_fsm_inst *fi, uint32_t
 /* See whether all information is in so that we can forward the modified RAB Assignment Request to RUA. */
 static void ps_rab_ass_req_check_local_f_teids(struct ps_rab_ass *rab_ass)
 {
-	struct ps_rab *rab;
+	struct ps_rab *rab = NULL;
 	RANAP_RAB_AssignmentRequestIEs_t *ies = &rab_ass->ranap_rab_ass_req_message->msg.raB_AssignmentRequestIEs;
 	int i;
 	struct msgb *msg;
@@ -344,6 +344,12 @@ static void ps_rab_ass_req_check_local_f_teids(struct ps_rab_ass *rab_ass)
 			LOG_PS_RAB_ASS(rab_ass, LOGL_ERROR, "Re-encoding RANAP PS RAB Assignment Request failed\n");
 continue_cleanloop:
 		ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_SetupOrModifyItemFirst, &first);
+	}
+
+	if (!rab) {
+		LOG_PS_RAB_ASS(rab_ass, LOGL_ERROR, "Lookup PS RAB Assignment Request failed\n");
+		ps_rab_ass_failure(rab_ass);
+		return;
 	}
 
 	/* Send the modified RAB Assignment Request to the hNodeB, wait for the RAB Assignment Response */
