@@ -111,7 +111,7 @@ int context_map_set_cnlink(struct hnbgw_context_map *map, struct hnbgw_cnlink *c
 		return -EIO;
 	}
 
-	new_scu_conn_id = osmo_sccp_instance_next_conn_id(hsu->ss7->sccp);
+	new_scu_conn_id = osmo_sccp_instance_next_conn_id(osmo_ss7_get_sccp(hsu->ss7));
 	if (new_scu_conn_id < 0) {
 		LOG_MAP(map, DCN, LOGL_ERROR, "Unable to allocate SCCP conn ID on %s\n", hsu->name);
 		return new_scu_conn_id;
