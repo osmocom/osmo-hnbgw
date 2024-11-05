@@ -436,7 +436,7 @@ static struct hnbgw_cnlink *cnlink_from_addr(struct hnbgw_sccp_user *hsu, const 
 	cnlink = hnbgw_cnlink_find_by_addr(hsu, calling_addr);
 	if (!cnlink) {
 		LOG_HSI(hsu, DRANAP, LOGL_ERROR, "Rx from unknown SCCP peer: %s: %s\n",
-			osmo_sccp_inst_addr_name(hsu->ss7->sccp, calling_addr),
+			osmo_sccp_inst_addr_name(osmo_ss7_get_sccp(hsu->ss7), calling_addr),
 			osmo_scu_prim_hdr_name_c(OTC_SELECT, oph));
 		return NULL;
 	}
@@ -798,7 +798,7 @@ static void hnbgw_cnlink_log_self(struct hnbgw_cnlink *cnlink)
 {
 	struct osmo_ss7_instance *ss7 = cnlink->hnbgw_sccp_user->ss7;
 	LOG_CNLINK(cnlink, DCN, LOGL_NOTICE, "using: cs7-%u %s <-> %s %s %s\n",
-		   ss7->cfg.id,
+		   osmo_ss7_instance_get_id(ss7),
 		   /* printing the entire SCCP address is quite long, rather just print the point-code */
 		   osmo_ss7_pointcode_print(ss7, cnlink->hnbgw_sccp_user->local_addr.pc),
 		   osmo_ss7_pointcode_print2(ss7, cnlink->remote_addr.pc),
@@ -844,7 +844,7 @@ int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink)
 		}
 
 		LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "remote-addr is '%s', using cs7 instance %u\n",
-			   cnlink->use.remote_addr_name, ss7->cfg.id);
+			   cnlink->use.remote_addr_name, osmo_ss7_instance_get_id(ss7));
 	} else {
 		/* If no address is configured, use the default remote CN address, according to legacy behavior. */
 		osmo_sccp_make_addr_pc_ssn(&cnlink->remote_addr, cnlink->pool->default_remote_pc, OSMO_SCCP_SSN_RANAP);
@@ -864,35 +864,41 @@ int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink)
 				continue;
 			cnlink->hnbgw_sccp_user = hsu;
 			LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "using existing SCCP instance %s on cs7 instance %u\n",
-				   hsu->name, ss7->cfg.id);
+				   hsu->name, osmo_ss7_instance_get_id(ss7));
 			hnbgw_cnlink_log_self(cnlink);
 			return 0;
 		}
 		/* else cnlink->hnbgw_sccp_user stays NULL and is set up below. */
-		LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "cs7 instance %u has no configured SCCP instance yet\n", ss7->cfg.id);
+		LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "cs7 instance %u has no configured SCCP instance yet\n", osmo_ss7_instance_get_id(ss7));
 	}
 
 	/* No SCCP instance yet for this ss7. Create it. If no address name is given that resolves to a
 	 * particular cs7 instance above, use 'cs7 instance 0'. */
-	sccp = osmo_sccp_simple_client_on_ss7_id(g_hnbgw, ss7 ? ss7->cfg.id : 0, cnlink->name, DEFAULT_PC_HNBGW,
-						 OSMO_SS7_ASP_PROT_M3UA, 0, "localhost", -1, "localhost");
+	sccp = osmo_sccp_simple_client_on_ss7_id(g_hnbgw,
+						 ss7 ? osmo_ss7_instance_get_id(ss7) : 0,
+						 cnlink->name,
+						 DEFAULT_PC_HNBGW,
+						 OSMO_SS7_ASP_PROT_M3UA,
+						 0,
+						 "localhost",
+						 -1,
+						 "localhost");
 	if (!sccp) {
 		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Failed to configure SCCP on 'cs7 instance %u'\n",
-			   ss7 ? ss7->cfg.id : 0);
+			   ss7 ? osmo_ss7_instance_get_id(ss7) : 0);
 		return -1;
 	}
 	ss7 = osmo_sccp_get_ss7(sccp);
-	LOG_CNLINK(cnlink, DCN, LOGL_NOTICE, "created SCCP instance on cs7 instance %u\n", ss7->cfg.id);
+	LOG_CNLINK(cnlink, DCN, LOGL_NOTICE, "created SCCP instance on cs7 instance %u\n", osmo_ss7_instance_get_id(ss7));
 
 	/* Bind the SCCP user, using the cs7 instance's default point-code if one is configured, or osmo-hnbgw's default
 	 * local PC. */
-	if (osmo_ss7_pc_is_valid(ss7->cfg.primary_pc))
-		local_pc = ss7->cfg.primary_pc;
-	else
+	local_pc = osmo_ss7_instance_get_primary_pc(ss7);
+	if (!osmo_ss7_pc_is_valid(local_pc))
 		local_pc = DEFAULT_PC_HNBGW;
 
 	LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "binding OsmoHNBGW user to cs7 instance %u, local PC %u = %s\n",
-		   ss7->cfg.id, local_pc, osmo_ss7_pointcode_print(ss7, local_pc));
+		   osmo_ss7_instance_get_id(ss7), local_pc, osmo_ss7_pointcode_print(ss7, local_pc));
 
 	sccp_user = osmo_sccp_user_bind_pc(sccp, "OsmoHNBGW", sccp_sap_up, OSMO_SCCP_SSN_RANAP, local_pc);
 	if (!sccp_user) {
@@ -902,7 +908,7 @@ int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink)
 
 	hsu = talloc_zero(cnlink, struct hnbgw_sccp_user);
 	*hsu = (struct hnbgw_sccp_user){
-		.name = talloc_asprintf(hsu, "cs7-%u.sccp", ss7->cfg.id),
+		.name = talloc_asprintf(hsu, "cs7-%u.sccp", osmo_ss7_instance_get_id(ss7)),
 		.ss7 = ss7,
 		.sccp_user = sccp_user,
 	};

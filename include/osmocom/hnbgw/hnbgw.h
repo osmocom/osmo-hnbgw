@@ -333,7 +333,7 @@ static inline struct osmo_sccp_instance *cnlink_sccp(const struct hnbgw_cnlink *
 		return NULL;
 	if (!cnlink->hnbgw_sccp_user->ss7)
 		return NULL;
-	return cnlink->hnbgw_sccp_user->ss7->sccp;
+	return osmo_ss7_get_sccp(cnlink->hnbgw_sccp_user->ss7);
 }
 
 /* The lifecycle of the hnb_context object is the same as its conn */

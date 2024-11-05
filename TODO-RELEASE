@@ -9,3 +9,4 @@
 #library	what			description / commit summary line
 libosmo-sigtran >2.0.0  use API osmo_sua_sccp_cause_name()
 libosmo-pfcp    >0.4.0  use API osmo_pfcp_cp_peer_set_associated_cb(), osmo_pfcp_cp_peer_get_remote_addr(), osmo_pfcp_cp_peer_next_seid()
+libosmo-sigtran >2.0.0   osmo_ss7_instance_get_id(), osmo_ss7_instance_get_primary_pc(), osmo_ss7_get_sccp()
