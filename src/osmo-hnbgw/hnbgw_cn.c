@@ -447,8 +447,10 @@ static struct hnbgw_context_map *map_from_conn_id(struct hnbgw_sccp_user *hsu, u
 						  const struct osmo_prim_hdr *oph)
 {
 	struct hnbgw_context_map *map;
-	hash_for_each_possible(hsu->hnbgw_context_map_by_conn_id, map, hnbgw_sccp_user_entry, conn_id)
-		return map;
+	hash_for_each_possible(hsu->hnbgw_context_map_by_conn_id, map, hnbgw_sccp_user_entry, conn_id) {
+		if (map->scu_conn_id == conn_id)
+			return map;
+	}
 	LOGP(DRANAP, LOGL_ERROR, "Rx for unknown SCCP connection ID: %u: %s\n",
 	     conn_id, osmo_scu_prim_hdr_name_c(OTC_SELECT, oph));
 	return NULL;
