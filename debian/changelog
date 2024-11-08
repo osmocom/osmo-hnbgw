@@ -1,3 +1,18 @@
+osmo-hnbgw (1.6.1) unstable; urgency=medium
+
+  [ Neels Janosch Hofmeyr ]
+  * drop config.vty tests from make check
+  * coverity CID#358071
+  * coverity CID#358072
+  * coverity CID#358070
+  * coverity CID#358069
+
+  [ Pau Espin Pedrol ]
+  * ps_rab_ass_fsm: Fix uninitialized ptr access
+  * hnbgw: Fix wrong map object retrieved from hashtable
+
+ -- Pau Espin Pedrol <pespin@sysmocom.de>  Fri, 08 Nov 2024 16:10:50 +0100
+
 osmo-hnbgw (1.6.0) unstable; urgency=medium
 
   [ Pau Espin Pedrol ]
