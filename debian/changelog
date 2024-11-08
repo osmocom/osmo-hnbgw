@@ -1,3 +1,16 @@
+osmo-hnbgw (1.5.1) unstable; urgency=medium
+
+  [ Pau Espin Pedrol ]
+  * hnbgw_cn: Remove assert hit due to wrong assumption
+  * context_map_sccp: Fix assert hit due to missing ev handling
+  * ps_rab_ass_fsm: Fix uninitialized ptr access
+  * hnbgw: Fix wrong map object retrieved from hashtable
+
+  [ Neels Janosch Hofmeyr ]
+  * drop config.vty tests from make check
+
+ -- Pau Espin Pedrol <pespin@sysmocom.de>  Fri, 08 Nov 2024 16:05:31 +0100
+
 osmo-hnbgw (1.5.0) unstable; urgency=medium
 
   [ Neels Janosch Hofmeyr ]
