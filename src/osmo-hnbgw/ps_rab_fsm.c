@@ -17,6 +17,8 @@
 
 #include <errno.h>
 
+#include "config.h"
+
 #include <osmocom/core/tdef.h>
 
 #include <osmocom/pfcp/pfcp_endpoint.h>
@@ -320,7 +322,11 @@ static void ps_rab_fsm_wait_pfcp_est_resp_onenter(struct osmo_fsm_inst *fi, uint
 	m->h.seid = 0;
 
 	/* Make a new CP-SEID, our local reference for the PFCP session. */
+#ifdef PFCP_PRIVATE_STRUCTS
+	rab->cp_seid = osmo_pfcp_cp_peer_next_seid(g_hnbgw->pfcp.cp_peer);
+#else
 	rab->cp_seid = osmo_pfcp_next_seid(&g_hnbgw->pfcp.cp_peer->next_seid_state);
+#endif
 	cp_f_seid = (struct osmo_pfcp_ie_f_seid){
 		.seid = rab->cp_seid,
 	};

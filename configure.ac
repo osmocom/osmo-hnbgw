@@ -228,6 +228,18 @@ AM_CONDITIONAL([HAVE_SYSTEMD], [test "x$with_systemdsystemunitdir" != "xno"])
 AC_MSG_RESULT([CFLAGS="$CFLAGS"])
 AC_MSG_RESULT([CPPFLAGS="$CPPFLAGS"])
 
+# OS#6617: check if libosmo-pfcp has private structs
+# We need to use grep here, can't set the includedir with AC_CHECK_DECL.
+m="OS#6617: checking whether libosmo-pfcp has private structs..."
+h="$($PKG_CONFIG --variable=includedir libosmo-pfcp)/osmocom/pfcp/pfcp_cp_peer.h"
+f=osmo_pfcp_cp_peer_next_seid
+if grep -q "$f" "$h"; then
+	echo "$m yes ($f in $h)"
+	AC_DEFINE(PFCP_PRIVATE_STRUCTS, [1], ["OS#6617"])
+else
+	echo "$m no ($f not in $h)"
+fi
+
 dnl Generate the output
 AM_CONFIG_HEADER(config.h)
 

@@ -241,7 +241,11 @@ static int handle_rx_sccp(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 				if (hnb_gw_is_gtp_mapping_enabled()) {
 					LOGP(DMAIN, LOGL_DEBUG,
 					     "RAB Assignment: setting up GTP tunnel mapping via UPF %s\n",
+#ifdef PFCP_PRIVATE_STRUCTS
+					     osmo_sockaddr_to_str_c(OTC_SELECT, osmo_pfcp_cp_peer_get_remote_addr(g_hnbgw->pfcp.cp_peer)));
+#else
 					     osmo_sockaddr_to_str_c(OTC_SELECT, &g_hnbgw->pfcp.cp_peer->remote_addr));
+#endif
 					return hnbgw_gtpmap_rx_rab_ass_req(map, ranap_msg, message);
 				}
 				/* If no UPF is configured, directly forward the message as-is (no GTP mapping). */
