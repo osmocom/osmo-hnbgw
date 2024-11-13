@@ -240,6 +240,18 @@ else
 	echo "$m no ($f not in $h)"
 fi
 
+# OS#6617: check if libosmo-sigtran has private structs
+# We need to use grep here, can't set the includedir with AC_CHECK_DECL.
+m="OS#6617: checking whether libosmo-sigtran has private structs..."
+h="$($PKG_CONFIG --variable=includedir libosmo-sigtran)/osmocom/sigtran/osmo_ss7.h"
+f=osmo_ss7_instance_get_primary_pc
+if grep -q "$f" "$h"; then
+	echo "$m yes ($f in $h)"
+	AC_DEFINE(SIGTRAN_PRIVATE_STRUCTS, [1], ["OS#6617"])
+else
+	echo "$m no ($f not in $h)"
+fi
+
 dnl Generate the output
 AM_CONFIG_HEADER(config.h)
 

@@ -1,5 +1,8 @@
 #pragma once
 
+/* This is fine because hnbgw.h is in noinst_HEADERS in Makefile.am */
+#include "config.h"
+
 #include <osmocom/core/select.h>
 #include <osmocom/core/linuxlist.h>
 #include <osmocom/core/hashtable.h>
@@ -324,6 +327,23 @@ static inline bool cnlink_is_ps(const struct hnbgw_cnlink *cnlink)
 {
 	return cnlink && cnlink->pool->domain == DOMAIN_PS;
 }
+
+#ifndef SIGTRAN_PRIVATE_STRUCTS
+static inline struct osmo_sccp_instance *osmo_ss7_get_sccp(const struct osmo_ss7_instance *inst)
+{
+	return inst->sccp;
+}
+
+static inline uint32_t osmo_ss7_instance_get_primary_pc(const struct osmo_ss7_instance *inst)
+{
+	return inst->cfg.primary_pc;
+}
+
+static inline uint32_t osmo_ss7_instance_get_id(const struct osmo_ss7_instance *inst)
+{
+	return inst->cfg.id;
+}
+#endif
 
 static inline struct osmo_sccp_instance *cnlink_sccp(const struct hnbgw_cnlink *cnlink)
 {
