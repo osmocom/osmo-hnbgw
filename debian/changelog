@@ -1,3 +1,14 @@
+osmo-hnbgw (1.6.2) unstable; urgency=medium
+
+  [ Oliver Smith ]
+  * Make compatible with private pfcp structs
+  * Add osmo_ss7 APIs
+
+  [ Pau Espin Pedrol ]
+  * Use new libosmo-sigtran APIs to access osmo_ss7_instance
+
+ -- Oliver Smith <osmith@sysmocom.de>  Wed, 13 Nov 2024 12:56:28 +0100
+
 osmo-hnbgw (1.6.1) unstable; urgency=medium
 
   [ Neels Janosch Hofmeyr ]
