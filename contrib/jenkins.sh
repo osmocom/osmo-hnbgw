@@ -36,7 +36,7 @@ export PATH="$inst/bin:$PATH"
 osmo-build-dep.sh libosmocore "" --disable-doxygen
 osmo-build-dep.sh libosmo-netif "" --disable-doxygen
 osmo-build-dep.sh libosmo-abis
-osmo-build-dep.sh libosmo-sigtran
+osmo-build-dep.sh libosmo-sigtran "" --disable-doxygen
 osmo-build-dep.sh libasn1c
 osmo-build-dep.sh osmo-iuh
 osmo-build-dep.sh osmo-mgw
