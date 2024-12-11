@@ -265,11 +265,12 @@ static int handle_rx_sccp(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 static void map_sccp_init_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
 {
 	struct hnbgw_context_map *map = fi->priv;
-	struct msgb *ranap_msg = data;
+	struct msgb *ranap_msg = NULL;
 
 	switch (event) {
 
 	case MAP_SCCP_EV_TX_DATA_REQUEST:
+		ranap_msg = data;
 		/* In the INIT state, the first MAP_SCCP_EV_TX_DATA_REQUEST will be the RANAP message received from the
 		 * RUA Connect message. Send the SCCP CR and transition to WAIT_CC. */
 		if (tx_sccp_cr(fi, ranap_msg) == 0)
@@ -277,12 +278,19 @@ static void map_sccp_init_action(struct osmo_fsm_inst *fi, uint32_t event, void 
 		return;
 
 	case MAP_SCCP_EV_RAN_LINK_LOST:
-	case MAP_SCCP_EV_RAN_DISC:
 	case MAP_SCCP_EV_USER_ABORT:
 	case MAP_SCCP_EV_CN_LINK_LOST:
+		ranap_msg = data;
 		/* No CR has been sent yet, just go to disconnected state. */
 		if (msg_has_l2_data(ranap_msg))
 			LOG_MAP(map, DLSCCP, LOGL_ERROR, "SCCP not connected, cannot dispatch RANAP message\n");
+		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
+		return;
+
+	case MAP_SCCP_EV_RAN_DISC:
+		/* bool rua_disconnect_err_condition = !!data; */
+		/* 3GPP TS 25.468 9.1.5: RUA has disconnected.
+		 * In this state we didn't send an SCCP CR yet, so nothing to be torn down on CN side. */
 		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
 		return;
 
@@ -300,31 +308,41 @@ static void map_sccp_init_action(struct osmo_fsm_inst *fi, uint32_t event, void 
 static void map_sccp_wait_cc_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
 {
 	struct hnbgw_context_map *map = fi->priv;
-	struct msgb *ranap_msg = data;
+	struct msgb *ranap_msg = NULL;
 
 	switch (event) {
 
 	case MAP_SCCP_EV_RX_CONNECTION_CONFIRM:
+		ranap_msg = data;
 		map_sccp_fsm_state_chg(MAP_SCCP_ST_CONNECTED);
 		/* Usually doesn't but if the SCCP CC contained data, forward it to RUA */
 		handle_rx_sccp(fi, ranap_msg);
 		return;
 
 	case MAP_SCCP_EV_TX_DATA_REQUEST:
+		/* ranap_msg = data; */
 		LOGPFSML(fi, LOGL_ERROR, "Connection not yet confirmed, cannot forward RANAP to CN\n");
 		return;
 
 	case MAP_SCCP_EV_RAN_LINK_LOST:
-	case MAP_SCCP_EV_RAN_DISC:
 	case MAP_SCCP_EV_USER_ABORT:
 	case MAP_SCCP_EV_CN_LINK_LOST:
+		ranap_msg = data;
 		/* RUA connection was terminated. First wait for the CC before releasing the SCCP conn. */
 		if (msg_has_l2_data(ranap_msg))
 			LOGPFSML(fi, LOGL_ERROR, "Connection not yet confirmed, cannot forward RANAP to CN\n");
 		map->please_disconnect = true;
 		return;
 
+	case MAP_SCCP_EV_RAN_DISC:
+		/* bool rua_disconnect_err_condition = !!data; */
+		/* 3GPP TS 25.468 9.1.5: RUA has disconnected.
+		 * In this state we didn't send an SCCP CR yet, so nothing to be torn down on CN side. */
+		map->please_disconnect = true;
+		return;
+
 	case MAP_SCCP_EV_RX_RELEASED:
+		ranap_msg = data;
 		/* SCCP RLSD received from CN. This will never happen since we haven't even received a Connection
 		 * Confirmed, but for completeness: */
 		handle_rx_sccp(fi, ranap_msg);
@@ -349,7 +367,7 @@ static void map_sccp_connected_onenter(struct osmo_fsm_inst *fi, uint32_t prev_s
 
 static void map_sccp_connected_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
 {
-	struct msgb *ranap_msg;
+	struct msgb *ranap_msg = NULL;
 	bool rua_disconnect_err_condition;
 
 	switch (event) {
@@ -432,11 +450,12 @@ static void map_sccp_wait_rlsd_onenter(struct osmo_fsm_inst *fi, uint32_t prev_s
 
 static void map_sccp_wait_rlsd_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
 {
-	struct msgb *ranap_msg = data;
+	struct msgb *ranap_msg = NULL;
 
 	switch (event) {
 
 	case MAP_SCCP_EV_RX_RELEASED:
+		ranap_msg = data;
 		/* The CN sends the expected SCCP RLSD.
 		 * Usually there is no data, but if there is just forward it.
 		 * Usually RUA is already disconnected, but let the RUA FSM decide about that. */
@@ -445,12 +464,13 @@ static void map_sccp_wait_rlsd_action(struct osmo_fsm_inst *fi, uint32_t event, 
 		return;
 
 	case MAP_SCCP_EV_RX_DATA_INDICATION:
+		ranap_msg = data;
 		/* RUA is probably already disconnected, but let the RUA FSM decide about that. */
 		handle_rx_sccp(fi, ranap_msg);
 		return;
 
 	case MAP_SCCP_EV_TX_DATA_REQUEST:
-	case MAP_SCCP_EV_RAN_DISC:
+		ranap_msg = data;
 		/* Normally, RUA would already disconnected, but since SCCP is officially still connected, we can still
 		 * forward messages there. Already waiting for CN to send the SCCP RLSD. If there is a message, forward
 		 * it, and just continue to time out on the SCCP RLSD. */
@@ -458,6 +478,7 @@ static void map_sccp_wait_rlsd_action(struct osmo_fsm_inst *fi, uint32_t event, 
 		return;
 
 	case MAP_SCCP_EV_RX_CONNECTION_CONFIRM:
+		ranap_msg = data;
 		/* Already connected. Unusual, but if there is data just forward it. */
 		LOGPFSML(fi, LOGL_ERROR, "Already connected, but received SCCP CC\n");
 		handle_rx_sccp(fi, ranap_msg);
@@ -466,6 +487,7 @@ static void map_sccp_wait_rlsd_action(struct osmo_fsm_inst *fi, uint32_t event, 
 	case MAP_SCCP_EV_RAN_LINK_LOST:
 	case MAP_SCCP_EV_USER_ABORT:
 	case MAP_SCCP_EV_CN_LINK_LOST:
+	case MAP_SCCP_EV_RAN_DISC:
 		/* Stop waiting for RLSD, send RLSD now. */
 		tx_sccp_rlsd(fi);
 		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
