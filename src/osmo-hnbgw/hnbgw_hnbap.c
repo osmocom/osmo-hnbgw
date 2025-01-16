@@ -467,6 +467,16 @@ static int hnbgw_rx_hnb_deregister(struct hnb_context *ctx, ANY_t *in)
 	return 0;
 }
 
+static bool is_asn1_octet_string_empty(const OCTET_STRING_t *val)
+{
+	return !val || !val->buf || !val->size;
+}
+
+static bool is_asn1_bit_string_empty(const BIT_STRING_t *val)
+{
+	return !val || !val->buf || !val->size;
+}
+
 static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 {
 	struct hnb_persistent *hnbp;
@@ -482,7 +492,13 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	socklen_t len = sizeof(cur_osa);
 
 	rc = hnbap_decode_hnbregisterrequesties(&ies, in);
-	if (rc < 0) {
+	if (rc < 0
+	    /* CID#465551: make sure that actual values ended up in the asn1 octet strings: */
+	    || is_asn1_octet_string_empty(&ies.lac)
+	    || is_asn1_octet_string_empty(&ies.sac)
+	    || is_asn1_octet_string_empty(&ies.rac)
+	    || is_asn1_bit_string_empty(&ies.cellIdentity)
+	    || is_asn1_octet_string_empty(&ies.plmNidentity)) {
 		LOGHNB(ctx, DHNBAP, LOGL_ERROR, "Failure to decode HNB-REGISTER-REQ: rc=%d\n", rc);
 		cause.present = HNBAP_Cause_PR_protocol;
 		cause.choice.radioNetwork = HNBAP_CauseProtocol_unspecified;
