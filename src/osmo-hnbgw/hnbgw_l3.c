@@ -50,10 +50,8 @@ static const struct tlv_definition gsm48_gmm_att_tlvdef = {
 	},
 };
 
-static void decode_gmm_tlv(struct osmo_mobile_identity *mi,
-			  struct osmo_routing_area_id *old_ra,
-			  int *nri,
-			  const uint8_t *tlv_data, size_t tlv_len, bool allow_hex)
+static void decode_gmm_tlv(struct osmo_mobile_identity *mi, int *nri,
+			   const uint8_t *tlv_data, size_t tlv_len, bool allow_hex)
 {
 	struct tlv_parsed tp;
 	struct tlv_p_entry *e;
@@ -66,6 +64,11 @@ static void decode_gmm_tlv(struct osmo_mobile_identity *mi,
 		*nri <<= 2;
 		*nri |= e->val[1] >> 6;
 	}
+
+	/* RAU Req: 9.4.14.5 P-TMSI (Iu mode only): "This IE shall be included by the MS." */
+	e = TLVP_GET(&tp, GSM48_IE_GMM_ALLOC_PTMSI);
+	if (mi && e)
+		osmo_mobile_identity_decode(mi, e->val, e->len, allow_hex);
 }
 
 /* Parse 3GPP TS 24.008 § 9.4.1 Attach request */
@@ -123,7 +126,9 @@ static int mobile_identity_decode_from_gmm_att_req(struct osmo_mobile_identity *
 
 	if (l3_len == (cur - l3_data))
 		return 0; /* No Optional TLV section */
-	decode_gmm_tlv(mi, old_ra, nri, cur, end - cur, allow_hex);
+
+	/* Mobile identity = NULL: already obtained from Mandatory IE above.*/
+	decode_gmm_tlv(NULL, nri, cur, end - cur, allow_hex);
 	return 0;
 }
 
@@ -163,7 +168,7 @@ static int mobile_identity_decode_from_gmm_rau_req(struct osmo_mobile_identity *
 
 	if (l3_len == (cur - l3_data))
 		return 0; /* No Optional TLV section */
-	decode_gmm_tlv(mi, old_ra, nri, cur, end - cur, allow_hex);
+	decode_gmm_tlv(mi, nri, cur, end - cur, allow_hex);
 	return 0;
 }
 
