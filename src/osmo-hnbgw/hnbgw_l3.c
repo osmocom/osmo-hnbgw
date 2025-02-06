@@ -156,60 +156,34 @@ static int mobile_identity_decode_from_gmm_rau_req(struct osmo_mobile_identity *
 	return 0;
 }
 
-static int peek_l3_ul_nas(struct hnbgw_context_map *map, const uint8_t *nas_pdu, size_t len,
-			  const struct osmo_plmn_id *local_plmn)
+/* CS MM: Determine mobile identity, from_other_plmn, is_emerg. */
+static int peek_l3_ul_nas_cs(struct hnbgw_context_map *map, const uint8_t *nas_pdu, size_t len,
+			     const struct osmo_plmn_id *local_plmn)
 {
-	const struct gsm48_hdr *gh;
-	int8_t pdisc;
-	uint8_t mtype;
+	const struct gsm48_hdr *gh = (const struct gsm48_hdr *)nas_pdu;
+	struct osmo_location_area_id old_lai;
 	const struct gsm48_loc_upd_req *lu;
 	struct gsm48_service_request *cm;
-	struct osmo_location_area_id old_lai;
-	struct osmo_routing_area_id old_ra = {};
-	int nri = -1;
 
-	map->l3 = (struct hnbgw_l3_peek){
-		.gmm_nri_container = -1,
-	};
+	osmo_mobile_identity_decode_from_l3_buf(&map->l3.mi, nas_pdu, len, false);
 
-	/* Get the mobile identity from CS MM -- the PS GMM happens further down.
-	 * This will return an error for GMM messages, ignore that. */
-	if (!map->is_ps)
-		osmo_mobile_identity_decode_from_l3_buf(&map->l3.mi, nas_pdu, len, false);
-
-	/* Get is_emerg and from_other_plmn */
-	if (len < sizeof(*gh)) {
-		LOGP(DCN, LOGL_ERROR, "Layer 3 message too short for header\n");
-		return -EINVAL;
-	}
-
-	gh = (void *)nas_pdu;
-	pdisc = gsm48_hdr_pdisc(gh);
-	mtype = gsm48_hdr_msg_type(gh);
-
-	map->l3.gsm48_pdisc = pdisc;
-	map->l3.gsm48_msg_type = mtype;
-
-	/* Determine from_other_plmn and is_emerg */
-	switch (pdisc) {
+	switch (map->l3.gsm48_pdisc) {
 	case GSM48_PDISC_MM:
-
-		switch (mtype) {
+		/* Get is_emerg and from_other_plmn */
+		switch (map->l3.gsm48_msg_type) {
 		case GSM48_MT_MM_LOC_UPD_REQUEST:
 			if (len < sizeof(*gh) + sizeof(*lu)) {
 				LOGP(DCN, LOGL_ERROR, "LU Req message too short\n");
 				break;
 			}
-
 			lu = (struct gsm48_loc_upd_req *)gh->data;
 			gsm48_decode_lai2(&lu->lai, &old_lai);
-
 			map->l3.from_other_plmn = (osmo_plmn_cmp(&old_lai.plmn, local_plmn) != 0);
 			if (map->l3.from_other_plmn)
 				LOGP(DRUA, LOGL_INFO, "LU from other PLMN: old LAI=%s my PLMN=%s\n",
 				     osmo_plmn_name_c(OTC_SELECT, &old_lai.plmn),
 				     osmo_plmn_name_c(OTC_SELECT, local_plmn));
-			break;
+			return 0;
 
 		case GSM48_MT_MM_CM_SERV_REQ:
 			if (len < sizeof(*gh) + sizeof(*cm)) {
@@ -219,62 +193,86 @@ static int peek_l3_ul_nas(struct hnbgw_context_map *map, const uint8_t *nas_pdu,
 			cm = (struct gsm48_service_request *)&gh->data[0];
 			map->l3.is_emerg = (cm->cm_service_type == GSM48_CMSERV_EMERGENCY);
 			LOGP(DRUA, LOGL_DEBUG, "CM Service is_emerg=%d\n", map->l3.is_emerg);
-			break;
-
-		default:
-			break;
+			return 0;
 		}
 		break;
+	}
 
+	return 0;
+}
+
+/* PS GMM: Determine mobile identity, gmm_nri_container, from_other_plmn and is_emerg */
+static int peek_l3_ul_nas_ps(struct hnbgw_context_map *map, const uint8_t *nas_pdu, size_t len,
+			     const struct osmo_plmn_id *local_plmn)
+{
+	struct osmo_routing_area_id old_ra = {};
+	int nri = -1;
+
+	switch (map->l3.gsm48_pdisc) {
 	case GSM48_PDISC_MM_GPRS:
-		switch (mtype) {
+		switch (map->l3.gsm48_msg_type) {
 		case GSM48_MT_GMM_ATTACH_REQ:
 			mobile_identity_decode_from_gmm_att_req(&map->l3.mi, &old_ra, &nri, nas_pdu, len, false);
-
 			LOGP(DRUA, LOGL_DEBUG, "GMM Attach Req mi=%s old_ra=%s nri:%d=0x%x\n",
 			     osmo_mobile_identity_to_str_c(OTC_SELECT, &map->l3.mi),
 			     osmo_rai_name2_c(OTC_SELECT, &old_ra),
 			     nri, nri);
-
 			if (old_ra.lac.plmn.mcc && osmo_plmn_cmp(&old_ra.lac.plmn, local_plmn)) {
 				map->l3.from_other_plmn = true;
 				LOGP(DRUA, LOGL_INFO, "GMM Attach Req from other PLMN: old RAI=%s my PLMN=%s\n",
 				     osmo_rai_name2_c(OTC_SELECT, &old_ra),
 				     osmo_plmn_name_c(OTC_SELECT, local_plmn));
 			}
-
 			if (nri >= 0)
 				map->l3.gmm_nri_container = nri;
-
-			break;
+			return 0;
 
 		case GSM48_MT_GMM_RA_UPD_REQ:
 			mobile_identity_decode_from_gmm_rau_req(&map->l3.mi, &old_ra, &nri, nas_pdu, len, false);
-
 			LOGP(DRUA, LOGL_DEBUG, "GMM Routing Area Upd Req mi=%s old_ra=%s nri:%d=0x%x\n",
 			     osmo_mobile_identity_to_str_c(OTC_SELECT, &map->l3.mi),
 			     osmo_rai_name2_c(OTC_SELECT, &old_ra),
 			     nri, nri);
-
 			if (old_ra.lac.plmn.mcc && osmo_plmn_cmp(&old_ra.lac.plmn, local_plmn)) {
 				map->l3.from_other_plmn = true;
 				LOGP(DRUA, LOGL_INFO, "GMM Routing Area Upd Req from other PLMN: old RAI=%s my PLMN=%s\n",
 				     osmo_rai_name2_c(OTC_SELECT, &old_ra),
 				     osmo_plmn_name_c(OTC_SELECT, local_plmn));
 			}
-
 			if (nri >= 0)
 				map->l3.gmm_nri_container = nri;
-
-			break;
+			return 0;
 		}
-		break;
-
-	default:
 		break;
 	}
 
 	return 0;
+}
+
+static int peek_l3_ul_nas(struct hnbgw_context_map *map, const uint8_t *nas_pdu, size_t len,
+			  const struct osmo_plmn_id *local_plmn)
+{
+	const struct gsm48_hdr *gh = (const struct gsm48_hdr *)nas_pdu;
+
+	map->l3 = (struct hnbgw_l3_peek){
+		.gmm_nri_container = -1,
+		.mi = {
+			.type = GSM_MI_TYPE_NONE,
+			.tmsi = GSM_RESERVED_TMSI,
+		},
+	};
+
+	if (len < sizeof(*gh)) {
+		LOGP(DCN, LOGL_ERROR, "Layer 3 message too short for header\n");
+		return -EINVAL;
+	}
+
+	map->l3.gsm48_pdisc = gsm48_hdr_pdisc(gh);
+	map->l3.gsm48_msg_type = gsm48_hdr_msg_type(gh);
+
+	if (map->is_ps)
+		return peek_l3_ul_nas_ps(map, nas_pdu, len, local_plmn);
+	return peek_l3_ul_nas_cs(map, nas_pdu, len, local_plmn);
 }
 
 static int peek_l3_ul_initial_ue(struct hnbgw_context_map *map, const RANAP_InitialUE_MessageIEs_t *ies)
