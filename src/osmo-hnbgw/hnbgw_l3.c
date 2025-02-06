@@ -121,6 +121,7 @@ static int mobile_identity_decode_from_gmm_att_req(struct osmo_mobile_identity *
 	return 0;
 }
 
+/* Parse 24.008 9.4.14 RAU Request */
 static int mobile_identity_decode_from_gmm_rau_req(struct osmo_mobile_identity *mi,
 						   struct osmo_routing_area_id *old_ra,
 						   int *nri,
@@ -132,12 +133,15 @@ static int mobile_identity_decode_from_gmm_rau_req(struct osmo_mobile_identity *
 	uint8_t ms_ra_acc_cap_len;
 	int rc;
 
-	/* Update Type 10.5.5.18 */
-	cur++;
-	if (cur >= end)
+	/* all mandatory fields + variable length MS Radio Cap (min value) would be 15 bytes.
+	 * But even short radio capabilities we should handle with 14 bytes */
+	if (l3_len < 14)
 		return -ENOSPC;
 
-	/* Old routing area identification 10.5.5.15 */
+	/* V: Update Type 10.5.5.18 */
+	cur++;
+
+	/* V: Old routing area identification 10.5.5.15 */
 	rc = osmo_routing_area_id_decode(old_ra, cur, end - cur);
 	if (rc < 0)
 		return rc;
@@ -145,13 +149,14 @@ static int mobile_identity_decode_from_gmm_rau_req(struct osmo_mobile_identity *
 	if (cur >= end)
 		return -ENOSPC;
 
-	/* MS Radio Access Capability 10.5.5.12a */
+	/* LV: MS Radio Access Capability 10.5.5.12a */
 	ms_ra_acc_cap_len = *cur++;
+	if (l3_len < (ms_ra_acc_cap_len + (cur - l3_data)))
+		return -ENOSPC;
 	cur += ms_ra_acc_cap_len;
 
-	if (cur > end)
-		return -ENOSPC;
-
+	if (l3_len == (cur - l3_data))
+		return 0; /* No Optional TLV section */
 	decode_gmm_tlv(mi, old_ra, nri, cur, end - cur, allow_hex);
 	return 0;
 }
