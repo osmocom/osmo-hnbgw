@@ -68,6 +68,7 @@ static void decode_gmm_tlv(struct osmo_mobile_identity *mi,
 	}
 }
 
+/* Parse 3GPP TS 24.008 § 9.4.1 Attach request */
 static int mobile_identity_decode_from_gmm_att_req(struct osmo_mobile_identity *mi,
 						   struct osmo_routing_area_id *old_ra,
 						   int *nri,
@@ -82,11 +83,16 @@ static int mobile_identity_decode_from_gmm_att_req(struct osmo_mobile_identity *
 	uint8_t ms_ra_acc_cap_len;
 	int rc;
 
+	if (l3_len < 26)
+		return -ENOSPC;
+
 	/* MS network capability 10.5.5.12 */
 	msnc_len = *cur++;
+	if (l3_len < (msnc_len + (cur - l3_data)))
+		return -ENOSPC;
 	cur += msnc_len;
 
-	/* aTTACH Type 10.5.5.2 */
+	/* aTTACH Type 10.5.5.2 + Ciphering key sequence number 10.5.1.2 */
 	cur++;
 
 	/* DRX parameter 10.5.5.6 */
@@ -95,10 +101,9 @@ static int mobile_identity_decode_from_gmm_att_req(struct osmo_mobile_identity *
 	/* Mobile Identity (P-TMSI or IMSI) 10.5.1.4 */
 	mi_len = *cur++;
 	mi_data = cur;
-	cur += mi_len;
-
-	if (cur >= end)
+	if (l3_len < (mi_len + (cur - l3_data)))
 		return -ENOSPC;
+	cur += mi_len;
 
 	rc = osmo_mobile_identity_decode(mi, mi_data, mi_len, allow_hex);
 	if (rc)
@@ -112,11 +117,12 @@ static int mobile_identity_decode_from_gmm_att_req(struct osmo_mobile_identity *
 
 	/* MS Radio Access Capability 10.5.5.12a */
 	ms_ra_acc_cap_len = *cur++;
+	if (l3_len < (ms_ra_acc_cap_len + (cur - l3_data)))
+		return -ENOSPC;
 	cur += ms_ra_acc_cap_len;
 
-	if (cur > end)
-		return -ENOSPC;
-
+	if (l3_len == (cur - l3_data))
+		return 0; /* No Optional TLV section */
 	decode_gmm_tlv(mi, old_ra, nri, cur, end - cur, allow_hex);
 	return 0;
 }
