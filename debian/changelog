@@ -1,3 +1,39 @@
+osmo-hnbgw (1.7.0) unstable; urgency=medium
+
+  [ Neels Janosch Hofmeyr ]
+  * drop config.vty tests from make check
+  * coverity CID#358071
+  * coverity CID#358072
+  * coverity CID#358070
+  * coverity CID#358069
+  * on RUA Connect failure, respond with RUA Disconnect
+  * on RUA DT for unknown context, respond with RUA Disconnect
+
+  [ Harald Welte ]
+  * hnb_persistent: Use incrementing counter for rate_ctr + stat_item index
+  * Revert "hnb_persistent: Use incrementing counter for rate_ctr + stat_item index"
+
+  [ Oliver Smith ]
+  * contrib/jenkins: libosmo-sccp -> libosmo-sigtran
+
+  [ Pau Espin Pedrol ]
+  * Log cn_disconnect.ind cause
+  * Fix SCCP RLSD not sent upon rx RUA Disconnect due to error condition
+  * ps_rab_ass_fsm: Fix uninitialized ptr access
+  * Add PFCP stats item group
+  * hnbgw: Avoid using struct osmo_pfcp_cp_peer fields directly
+  * hnbgw: Fix wrong map object retrieved from hashtable
+  * Use new libosmo-sigtran APIs to access osmo_ss7_instance
+  * jenkins.sh: libosmo-netif no longer depends on libosmo-abis
+  * jenkins.sh: No need to build libosmo-sigtran with doxygen
+  * map_sccp: Fix crash during ev MAP_SCCP_EV_RAN_DISC in st MAP_SCCP_ST_WAIT_CC
+  * peek_l3_ul_nas: Split parsing logic based on PS/CS ctx
+  * peek_l3_ul_nas: Improve RAU req parsing checks
+  * peek_l3_ul_nas: Improve GMM Attach Req parsing checks
+  * peek_l3_ul_nas: Parse PTMSI MI from GMM RAU req
+
+ -- Oliver Smith <osmith@sysmocom.de>  Wed, 12 Feb 2025 14:37:35 +0100
+
 osmo-hnbgw (1.6.0) unstable; urgency=medium
 
   [ Pau Espin Pedrol ]
