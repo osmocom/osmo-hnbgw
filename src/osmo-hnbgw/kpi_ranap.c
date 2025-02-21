@@ -28,6 +28,13 @@
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/kpi.h>
 
+const struct value_string hnbgw_rab_state_names[] = {
+	{ RAB_STATE_INACTIVE,	"INACTIVE" },
+	{ RAB_STATE_ACT_REQ,	"ACT_REQ" },
+	{ RAB_STATE_ACTIVE,	"ACTIVE" },
+	{ RAB_STATE_REL_REQ,	"REL_REQ" },
+	{}
+};
 
 /***********************************************************************
  * DOWNLINK messages
@@ -108,7 +115,8 @@ static void kpi_ranap_process_dl_rab_ass_req(struct hnbgw_context_map *map, rana
 				break;
 			default:
 				LOG_MAP(map, DRANAP, LOGL_NOTICE,
-				       "Unexpected RAB Activation/Modification Req for RAB in state %u\n", map->rab_state[rab_id]);
+					"Unexpected RAB Activation/Modification Req for RAB in state %s\n",
+					hnbgw_rab_state_name(map->rab_state[rab_id]));
 				break;
 			}
 
@@ -154,7 +162,8 @@ static void kpi_ranap_process_dl_rab_ass_req(struct hnbgw_context_map *map, rana
 				break;
 			default:
 				LOG_MAP(map, DRANAP, LOGL_NOTICE,
-					"Unexpected RAB Release Req in state %u\n", map->rab_state[rab_id]);
+					"Unexpected RAB Release Req in state %s\n",
+					hnbgw_rab_state_name(map->rab_state[rab_id]));
 				break;
 			}
 			/* mark that RAB as release requested */
@@ -249,7 +258,8 @@ static void kpi_ranap_process_ul_rab_ass_resp(struct hnbgw_context_map *map, ran
 				break;
 			default:
 				LOG_MAP(map, DRANAP, LOGL_NOTICE,
-				       "Unexpected RAB Activation/Modification Conf for RAB in state %u\n", map->rab_state[rab_id]);
+					"Unexpected RAB Activation/Modification Conf for RAB in state %s\n",
+					hnbgw_rab_state_name(map->rab_state[rab_id]));
 				break;
 			}
 
@@ -288,7 +298,8 @@ static void kpi_ranap_process_ul_rab_ass_resp(struct hnbgw_context_map *map, ran
 				break;
 			default:
 				LOG_MAP(map, DRANAP, LOGL_NOTICE,
-				       "Unexpected RAB Release Conf for RAB in state %u\n", map->rab_state[rab_id]);
+					"Unexpected RAB Release Conf for RAB in state %s\n",
+					hnbgw_rab_state_name(map->rab_state[rab_id]));
 				break;
 			}
 			/* mark that RAB as released */
@@ -336,7 +347,8 @@ static void kpi_ranap_process_ul_rab_ass_resp(struct hnbgw_context_map *map, ran
 				break;
 			default:
 				LOG_MAP(map, DRANAP, LOGL_NOTICE,
-				       "Unexpected RAB Activation/Modification Failed for RAB in state %u\n", map->rab_state[rab_id]);
+					"Unexpected RAB Activation/Modification Failed for RAB in state %s\n",
+					hnbgw_rab_state_name(map->rab_state[rab_id]));
 				break;
 			}
 
@@ -382,7 +394,8 @@ static void kpi_ranap_process_ul_rab_ass_resp(struct hnbgw_context_map *map, ran
 				break;
 			default:
 				LOG_MAP(map, DRANAP, LOGL_NOTICE,
-				       "Unexpected RAB Release Failed for RAB in state %u\n", map->rab_state[rab_id]);
+					"Unexpected RAB Release Failed for RAB in state %s\n",
+					hnbgw_rab_state_name(map->rab_state[rab_id]));
 				break;
 			}
 

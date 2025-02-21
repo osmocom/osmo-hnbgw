@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <osmocom/core/linuxlist.h>
+#include <osmocom/core/utils.h>
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/gsm/gsm48.h>
 
@@ -117,6 +118,10 @@ enum rab_state {
 	RAB_STATE_ACTIVE,
 	RAB_STATE_REL_REQ,
 };
+extern const struct value_string hnbgw_rab_state_names[];
+static inline const char *hnbgw_rab_state_name(enum rab_state val)
+{ return get_value_string(hnbgw_rab_state_names, val); }
+
 
 struct hnbgw_context_map {
 	/* entry in the per-CN list of mappings */
