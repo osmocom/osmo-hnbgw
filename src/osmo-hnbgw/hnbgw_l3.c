@@ -314,7 +314,7 @@ static int peek_l3_ul_initial_ue(struct hnbgw_context_map *map, const RANAP_Init
  * This is relevant for CN pooling, to decide which CN link to map the RUA context to. */
 int hnbgw_peek_l3_ul(struct hnbgw_context_map *map, struct msgb *ranap_msg)
 {
-	ranap_message *message = hnbgw_decode_ranap_co(ranap_msg);
+	ranap_message *message = hnbgw_decode_ranap_cn_co(ranap_msg);
 	if (!message) {
 		LOGP(DCN, LOGL_ERROR, "Failed to decode RANAP PDU\n");
 		return -EINVAL;

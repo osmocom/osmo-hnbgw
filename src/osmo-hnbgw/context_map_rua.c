@@ -134,10 +134,10 @@ static int destruct_ranap_cn_rx_co_ies(ranap_message *ranap_message_p)
 	return 0;
 }
 
-/* Decode RANAP message with convenient memory freeing: just talloc_free() the returned pointer..
+/* Decode UL RANAP message with convenient memory freeing: just talloc_free() the returned pointer..
  * Allocate a ranap_message from OTC_SELECT, decode RANAP msgb into it, attach a talloc destructor that calls
  * ranap_cn_rx_co_free() upon talloc_free(), and return the decoded ranap_message. */
-ranap_message *hnbgw_decode_ranap_co(struct msgb *ranap_msg)
+ranap_message *hnbgw_decode_ranap_cn_co(struct msgb *ranap_msg)
 {
 	int rc;
 	ranap_message *message;
@@ -166,7 +166,7 @@ static int handle_rx_rua(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 	if (!msg_has_l2_data(ranap_msg))
 		return 0;
 
-	ranap_message *message = hnbgw_decode_ranap_co(ranap_msg);
+	ranap_message *message = hnbgw_decode_ranap_cn_co(ranap_msg);
 	if (message) {
 		LOGPFSML(fi, LOGL_DEBUG, "rx from RUA: RANAP %s\n",
 			 get_value_string(ranap_procedure_code_vals, message->procedureCode));
