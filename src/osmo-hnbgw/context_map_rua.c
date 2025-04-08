@@ -24,19 +24,11 @@
 #include <osmocom/core/utils.h>
 #include <osmocom/core/fsm.h>
 
-#include <osmocom/ranap/ranap_common_cn.h>
-
-#if ENABLE_PFCP
-#include <osmocom/pfcp/pfcp_cp_peer.h>
-#endif
-
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/tdefs.h>
 #include <osmocom/hnbgw/hnbgw_rua.h>
-#include <osmocom/hnbgw/mgw_fsm.h>
-#include <osmocom/hnbgw/ps_rab_ass_fsm.h>
-#include <osmocom/hnbgw/kpi.h>
+#include <osmocom/hnbgw/hnbgw_ranap.h>
 
 enum map_rua_fsm_state {
 	MAP_RUA_ST_INIT,
@@ -128,32 +120,6 @@ static int map_rua_fsm_timer_cb(struct osmo_fsm_inst *fi)
 	}
 }
 
-static int destruct_ranap_cn_rx_co_ies(ranap_message *ranap_message_p)
-{
-	ranap_cn_rx_co_free(ranap_message_p);
-	return 0;
-}
-
-/* Decode UL RANAP message with convenient memory freeing: just talloc_free() the returned pointer..
- * Allocate a ranap_message from OTC_SELECT, decode RANAP msgb into it, attach a talloc destructor that calls
- * ranap_cn_rx_co_free() upon talloc_free(), and return the decoded ranap_message. */
-ranap_message *hnbgw_decode_ranap_cn_co(struct msgb *ranap_msg)
-{
-	int rc;
-	ranap_message *message;
-
-	if (!msg_has_l2_data(ranap_msg))
-		return NULL;
-	message = talloc_zero(OTC_SELECT, ranap_message);
-	rc = ranap_cn_rx_co_decode2(message, msgb_l2(ranap_msg), msgb_l2len(ranap_msg));
-	if (rc != 0) {
-		talloc_free(message);
-		return NULL;
-	}
-	talloc_set_destructor(message, destruct_ranap_cn_rx_co_ies);
-	return message;
-}
-
 /* Dispatch RANAP message to SCCP, if any. */
 static int handle_rx_rua(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 {
@@ -166,37 +132,7 @@ static int handle_rx_rua(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 	if (!msg_has_l2_data(ranap_msg))
 		return 0;
 
-	ranap_message *message = hnbgw_decode_ranap_cn_co(ranap_msg);
-	if (message) {
-		LOGPFSML(fi, LOGL_DEBUG, "rx from RUA: RANAP %s\n",
-			 get_value_string(ranap_procedure_code_vals, message->procedureCode));
-
-		kpi_ranap_process_ul(map, message);
-
-		if (!map->is_ps) {
-			/* See if it is a RAB Assignment Response message from RUA to SCCP, where we need to change the user plane
-			 * information, for RTP mapping via MGW, or GTP mapping via UPF. */
-			switch (message->procedureCode) {
-			case RANAP_ProcedureCode_id_RAB_Assignment:
-				/* mgw_fsm_handle_rab_ass_resp() takes ownership of prim->oph and (ranap) message */
-				return mgw_fsm_handle_cs_rab_ass_resp(map, ranap_msg, message);
-			}
-		} else {
-#if ENABLE_PFCP
-			if (hnb_gw_is_gtp_mapping_enabled()) {
-				/* map->is_ps == true and PFCP is enabled in osmo-hnbgw.cfg */
-				switch (message->procedureCode) {
-				case RANAP_ProcedureCode_id_RAB_Assignment:
-					/* ps_rab_ass_fsm takes ownership of prim->oph and RANAP message */
-					return hnbgw_gtpmap_rx_rab_ass_resp(map, ranap_msg, message);
-				}
-			}
-#endif
-		}
-	}
-
-	/* It was not a RAB Assignment Response that needed to be intercepted. Forward as-is to SCCP. */
-	return map_sccp_dispatch(map, MAP_SCCP_EV_TX_DATA_REQUEST, ranap_msg);
+	return hnbgw_ranap_rx_data_ul(map, ranap_msg);
 }
 
 static int forward_ranap_to_rua(struct hnbgw_context_map *map, struct msgb *ranap_msg)

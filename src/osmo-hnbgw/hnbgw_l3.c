@@ -28,7 +28,7 @@
 #include <osmocom/gsm/protocol/gsm_04_08_gprs.h>
 
 #include <osmocom/hnbgw/hnbgw.h>
-#include <osmocom/hnbgw/hnbgw_rua.h>
+#include <osmocom/hnbgw/hnbgw_ranap.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/ranap/ranap_ies_defs.h>
 

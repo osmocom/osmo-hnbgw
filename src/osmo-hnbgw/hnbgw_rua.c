@@ -40,7 +40,6 @@
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/hnbgw_rua.h>
 #include <osmocom/hnbap/HNBAP_CN-DomainIndicator.h>
-#include <osmocom/ranap/ranap_ies_defs.h>
 
 static int hnbgw_rua_tx(struct hnb_context *ctx, struct msgb *msg)
 {
