@@ -341,7 +341,7 @@ static int hnbgw_tx_ue_register_rej(struct hnb_context *hnb, HNBAP_UE_Identity_t
 	return hnbgw_hnbap_tx(hnb, msg);
 }
 
-static int hnbgw_tx_ue_register_acc_tmsi(struct hnb_context *hnb, HNBAP_UE_Identity_t *ue_id)
+static int hnbgw_tx_ue_register_acc_tmsi(struct hnb_context *hnb, HNBAP_UE_Identity_t *ue_id, uint32_t context_id)
 {
 	HNBAP_UERegisterAccept_t accept_out;
 	HNBAP_UERegisterAcceptIEs_t accept;
@@ -393,7 +393,7 @@ static int hnbgw_tx_ue_register_acc_tmsi(struct hnb_context *hnb, HNBAP_UE_Ident
 	tmsi = ntohl(tmsi);
 	LOGHNB(hnb, DHNBAP, LOGL_DEBUG, "HNBAP register with TMSI %x\n", tmsi);
 
-	asn1_u24_to_bitstring(&accept.context_ID, &ctx_id, get_next_ue_ctx_id());
+	asn1_u24_to_bitstring(&accept.context_ID, &ctx_id, context_id);
 
 	memset(&accept_out, 0, sizeof(accept_out));
 	rc = hnbap_encode_ueregisteraccepties(&accept_out, &accept);
@@ -616,7 +616,7 @@ static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 	case HNBAP_UE_Identity_PR_tMSILAI:
 	case HNBAP_UE_Identity_PR_pTMSIRAI:
 		if (g_hnbgw->config.hnbap_allow_tmsi) {
-			rc = hnbgw_tx_ue_register_acc_tmsi(ctx, &ies.uE_Identity);
+			rc = hnbgw_tx_ue_register_acc_tmsi(ctx, &ies.uE_Identity, get_next_ue_ctx_id());
 		} else {
 			cause.present = HNBAP_Cause_PR_radioNetwork;
 			cause.choice.radioNetwork = HNBAP_CauseRadioNetwork_invalid_UE_identity;
