@@ -38,209 +38,13 @@
 
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/hnbgw_rua.h>
+#include <osmocom/hnbgw/hnbgw_ranap.h>
 #include <osmocom/hnbgw/hnbgw_cn.h>
-#include <osmocom/ranap/ranap_ies_defs.h>
-#include <osmocom/ranap/ranap_msg_factory.h>
-#include <osmocom/ranap/iu_helpers.h>
 #include <osmocom/hnbgw/context_map.h>
 
 /***********************************************************************
  * Incoming primitives from SCCP User SAP
  ***********************************************************************/
-
-static int cn_ranap_rx_reset_cmd(struct hnbgw_cnlink *cnlink,
-				 const struct osmo_scu_unitdata_param *unitdata,
-				 RANAP_InitiatingMessage_t *imsg)
-{
-	RANAP_CN_DomainIndicator_t domain;
-	RANAP_ResetIEs_t ies;
-	int rc;
-
-	rc = ranap_decode_reseties(&ies, &imsg->value);
-	domain = ies.cN_DomainIndicator;
-	ranap_free_reseties(&ies);
-
-	if (rc) {
-		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx RESET: cannot decode IEs\n");
-		return -1;
-	}
-
-	if (cnlink->pool->domain != domain) {
-		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx RESET indicates domain %s, but this is %s on domain %s\n",
-			   ranap_domain_name(domain), cnlink->name, ranap_domain_name(cnlink->pool->domain));
-		return -1;
-	}
-
-	cnlink_rx_reset_cmd(cnlink);
-	return 0;
-}
-
-static int cn_ranap_rx_reset_ack(struct hnbgw_cnlink *cnlink,
-				 RANAP_SuccessfulOutcome_t *omsg)
-{
-	RANAP_CN_DomainIndicator_t domain;
-	RANAP_ResetAcknowledgeIEs_t ies;
-	int rc;
-
-	rc = ranap_decode_resetacknowledgeies(&ies, &omsg->value);
-	domain = ies.cN_DomainIndicator;
-	ranap_free_resetacknowledgeies(&ies);
-
-	if (rc) {
-		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx RESET ACK: cannot decode IEs\n");
-		return -1;
-	}
-
-	if (cnlink->pool->domain != domain) {
-		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx RESET ACK indicates domain %s, but this is %s on domain %s\n",
-			   ranap_domain_name(domain), cnlink->name, ranap_domain_name(cnlink->pool->domain));
-		return -1;
-	}
-
-	cnlink_rx_reset_ack(cnlink);
-	return 0;
-}
-
-static int cn_ranap_rx_paging_cmd(struct hnbgw_cnlink *cnlink,
-				  RANAP_InitiatingMessage_t *imsg,
-				  const uint8_t *data, unsigned int len)
-{
-	const char *errmsg;
-	struct hnb_context *hnb;
-	bool is_ps = cnlink->pool->domain == DOMAIN_PS;
-
-	errmsg = cnlink_paging_add_ranap(cnlink, imsg);
-	if (errmsg) {
-		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx Paging from CN: %s. Dropping paging record."
-			   " Later on, the Paging Response may be forwarded to the wrong CN peer.\n",
-			   errmsg);
-		return -1;
-	}
-
-	/* FIXME: determine which HNBs to send this Paging command,
-	 * rather than broadcasting to all HNBs */
-	llist_for_each_entry(hnb, &g_hnbgw->hnb_list, list) {
-		if (!hnb->hnb_registered)
-			continue;
-		if (is_ps)
-			HNBP_CTR_INC(hnb->persistent, HNB_CTR_PS_PAGING_ATTEMPTED);
-		else
-			HNBP_CTR_INC(hnb->persistent, HNB_CTR_CS_PAGING_ATTEMPTED);
-		rua_tx_udt(hnb, data, len);
-	}
-
-	return 0;
-}
-
-static int ranap_rx_udt_dl_initiating_msg(struct hnbgw_cnlink *cnlink,
-					  const struct osmo_scu_unitdata_param *unitdata,
-					  RANAP_InitiatingMessage_t *imsg,
-					  const uint8_t *data, unsigned int len)
-{
-	switch (imsg->procedureCode) {
-	case RANAP_ProcedureCode_id_Reset:
-		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_RESET);
-		return cn_ranap_rx_reset_cmd(cnlink, unitdata, imsg);
-	case RANAP_ProcedureCode_id_Paging:
-		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_PAGING);
-		return cn_ranap_rx_paging_cmd(cnlink, imsg, data, len);
-	case RANAP_ProcedureCode_id_OverloadControl: /* Overload ind */
-		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_OVERLOAD_IND);
-		break;
-	case RANAP_ProcedureCode_id_ErrorIndication: /* Error ind */
-		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_ERROR_IND);
-		break;
-	case RANAP_ProcedureCode_id_ResetResource: /* request */
-	case RANAP_ProcedureCode_id_InformationTransfer:
-	case RANAP_ProcedureCode_id_DirectInformationTransfer:
-	case RANAP_ProcedureCode_id_UplinkInformationExchange:
-		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_UNSUPPORTED);
-		LOGP(DRANAP, LOGL_NOTICE, "Received unsupported RANAP "
-		     "Procedure %ld from CN, ignoring\n", imsg->procedureCode);
-		break;
-	default:
-		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_UNKNOWN);
-		LOGP(DRANAP, LOGL_NOTICE, "Received suspicious RANAP "
-		     "Procedure %ld from CN, ignoring\n", imsg->procedureCode);
-		break;
-	}
-	return 0;
-}
-
-static int ranap_rx_udt_dl_successful_msg(struct hnbgw_cnlink *cnlink,
-					  RANAP_SuccessfulOutcome_t *omsg)
-{
-	switch (omsg->procedureCode) {
-	case RANAP_ProcedureCode_id_Reset: /* Reset acknowledge */
-		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_RESET);
-		return cn_ranap_rx_reset_ack(cnlink, omsg);
-	case RANAP_ProcedureCode_id_ResetResource: /* response */
-	case RANAP_ProcedureCode_id_InformationTransfer:
-	case RANAP_ProcedureCode_id_DirectInformationTransfer:
-	case RANAP_ProcedureCode_id_UplinkInformationExchange:
-		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_UNSUPPORTED);
-		LOGP(DRANAP, LOGL_NOTICE, "Received unsupported RANAP "
-		     "Procedure %ld from CN, ignoring\n", omsg->procedureCode);
-		break;
-	default:
-		CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_RX_UDT_UNKNOWN);
-		LOGP(DRANAP, LOGL_NOTICE, "Received suspicious RANAP "
-		     "Procedure %ld from CN, ignoring\n", omsg->procedureCode);
-		break;
-	}
-	return 0;
-}
-
-
-static int hnbgw_ranap_rx_udt_dl(struct hnbgw_cnlink *cnlink,
-				 const struct osmo_scu_unitdata_param *unitdata,
-				 RANAP_RANAP_PDU_t *pdu, const uint8_t *data, unsigned int len)
-{
-	int rc;
-
-	switch (pdu->present) {
-	case RANAP_RANAP_PDU_PR_initiatingMessage:
-		rc = ranap_rx_udt_dl_initiating_msg(cnlink, unitdata, &pdu->choice.initiatingMessage, data, len);
-		break;
-	case RANAP_RANAP_PDU_PR_successfulOutcome:
-		rc = ranap_rx_udt_dl_successful_msg(cnlink, &pdu->choice.successfulOutcome);
-		break;
-	case RANAP_RANAP_PDU_PR_unsuccessfulOutcome:
-		LOGP(DRANAP, LOGL_NOTICE, "Received unsupported RANAP "
-		     "unsuccessful outcome procedure %ld from CN, ignoring\n",
-		     pdu->choice.unsuccessfulOutcome.procedureCode);
-		rc = -ENOTSUP;
-		break;
-	default:
-		LOGP(DRANAP, LOGL_NOTICE, "Received suspicious RANAP "
-		     "presence %u from CN, ignoring\n", pdu->present);
-		rc = -EINVAL;
-		break;
-	}
-
-	return rc;
-}
-
-static int handle_cn_ranap(struct hnbgw_cnlink *cnlink, const struct osmo_scu_unitdata_param *unitdata,
-			   const uint8_t *data, unsigned int len)
-{
-	RANAP_RANAP_PDU_t _pdu, *pdu = &_pdu;
-	asn_dec_rval_t dec_ret;
-	int rc;
-
-	memset(pdu, 0, sizeof(*pdu));
-	dec_ret = aper_decode(NULL, &asn_DEF_RANAP_RANAP_PDU, (void **) &pdu,
-			      data, len, 0, 0);
-	if (dec_ret.code != RC_OK) {
-		LOGP(DRANAP, LOGL_ERROR, "Error in RANAP ASN.1 decode\n");
-		return -1;
-	}
-
-	rc = hnbgw_ranap_rx_udt_dl(cnlink, unitdata, pdu, data, len);
-	ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RANAP_PDU, pdu);
-
-	return rc;
-}
 
 static struct hnbgw_cnlink *cnlink_from_addr(struct hnbgw_sccp_user *hsu, const struct osmo_sccp_addr *calling_addr,
 					     const struct osmo_prim_hdr *oph)
@@ -283,7 +87,7 @@ static int handle_cn_unitdata(struct hnbgw_sccp_user *hsu,
 		return -1;
 	}
 
-	return handle_cn_ranap(cnlink, param, msgb_l2(oph->msg), msgb_l2len(oph->msg));
+	return hnbgw_ranap_rx_udt_dl(cnlink, param, msgb_l2(oph->msg), msgb_l2len(oph->msg));
 }
 
 static int handle_cn_conn_conf(struct hnbgw_sccp_user *hsu,
