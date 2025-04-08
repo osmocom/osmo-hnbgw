@@ -43,6 +43,7 @@ libhnbgw_la_SOURCES = \
 	context_map_sccp.c \
 	hnbgw_cn.c \
 	cnlink.c \
+	cnlink_paging.c \
 	ranap_rab_ass.c \
 	mgw_fsm.c \
 	kpi_dtap.c \

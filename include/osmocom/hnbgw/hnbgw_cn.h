@@ -1,6 +1,10 @@
 #pragma once
 
 #include <osmocom/core/rate_ctr.h>
+#include <osmocom/gsm/gsm48.h>
+
+#include <osmocom/ranap/ranap_ies_defs.h>
+
 #include <osmocom/hnbgw/hnbgw.h>
 
 struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr);
@@ -20,6 +24,9 @@ void cnlink_rx_reset_cmd(struct hnbgw_cnlink *cnlink);
 void cnlink_rx_reset_ack(struct hnbgw_cnlink *cnlink);
 void cnlink_resend_reset(struct hnbgw_cnlink *cnlink);
 void cnlink_set_disconnected(struct hnbgw_cnlink *cnlink);
+
+const char *cnlink_paging_add_ranap(struct hnbgw_cnlink *cnlink, RANAP_InitiatingMessage_t *imsg);
+struct hnbgw_cnlink *cnlink_find_by_paging_mi(struct hnbgw_cnpool *cnpool, const struct osmo_mobile_identity *mi);
 
 enum hnbgw_cnpool_ctr {
 	/* TODO: basic counters completely missing
