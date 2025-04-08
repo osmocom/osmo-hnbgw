@@ -416,17 +416,6 @@ struct hnb_persistent {
 	struct osmo_timer_list disconnected_timeout;
 };
 
-struct ue_context {
-	/*! Entry in the HNB-global list of UE */
-	struct llist_head list;
-	/*! Unique Context ID for this UE */
-	uint32_t context_id;
-	char imsi[16+1];
-	uint32_t tmsi;
-	/*! UE is serviced via this HNB */
-	struct hnb_context *hnb;
-};
-
 struct hnbgw {
 	struct {
 		const char *iuh_local_ip;
