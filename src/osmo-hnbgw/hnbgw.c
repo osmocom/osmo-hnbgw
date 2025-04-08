@@ -978,6 +978,7 @@ void g_hnbgw_alloc(void *ctx)
 	/* strdup so we can easily talloc_free in the VTY code */
 	g_hnbgw->config.iuh_local_ip = talloc_strdup(g_hnbgw, HNBGW_LOCAL_IP_DEFAULT);
 	g_hnbgw->config.iuh_local_port = IUH_DEFAULT_SCTP_PORT;
+	g_hnbgw->config.hnbap_allow_tmsi = true;
 	g_hnbgw->config.log_prefix_hnb_id = true;
 	g_hnbgw->config.accept_all_hnb = true;
 

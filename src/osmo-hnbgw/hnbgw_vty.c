@@ -334,7 +334,7 @@ DEFUN(cfg_hnbgw_iuh_hnbap_allow_tmsi, cfg_hnbgw_iuh_hnbap_allow_tmsi_cmd,
       "hnbap-allow-tmsi (0|1)",
       "Allow HNBAP UE Register messages with TMSI or PTMSI identity\n"
       "Only accept IMSI identity, reject TMSI or PTMSI\n"
-      "Accept IMSI, TMSI or PTMSI as UE identity\n")
+      "Accept IMSI, TMSI or PTMSI as UE identity (default)\n")
 {
 	g_hnbgw->config.hnbap_allow_tmsi = (*argv[0] == '1');
 	return CMD_SUCCESS;
@@ -1039,8 +1039,8 @@ static int config_write_hnbgw_iuh(struct vty *vty)
 	if (port && port != IUH_DEFAULT_SCTP_PORT)
 		vty_out(vty, "  local-port %u%s", port, VTY_NEWLINE);
 
-	if (g_hnbgw->config.hnbap_allow_tmsi)
-		vty_out(vty, "  hnbap-allow-tmsi 1%s", VTY_NEWLINE);
+	if (!g_hnbgw->config.hnbap_allow_tmsi)
+		vty_out(vty, "  hnbap-allow-tmsi 0%s", VTY_NEWLINE);
 
 	return CMD_SUCCESS;
 }
