@@ -1,4 +1,4 @@
-/* hnb-gw specific code for RUA (Ranap User Adaption) */
+/* hnb-gw specific code for RUA (Ranap User Adaption), 3GPP TS 25.468 */
 
 /* (C) 2015 by Harald Welte <laforge@gnumonks.org>
  * All Rights Reserved

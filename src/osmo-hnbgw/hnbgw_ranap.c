@@ -1,4 +1,4 @@
-/* hnb-gw specific code for RANAP */
+/* hnb-gw specific code for RANAP, 3GPP TS 25.413 */
 
 /* (C) 2015 by Harald Welte <laforge@gnumonks.org>
  * All Rights Reserved

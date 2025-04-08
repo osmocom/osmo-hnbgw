@@ -1,4 +1,4 @@
-/* hnb-gw specific code for HNBAP */
+/* hnb-gw specific code for HNBAP, 3GPP TS 25.469 */
 
 /* (C) 2015 by Harald Welte <laforge@gnumonks.org>
  * All Rights Reserved

@@ -1,3 +1,4 @@
+/* RUA, 3GPP TS 25.468 */
 #pragma once
 
 #include <osmocom/hnbgw/hnbgw.h>

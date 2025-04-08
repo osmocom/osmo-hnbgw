@@ -1,3 +1,4 @@
+/* HNBAP, 3GPP TS 25.469 */
 #pragma once
 
 #include <osmocom/hnbgw/hnbgw.h>
