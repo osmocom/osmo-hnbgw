@@ -164,33 +164,26 @@ static const char *omi_from_ranap_temp_ue_id(struct osmo_mobile_identity *mi, co
 	return NULL;
 }
 
-const char *cnlink_paging_add_ranap(struct hnbgw_cnlink *cnlink, RANAP_InitiatingMessage_t *imsg)
+const char *cnlink_paging_add_ranap(struct hnbgw_cnlink *cnlink, const RANAP_PagingIEs_t *paging_ies)
 {
-	RANAP_PagingIEs_t ies;
 	struct osmo_mobile_identity mi = {};
 	struct osmo_mobile_identity mi2 = {};
 	RANAP_CN_DomainIndicator_t domain;
 	const char *errmsg;
 
-	if (ranap_decode_pagingies(&ies, &imsg->value) < 0)
-		return "decoding RANAP IEs failed";
+	domain = paging_ies->cN_DomainIndicator;
+	errmsg = omi_from_ranap_ue_id(&mi, &paging_ies->permanentNAS_UE_ID);
 
-	domain = ies.cN_DomainIndicator;
-	errmsg = omi_from_ranap_ue_id(&mi, &ies.permanentNAS_UE_ID);
+	if (!errmsg && (paging_ies->presenceMask & PAGINGIES_RANAP_TEMPORARYUE_ID_PRESENT))
+		errmsg = omi_from_ranap_temp_ue_id(&mi2, &paging_ies->temporaryUE_ID);
 
-	if (!errmsg && (ies.presenceMask & PAGINGIES_RANAP_TEMPORARYUE_ID_PRESENT))
-		errmsg = omi_from_ranap_temp_ue_id(&mi2, &ies.temporaryUE_ID);
-
-	ranap_free_pagingies(&ies);
-	LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "Decoded Paging: %s %s %s%s%s\n",
-		   ranap_domain_name(domain), osmo_mobile_identity_to_str_c(OTC_SELECT, &mi),
+	LOG_CNLINK(cnlink, DCN, errmsg ? LOGL_NOTICE : LOGL_DEBUG,
+		   "Decoded Paging: %s %s %s%s%s\n",
+		   ranap_domain_name(domain),
+		   osmo_mobile_identity_to_str_c(OTC_SELECT, &mi),
 		   mi2.type ? osmo_mobile_identity_to_str_c(OTC_SELECT, &mi2) : "-",
 		   errmsg ? " -- MI error: " : "",
 		   errmsg ? : "");
-
-	if (cnlink->pool->domain != domain)
-		return talloc_asprintf(OTC_SELECT, "message indicates domain %s, but this is %s on domain %s\n",
-				       ranap_domain_name(domain), cnlink->name, ranap_domain_name(cnlink->pool->domain));
 
 	if (errmsg)
 		return errmsg;

@@ -322,35 +322,137 @@ static int cn_ranap_rx_reset_cmd(struct hnbgw_cnlink *cnlink,
 	return 0;
 }
 
+static const struct value_string ranap_paging_area_id_names[] = {
+	{ RANAP_PagingAreaID_PR_NOTHING, "NOTHING" },
+	{ RANAP_PagingAreaID_PR_lAI, "LAI" },
+	{ RANAP_PagingAreaID_PR_rAI, "RAI" },
+	{ 0, NULL }
+};
+
+static bool hnb_paging_area_id_match(const struct hnb_context *hnb,
+				     enum RANAP_PagingAreaID_PR t,
+				     const struct osmo_routing_area_id *rai)
+{
+	switch (t) {
+	case RANAP_PagingAreaID_PR_NOTHING:
+		return true;
+	case RANAP_PagingAreaID_PR_rAI:
+		if (hnb->id.rac != rai->rac)
+			return false;
+		/* fall through */
+	case RANAP_PagingAreaID_PR_lAI:
+		if (hnb->id.lac != rai->lac.lac)
+			return false;
+		if (osmo_plmn_cmp(&hnb->id.plmn, &rai->lac.plmn))
+			return false;
+		/* fall through */
+	}
+	return true;
+}
+
+static int lai_from_RANAP_RANAP_LAI(struct osmo_location_area_id *lai, const RANAP_LAI_t *ranap_lai)
+{
+	if (ranap_lai->pLMNidentity.size < 3)
+		return -EINVAL;
+	osmo_plmn_from_bcd(ranap_lai->pLMNidentity.buf, &lai->plmn);
+	lai->lac = asn1str_to_u16(&ranap_lai->lAC);
+	return 0;
+}
+
+static int rai_from_RANAP_PagingAreaID(struct osmo_routing_area_id *rai, const RANAP_PagingAreaID_t *paid)
+{
+	switch (paid->present) {
+	case RANAP_PagingAreaID_PR_NOTHING:
+		break;
+	case RANAP_PagingAreaID_PR_lAI:
+		return lai_from_RANAP_RANAP_LAI(&rai->lac, &paid->choice.lAI);
+	case RANAP_PagingAreaID_PR_rAI:
+		rai->rac = asn1str_to_u8(&paid->choice.rAI.rAC);
+		return lai_from_RANAP_RANAP_LAI(&rai->lac, &paid->choice.rAI.lAI);
+	}
+	return 0;
+}
+
+/* 3GPP TS 25.413 8.15 */
 static int cn_ranap_rx_paging_cmd(struct hnbgw_cnlink *cnlink,
 				  RANAP_InitiatingMessage_t *imsg,
 				  const uint8_t *data, unsigned int len)
 {
+	RANAP_PagingIEs_t ies;
+	RANAP_CN_DomainIndicator_t domain;
 	const char *errmsg;
 	struct hnb_context *hnb;
 	bool is_ps = cnlink->pool->domain == DOMAIN_PS;
+	bool forwarded = false;
+	bool page_area_present;
+	struct osmo_routing_area_id page_rai = {};
 
-	errmsg = cnlink_paging_add_ranap(cnlink, imsg);
-	if (errmsg) {
-		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Rx Paging from CN: %s. Dropping paging record."
-			   " Later on, the Paging Response may be forwarded to the wrong CN peer.\n",
-			   errmsg);
+	if (ranap_decode_pagingies(&ies, &imsg->value) < 0) {
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR,
+			   "Rx Paging from CN: decoding RANAP IEs failed\n");
 		return -1;
 	}
+	domain = ies.cN_DomainIndicator;
+	page_area_present = (ies.presenceMask & PAGINGIES_RANAP_PAGINGAREAID_PRESENT);
 
-	/* FIXME: determine which HNBs to send this Paging command,
-	 * rather than broadcasting to all HNBs */
+	if (cnlink->pool->domain != domain) {
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR,
+			   "Rx Paging from CN: message indicates domain %s, but cnlink is on domain %s\n",
+			   ranap_domain_name(domain),
+			   ranap_domain_name(cnlink->pool->domain));
+		goto free_ies_ret;
+	}
+
+	if (page_area_present) {
+		if (rai_from_RANAP_PagingAreaID(&page_rai, &ies.pagingAreaID) < 0) {
+			LOG_CNLINK(cnlink, DCN, LOGL_ERROR,
+				   "Rx Paging from CN: decoding RANAP IE Paging Area ID failed, broadcasting to all HNBs\n");
+			/* fail over to broadcast... */
+			page_area_present = false;
+		}
+	}
+
+	LOG_CNLINK(cnlink, DCN, LOGL_DEBUG,
+		   "Rx Paging from CN: %s PagingAreaID: %s %s\n",
+		   ranap_domain_name(domain),
+		   page_area_present ?
+			get_value_string(ranap_paging_area_id_names, ies.pagingAreaID.present) :
+			"NOT_PRESENT",
+		   osmo_rai_name2(&page_rai)
+		);
+
 	llist_for_each_entry(hnb, &g_hnbgw->hnb_list, list) {
 		if (!hnb->hnb_registered)
 			continue;
+		if (page_area_present &&
+		    !hnb_paging_area_id_match(hnb, ies.pagingAreaID.present, &page_rai))
+			continue;
+
 		if (is_ps)
 			HNBP_CTR_INC(hnb->persistent, HNB_CTR_PS_PAGING_ATTEMPTED);
 		else
 			HNBP_CTR_INC(hnb->persistent, HNB_CTR_CS_PAGING_ATTEMPTED);
-		rua_tx_udt(hnb, data, len);
+		if (rua_tx_udt(hnb, data, len) == 0)
+			forwarded = true;
 	}
 
+	if (forwarded) {
+		/* If Paging command was forwarded anywhere, store a record for it, to match paging response: */
+		errmsg = cnlink_paging_add_ranap(cnlink, &ies);
+		if (errmsg) {
+			LOG_CNLINK(cnlink, DCN, LOGL_ERROR,
+				   "Rx Paging from CN: %s. Skip storing paging record."
+				   " Later on, the Paging Response may be forwarded to the wrong CN peer.\n",
+				   errmsg);
+			goto free_ies_ret;
+		}
+	}
+	ranap_free_pagingies(&ies);
 	return 0;
+
+free_ies_ret:
+	ranap_free_pagingies(&ies);
+	return -1;
 }
 
 static int ranap_rx_udt_dl_initiating_msg(struct hnbgw_cnlink *cnlink,

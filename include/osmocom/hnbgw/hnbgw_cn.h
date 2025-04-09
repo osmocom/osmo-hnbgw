@@ -25,7 +25,7 @@ void cnlink_rx_reset_ack(struct hnbgw_cnlink *cnlink);
 void cnlink_resend_reset(struct hnbgw_cnlink *cnlink);
 void cnlink_set_disconnected(struct hnbgw_cnlink *cnlink);
 
-const char *cnlink_paging_add_ranap(struct hnbgw_cnlink *cnlink, RANAP_InitiatingMessage_t *imsg);
+const char *cnlink_paging_add_ranap(struct hnbgw_cnlink *cnlink, const RANAP_PagingIEs_t *paging_ies);
 struct hnbgw_cnlink *cnlink_find_by_paging_mi(struct hnbgw_cnpool *cnpool, const struct osmo_mobile_identity *mi);
 
 enum hnbgw_cnpool_ctr {
