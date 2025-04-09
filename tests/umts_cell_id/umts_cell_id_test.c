@@ -68,7 +68,7 @@ struct test tests[] = {
 	},
 
 	{
-		.id_str = "999-999-L65534-R65535-S65535-C268435455",
+		.id_str = "999-999-L65534-R255-S65535-C268435455",
 		.id = {
 			.plmn = {
 				.mcc = 999,
@@ -76,7 +76,7 @@ struct test tests[] = {
 				.mnc_3_digits = true,
 			},
 			.lac = 65534,
-			.rac = 65535,
+			.rac = 255,
 			.sac = 65535,
 			.cid = (1 << 28) - 1,
 		},
@@ -92,7 +92,7 @@ struct test tests[] = {
 	},
 	/* TODO? There is no bounds checking on RAC and SAC.
 	{
-		.id_str = "001-001-L1-R65536-S1-C1",
+		.id_str = "001-001-L1-R256-S1-C1",
 		.expect_rc = -EINVAL,
 	},
 	{

@@ -19,6 +19,8 @@
  *
  */
 
+#include <inttypes.h>
+
 #include <netinet/in.h>
 #include <netinet/sctp.h>
 
@@ -207,7 +209,8 @@ int umts_cell_id_from_str(struct umts_cell_id *ucid, const char *instr)
 	pos = end + 1;
 
 	/* parse the rest, where leading zeros do not matter */
-	rc = sscanf(pos, "L%hu-R%hu-S%hu-C%u", &ucid->lac, &ucid->rac, &ucid->sac, &ucid->cid);
+	rc = sscanf(pos, "L%" SCNu16 "-R%" SCNu8 "-S%" SCNu16 "-C%" SCNu32 "",
+		    &ucid->lac, &ucid->rac, &ucid->sac, &ucid->cid);
 	if (rc < 0)
 		return -errno;
 

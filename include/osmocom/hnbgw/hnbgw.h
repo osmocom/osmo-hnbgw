@@ -174,7 +174,7 @@ enum hnb_stat {
 struct umts_cell_id {
 	struct osmo_plmn_id plmn;	/*!< Mobile Country Code and Mobile Network Code (000-00 to 999-999) */
 	uint16_t lac;	/*!< Locaton Area Code (1-65534) */
-	uint16_t rac;	/*!< Routing Area Code (0-255) */
+	uint8_t rac;	/*!< Routing Area Code (0-255) */
 	uint16_t sac;	/*!< Service Area Code */
 	uint32_t cid;	/*!< Cell ID */
 };

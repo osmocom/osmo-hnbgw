@@ -18,10 +18,10 @@
   -> umts_cell_id_to_str_buf(): ok
   -> "001-99-L1-R1-S1-C1"
   umts_cell_id_equal(expected, parsed): ok
-"999-999-L65534-R65535-S65535-C268435455"
+"999-999-L65534-R255-S65535-C268435455"
   -> umts_cell_id_from_str(): ok
   -> umts_cell_id_to_str_buf(): ok
-  -> "999-999-L65534-R65535-S65535-C268435455"
+  -> "999-999-L65534-R255-S65535-C268435455"
   umts_cell_id_equal(expected, parsed): ok
 "1000-001-L1-R1-S1-C1"
   expected rc != 0: ok
