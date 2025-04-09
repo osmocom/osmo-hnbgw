@@ -629,11 +629,12 @@ struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 	if (map->l3.gsm48_msg_type == GSM48_MT_RR_PAG_RESP) {
 		cnlink = cnlink_find_by_paging_mi(cnpool, &map->l3.mi);
 		if (cnlink) {
-			LOG_MAP(map, DCN, LOGL_INFO, "CN link paging record selects %s %d\n", cnpool->peer_name,
+			LOG_MAP(map, DCN, LOGL_INFO, "CN link paging response record selects %s %d\n", cnpool->peer_name,
 				cnlink->nr);
 			CNLINK_CTR_INC(cnlink, CNLINK_CTR_CNPOOL_SUBSCR_PAGED);
 			return cnlink;
 		}
+		LOG_MAP(map, DCN, LOGL_INFO, "CN link paging response didn't match any record on %s\n", cnpool->peer_name);
 		/* If there is no match, go on with other ways */
 	}
 
