@@ -276,10 +276,27 @@ static void map_rua_disconnected_onenter(struct osmo_fsm_inst *fi, uint32_t prev
 
 static void map_rua_disconnected_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
 {
-	struct msgb *ranap_msg = data;
-	if (msg_has_l2_data(ranap_msg))
-		LOGPFSML(fi, LOGL_NOTICE, "RUA not connected, cannot dispatch RANAP message\n");
-	/* Ignore all events. */
+	struct msgb *ranap_msg;
+
+	switch (event) {
+
+	case MAP_RUA_EV_TX_DIRECT_TRANSFER:
+		/* This can happen if CN is buggy, or in general if there was a race
+		 * condition between us forwarding the release towards CN (SCCP Release
+		 * or RANAP Iu-ReleaseComplete) and CN sendig whatever to us. */
+		ranap_msg = data;
+		if (msg_has_l2_data(ranap_msg)) {
+			LOGPFSML(fi, LOGL_NOTICE, "RUA already disconnected, skip forwarding DL RANAP msg (%u bytes)\n",
+				 msgb_l2len(ranap_msg));
+			LOGPFSML(fi, LOGL_DEBUG, "%s\n", osmo_hexdump(msgb_l2(ranap_msg), msgb_l2len(ranap_msg)));
+		}
+		break;
+
+	case MAP_RUA_EV_CN_DISC:
+	case MAP_RUA_EV_HNB_LINK_LOST:
+		/* Ignore events. */
+		break;
+	}
 }
 
 static void map_rua_disrupted_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state)
@@ -331,6 +348,7 @@ static const struct osmo_fsm_state map_rua_fsm_states[] = {
 	[MAP_RUA_ST_DISCONNECTED] = {
 		.name = "disconnected",
 		.in_event_mask = 0
+			| S(MAP_RUA_EV_TX_DIRECT_TRANSFER)
 			| S(MAP_RUA_EV_CN_DISC)
 			| S(MAP_RUA_EV_HNB_LINK_LOST)
 			,
