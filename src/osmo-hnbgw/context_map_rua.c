@@ -278,7 +278,7 @@ static void map_rua_disconnected_action(struct osmo_fsm_inst *fi, uint32_t event
 {
 	struct msgb *ranap_msg = data;
 	if (msg_has_l2_data(ranap_msg))
-		LOGPFSML(fi, LOGL_ERROR, "RUA not connected, cannot dispatch RANAP message\n");
+		LOGPFSML(fi, LOGL_NOTICE, "RUA not connected, cannot dispatch RANAP message\n");
 	/* Ignore all events. */
 }
 
