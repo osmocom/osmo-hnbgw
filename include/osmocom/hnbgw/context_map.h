@@ -30,16 +30,16 @@
  */
 enum map_rua_fsm_event {
 	/* Receiving a RUA Connect from HNB.
-	* Parameter: struct msgb *ranap_msg */
+	 * Parameter: struct msgb *ranap_msg */
 	MAP_RUA_EV_RX_CONNECT,
 	/* Receiving some data from HNB via RUA, to forward via SCCP to CN.
-	* Parameter: struct msgb *ranap_msg */
+	 * Parameter: struct msgb *ranap_msg */
 	MAP_RUA_EV_RX_DIRECT_TRANSFER,
 	/* Receiving a RUA Disconnect from HNB.
-	* Parameter: struct msgb *ranap_msg (can be NULL) */
+	 * Parameter: struct msgb *ranap_msg (can be NULL) */
 	MAP_RUA_EV_RX_DISCONNECT,
 	/* SCCP has received some data from CN to forward via RUA to HNB.
-	* Parameter: struct msgb *ranap_msg */
+	 * Parameter: struct msgb *ranap_msg */
 	MAP_RUA_EV_TX_DIRECT_TRANSFER,
 	/* The CN side is disconnected (e.g. received an SCCP Released), that means we are going gracefully disconnect
 	 * RUA, too. */
