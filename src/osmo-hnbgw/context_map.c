@@ -125,7 +125,7 @@ int context_map_set_cnlink(struct hnbgw_context_map *map, struct hnbgw_cnlink *c
 
 	hash_add(hsu->hnbgw_context_map_by_conn_id, &map->hnbgw_sccp_user_entry, new_scu_conn_id);
 
-	LOGP(DRUA, LOGL_NOTICE, "New conn: %s '%s' RUA-%u <-> SCCP-%u %s%s%s %s l=%s<->r=%s\n",
+	LOGP(DRUA, LOGL_INFO, "New conn: %s '%s' RUA-%u <-> SCCP-%u %s%s%s %s l=%s<->r=%s\n",
 	     osmo_sock_get_name2_c(OTC_SELECT, osmo_stream_srv_get_ofd(map->hnb_ctx->conn)->fd),
 	     hnb_context_name(map->hnb_ctx), map->rua_ctx_id,
 	     new_scu_conn_id,
