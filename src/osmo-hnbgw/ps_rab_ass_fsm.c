@@ -441,7 +441,7 @@ int hnbgw_gtpmap_rx_rab_ass_resp(struct hnbgw_context_map *map, struct msgb *ran
 		return -1;
 	}
 
-	LOG_PS_RAB_ASS(rab_ass, LOGL_NOTICE, "PS RAB-AssignmentResponse received, updating RABs\n");
+	LOG_PS_RAB_ASS(rab_ass, LOGL_INFO, "PS RAB-AssignmentResponse received, updating RABs\n");
 
 	/* Multiple RABs may be set up, bump matching FSMs in list rab_ass->ps_rabs. */
 	for (i = 0; i < ies->raB_SetupOrModifiedList.raB_SetupOrModifiedList_ies.list.count; i++) {
@@ -601,7 +601,7 @@ continue_cleanloop:
 		return;
 	}
 
-	LOG_PS_RAB_ASS(rab_ass, LOGL_NOTICE, "Sending RANAP PS RAB-AssignmentResponse with mapped GTP info\n");
+	LOG_PS_RAB_ASS(rab_ass, LOGL_INFO, "Sending RANAP PS RAB-AssignmentResponse with mapped GTP info\n");
 
 	rc = map_sccp_dispatch(rab_ass->map, MAP_SCCP_EV_TX_DATA_REQUEST, msg);
 	if (rc < 0) {
