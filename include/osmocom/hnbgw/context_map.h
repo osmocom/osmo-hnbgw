@@ -29,13 +29,17 @@
  * - The RANAP message shall be at msgb_l2().
  */
 enum map_rua_fsm_event {
-	/* Receiving a RUA Connect from HNB. */
+	/* Receiving a RUA Connect from HNB.
+	* Parameter: struct msgb *ranap_msg */
 	MAP_RUA_EV_RX_CONNECT,
-	/* Receiving some data from HNB via RUA, to forward via SCCP to CN. */
+	/* Receiving some data from HNB via RUA, to forward via SCCP to CN.
+	* Parameter: struct msgb *ranap_msg */
 	MAP_RUA_EV_RX_DIRECT_TRANSFER,
-	/* Receiving a RUA Disconnect from HNB. */
+	/* Receiving a RUA Disconnect from HNB.
+	* Parameter: struct msgb *ranap_msg (can be NULL) */
 	MAP_RUA_EV_RX_DISCONNECT,
-	/* SCCP has received some data from CN to forward via RUA to HNB. */
+	/* SCCP has received some data from CN to forward via RUA to HNB.
+	* Parameter: struct msgb *ranap_msg */
 	MAP_RUA_EV_TX_DIRECT_TRANSFER,
 	/* The CN side is disconnected (e.g. received an SCCP Released), that means we are going gracefully disconnect
 	 * RUA, too. */
@@ -52,9 +56,11 @@ enum map_rua_fsm_event {
 enum map_sccp_fsm_event {
 	/* Receiving an SCCP CC from CN. */
 	MAP_SCCP_EV_RX_CONNECTION_CONFIRM,
-	/* Receiving some data from CN via SCCP, to forward via RUA to HNB. */
+	/* Receiving some data from CN via SCCP, to forward via RUA to HNB.
+	 * Parameter: struct msgb *ranap_msg */
 	MAP_SCCP_EV_RX_DATA_INDICATION,
-	/* RUA has received some data from HNB to forward via SCCP to CN. */
+	/* RUA has received some data from HNB to forward via SCCP to CN.
+	 * Parameter: struct msgb *ranap_msg */
 	MAP_SCCP_EV_TX_DATA_REQUEST,
 	/* 3GPP TS 25.468 9.1.5: The RAN side received a RUA Disconnect.
 	 * - Under normal conditions (cause=Normal) the RUA Disconnect contains a RANAP Iu-ReleaseComplete.

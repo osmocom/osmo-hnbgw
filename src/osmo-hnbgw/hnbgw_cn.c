@@ -258,7 +258,8 @@ static void handle_pcstate_ind(struct hnbgw_sccp_user *hsu, const struct osmo_sc
 	}
 }
 
-/* Entry point for primitives coming up from SCCP User SAP */
+/* Entry point for primitives coming up from SCCP User SAP.
+ * Ownership of oph->msg is transferred to us. */
 static int sccp_sap_up(struct osmo_prim_hdr *oph, void *ctx)
 {
 	struct osmo_sccp_user *scu = ctx;

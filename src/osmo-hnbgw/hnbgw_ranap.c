@@ -252,7 +252,7 @@ ranap_message *hnbgw_decode_ranap_cn_co(struct msgb *ranap_msg)
 }
 
 /* Process a received RANAP PDU through SCCP DATA.ind coming from CN (MSC/SGSN)
- * Takes ownership of ranap_msg? */
+ * ranap_msg is owned by OTC_SELECT. */
 int hnbgw_ranap_rx_data_ul(struct hnbgw_context_map *map, struct msgb *ranap_msg)
 {
 	OSMO_ASSERT(map);
@@ -270,7 +270,7 @@ int hnbgw_ranap_rx_data_ul(struct hnbgw_context_map *map, struct msgb *ranap_msg
 			 * information, for RTP mapping via MGW, or GTP mapping via UPF. */
 			switch (message->procedureCode) {
 			case RANAP_ProcedureCode_id_RAB_Assignment:
-				/* mgw_fsm_handle_rab_ass_resp() takes ownership of prim->oph and (ranap) message */
+				/* mgw_fsm_handle_rab_ass_resp() may take ownership of "ranap_msg" (prim->oph) and "message" */
 				return mgw_fsm_handle_cs_rab_ass_resp(map, ranap_msg, message);
 			}
 		} else {
@@ -279,7 +279,7 @@ int hnbgw_ranap_rx_data_ul(struct hnbgw_context_map *map, struct msgb *ranap_msg
 				/* map->is_ps == true and PFCP is enabled in osmo-hnbgw.cfg */
 				switch (message->procedureCode) {
 				case RANAP_ProcedureCode_id_RAB_Assignment:
-					/* ps_rab_ass_fsm takes ownership of prim->oph and RANAP message */
+					/* ps_rab_ass_fsm() may take ownership of "ranap_msg" (prim->oph) and "message" */
 					return hnbgw_gtpmap_rx_rab_ass_resp(map, ranap_msg, message);
 				}
 			}
@@ -617,7 +617,7 @@ static ranap_message *hnbgw_decode_ranap_ran_co(struct msgb *ranap_msg)
 }
 
 /* Process a received RANAP PDU through SCCP DATA.ind coming from CN (MSC/SGSN)
- * Takes ownership of ranap_msg? */
+ * ranap_msg is owned by OTC_SELECT. */
 int hnbgw_ranap_rx_data_dl(struct hnbgw_context_map *map, struct msgb *ranap_msg)
 {
 	OSMO_ASSERT(map);
