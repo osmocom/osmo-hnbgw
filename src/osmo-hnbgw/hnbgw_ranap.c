@@ -627,8 +627,6 @@ int hnbgw_ranap_rx_data_dl(struct hnbgw_context_map *map, struct msgb *ranap_msg
 	 * information, for RTP mapping via MGW, or GTP mapping via UPF. */
 	ranap_message *message = hnbgw_decode_ranap_ran_co(ranap_msg);
 	if (message) {
-		talloc_set_destructor(message, destruct_ranap_ran_rx_co_ies);
-
 		LOG_MAP(map, DCN, LOGL_DEBUG, "rx from SCCP: RANAP %s\n",
 			get_value_string(ranap_procedure_code_vals, message->procedureCode));
 
