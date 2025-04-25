@@ -271,7 +271,7 @@ static int rua_to_scu(struct hnb_context *hnb,
 		/* A Connect message can only be the first message for an unused RUA context */
 		if (map) {
 			/* Already established this RUA context. But then how can it be a Connect message. */
-			LOGHNB(hnb, DRUA, LOGL_ERROR, "rx RUA %s for already active RUA context %u\n",
+			LOGHNB(hnb, DRUA, LOGL_NOTICE, "rx RUA %s for already active RUA context %u\n",
 			       rua_procedure_code_name(rua_procedure), context_id);
 			return -EINVAL;
 		}
@@ -300,7 +300,7 @@ static int rua_to_scu(struct hnb_context *hnb,
 	default:
 		/* Any message other than Connect must have a valid RUA context */
 		if (!map) {
-			LOGHNB(hnb, DRUA, LOGL_ERROR, "rx RUA %s for unknown RUA context %u\n",
+			LOGHNB(hnb, DRUA, LOGL_NOTICE, "rx RUA %s for unknown RUA context %u\n",
 			       rua_procedure_code_name(rua_procedure), context_id);
 			rua_tx_disc_conn_fail(hnb, is_ps, context_id);
 			return -EINVAL;
