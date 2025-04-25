@@ -846,9 +846,9 @@ int handle_cs_rab_ass_req(struct hnbgw_context_map *map, struct msgb *ranap_msg,
 	 * into account under the assumption that voice calls typically require a single RAB only. Nevertheless, we
 	 * will block all incoming RAB assignments that try to assign more (or less) than one RAB. */
 	if (ranap_rab_ass_req_ies_get_count(&message->msg.raB_AssignmentRequestIEs) != 1) {
-		LOGP(DMGW, LOGL_ERROR,
-		     "%s() rua_ctx_id=%d, RAB-AssignmentRequest with more than one RAB assignment -- abort!\n",
-		     __func__, map->rua_ctx_id);
+		LOG_MAP(map, DMGW, LOGL_ERROR,
+			"%s() RAB-AssignmentRequest with more than one RAB assignment -- abort!\n",
+			__func__);
 		tx_release_req(map);
 		return -1;
 	}
@@ -886,9 +886,9 @@ int mgw_fsm_handle_cs_rab_ass_resp(struct hnbgw_context_map *map, struct msgb *r
 		/* NOTE: This situation is a corner-case. We may end up here when the co-located MGW caused a problem
 		 * on the way between RANAP RAB Assignment Request and RANAP RAB Assignment Response. */
 
-		LOGP(DMGW, LOGL_ERROR,
-		     "%s() rua_ctx_id=%d, no MGW fsm -- sending Iu-Release-Request!\n",
-		     __func__, map->rua_ctx_id);
+		LOG_MAP(map, DMGW, LOGL_ERROR,
+			"%s() no MGW fsm -- sending Iu-Release-Request!\n",
+			__func__);
 
 		/* Send a release request, to make sure that the MSC is aware of the problem. */
 		tx_release_req(map);
