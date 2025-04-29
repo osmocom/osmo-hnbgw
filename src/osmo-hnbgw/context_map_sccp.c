@@ -80,7 +80,7 @@ void map_sccp_fsm_alloc(struct hnbgw_context_map *map)
 
 	OSMO_ASSERT(map->sccp_fi == NULL);
 	map->sccp_fi = fi;
-
+	INIT_LLIST_HEAD(&map->sccp_fi_ctx.wait_cc_tx_msg_list);
 	/* trigger the timeout */
 	map_sccp_fsm_state_chg(MAP_SCCP_ST_INIT);
 }
@@ -194,6 +194,20 @@ static int handle_rx_sccp(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 	return hnbgw_ranap_rx_data_dl(map, ranap_msg);
 }
 
+static void wait_cc_tx_msg_list_enqueue(struct hnbgw_context_map *map, struct msgb *ranap_msg)
+{
+	talloc_steal(map, ranap_msg);
+	msgb_enqueue(&map->sccp_fi_ctx.wait_cc_tx_msg_list, ranap_msg);
+}
+
+static struct msgb *wait_cc_tx_msg_list_dequeue(struct hnbgw_context_map *map)
+{
+	struct msgb *ranap_msg = msgb_dequeue(&map->sccp_fi_ctx.wait_cc_tx_msg_list);
+	if (ranap_msg)
+		talloc_steal(OTC_SELECT, ranap_msg);
+	return ranap_msg;
+}
+
 static void map_sccp_init_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
 {
 	struct msgb *ranap_msg = NULL;
@@ -247,8 +261,9 @@ static void map_sccp_wait_cc_action(struct osmo_fsm_inst *fi, uint32_t event, vo
 		return;
 
 	case MAP_SCCP_EV_TX_DATA_REQUEST:
-		/* ranap_msg = data; */
-		LOGPFSML(fi, LOGL_ERROR, "Connection not yet confirmed, cannot forward RANAP to CN\n");
+		ranap_msg = data;
+		LOGPFSML(fi, LOGL_INFO, "Caching RANAP msg from RUA while waiting for SCCP CC\n");
+		wait_cc_tx_msg_list_enqueue(map, ranap_msg);
 		return;
 
 	case MAP_SCCP_EV_RAN_LINK_LOST:
@@ -280,9 +295,15 @@ static void map_sccp_wait_cc_action(struct osmo_fsm_inst *fi, uint32_t event, vo
 static void map_sccp_connected_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state)
 {
 	struct hnbgw_context_map *map = fi->priv;
+	struct msgb *ranap_msg;
+
+	/* Now that SCCP conn is confirmed, forward pending msgs received from RUA side: */
+	while ((ranap_msg = wait_cc_tx_msg_list_dequeue(map)))
+		tx_sccp_df1(fi, ranap_msg);
+
 	if (map->please_disconnect) {
-		/* SCCP has already been asked to disconnect, so disconnect now that the CC has been received. Send RLSD
-		 * to SCCP (without RANAP data) */
+		/* SCCP has already been asked to disconnect, so disconnect now that the
+		 * CC has been received. Send RLSD to SCCP (without RANAP data) */
 		tx_sccp_rlsd(fi);
 		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
 	}
@@ -470,6 +491,7 @@ void map_sccp_fsm_cleanup(struct osmo_fsm_inst *fi, enum osmo_fsm_term_cause cau
 {
 	struct hnbgw_context_map *map = fi->priv;
 	map->sccp_fi = NULL;
+	msgb_queue_free(&map->sccp_fi_ctx.wait_cc_tx_msg_list);
 }
 
 #define S(x)    (1 << (x))

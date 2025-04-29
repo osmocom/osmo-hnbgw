@@ -168,6 +168,12 @@ struct hnbgw_context_map {
 	uint32_t scu_conn_id;
 	/* FSM handling the SCCP state for scu_conn_id. */
 	struct osmo_fsm_inst *sccp_fi;
+	/* State context related to field sccp_fi above: */
+	struct {
+		/* List of cached packets received from RUA and to be forwarded
+		once SCCP CReq is CC'ed and move to CONNECTED state. */
+		struct llist_head wait_cc_tx_msg_list;
+	} sccp_fi_ctx;
 
 	/* False for CS, true for PS */
 	bool is_ps;
