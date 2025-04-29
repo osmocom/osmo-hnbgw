@@ -54,13 +54,14 @@ enum map_rua_fsm_event {
  *   MAP_SCCP_EV_TX_DATA_REQUEST, MAP_SCCP_EV_RAN_DISC.
  */
 enum map_sccp_fsm_event {
-	/* Receiving an SCCP CC from CN. */
+	/* Receiving an SCCP CC from CN.
+	 * Parameter: struct msgb *ranap_msg, may be NULL or empty. */
 	MAP_SCCP_EV_RX_CONNECTION_CONFIRM,
 	/* Receiving some data from CN via SCCP, to forward via RUA to HNB.
-	 * Parameter: struct msgb *ranap_msg */
+	 * Parameter: struct msgb *ranap_msg, may be NULL or empty. */
 	MAP_SCCP_EV_RX_DATA_INDICATION,
 	/* RUA has received some data from HNB to forward via SCCP to CN.
-	 * Parameter: struct msgb *ranap_msg */
+	 * Parameter: struct msgb *ranap_msg. */
 	MAP_SCCP_EV_TX_DATA_REQUEST,
 	/* 3GPP TS 25.468 9.1.5: The RAN side received a RUA Disconnect.
 	 * - Under normal conditions (cause=Normal) the RUA Disconnect contains a RANAP Iu-ReleaseComplete.
@@ -75,15 +76,19 @@ enum map_sccp_fsm_event {
 	 *	      happened under error or normal conditions, as per the above.
 	 */
 	MAP_SCCP_EV_RAN_DISC,
-	/* The RAN released ungracefully. We will directly disconnect the SCCP connection, too. */
+	/* The RAN released ungracefully. We will directly disconnect the SCCP connection, too.
+	 * Parameter: no parameter, NULL. */
 	MAP_SCCP_EV_RAN_LINK_LOST,
-	/* Receiving an SCCP RLSD from CN, or libosmo-sigtran tells us about SCCP connection timeout. All done. */
+	/* Receiving an SCCP RLSD from CN, or libosmo-sigtran tells us about SCCP connection timeout. All done.
+	 * Parameter: struct msgb *ranap_msg, may be NULL or empty. */
 	MAP_SCCP_EV_RX_RELEASED,
 	/* The human admin asks to drop the current SCCP connection, by telnet VTY 'apply sccp' in presence of SCCP
-	 * config changes. */
+	 * config changes.
+	 * Parameter: no parameter, NULL. */
 	MAP_SCCP_EV_USER_ABORT,
 	/* The CN link can no longer work, for example a RANAP RESET was received from the cnlink that hosts this
-	 * context map. */
+	 * context map.
+	 * Parameter: no parameter, NULL. */
 	MAP_SCCP_EV_CN_LINK_LOST,
 };
 
