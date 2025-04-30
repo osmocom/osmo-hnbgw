@@ -186,7 +186,7 @@ void context_map_hnb_released(struct hnbgw_context_map *map)
 
 void context_map_cnlink_lost(struct hnbgw_context_map *map)
 {
-	map_sccp_dispatch(map, MAP_SCCP_EV_RAN_LINK_LOST, NULL);
+	map_sccp_dispatch(map, MAP_SCCP_EV_CN_LINK_LOST, NULL);
 }
 
 void context_map_free(struct hnbgw_context_map *map)

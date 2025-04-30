@@ -196,7 +196,6 @@ static int handle_rx_sccp(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 
 static void map_sccp_init_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
 {
-	struct hnbgw_context_map *map = fi->priv;
 	struct msgb *ranap_msg = NULL;
 
 	switch (event) {
@@ -212,10 +211,6 @@ static void map_sccp_init_action(struct osmo_fsm_inst *fi, uint32_t event, void 
 	case MAP_SCCP_EV_RAN_LINK_LOST:
 	case MAP_SCCP_EV_USER_ABORT:
 	case MAP_SCCP_EV_CN_LINK_LOST:
-		ranap_msg = data;
-		/* No CR has been sent yet, just go to disconnected state. */
-		if (msg_has_l2_data(ranap_msg))
-			LOG_MAP(map, DLSCCP, LOGL_ERROR, "SCCP not connected, cannot dispatch RANAP message\n");
 		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
 		return;
 
@@ -259,10 +254,6 @@ static void map_sccp_wait_cc_action(struct osmo_fsm_inst *fi, uint32_t event, vo
 	case MAP_SCCP_EV_RAN_LINK_LOST:
 	case MAP_SCCP_EV_USER_ABORT:
 	case MAP_SCCP_EV_CN_LINK_LOST:
-		ranap_msg = data;
-		/* RUA connection was terminated. First wait for the CC before releasing the SCCP conn. */
-		if (msg_has_l2_data(ranap_msg))
-			LOGPFSML(fi, LOGL_ERROR, "Connection not yet confirmed, cannot forward RANAP to CN\n");
 		map->please_disconnect = true;
 		return;
 
@@ -341,12 +332,7 @@ static void map_sccp_connected_action(struct osmo_fsm_inst *fi, uint32_t event, 
 	case MAP_SCCP_EV_USER_ABORT:
 		/* The user is asking for disconnection, so there is no Iu Release in progress. Disconnect now. */
 	case MAP_SCCP_EV_CN_LINK_LOST:
-		ranap_msg = data;
 		/* The CN peer has sent a RANAP RESET, so the old link that this map ran on is lost */
-
-		/* There won't be any ranap_msg, but if a caller wants to dispatch a msg, forward it before
-		 * disconnecting. */
-		tx_sccp_df1(fi, ranap_msg);
 		tx_sccp_rlsd(fi);
 		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
 		return;
