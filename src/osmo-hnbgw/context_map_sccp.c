@@ -360,9 +360,7 @@ static void map_sccp_connected_action(struct osmo_fsm_inst *fi, uint32_t event, 
 
 	case MAP_SCCP_EV_RX_RELEASED:
 		ranap_msg = data;
-		/* The CN sends an N-Disconnect (SCCP Released) out of the usual sequence. Not what we expected, but
-		 * handle it. */
-		LOGPFSML(fi, LOGL_ERROR, "CN sends SCCP Released sooner than expected\n");
+		/* The CN sends an N-Disconnect (SCCP Released). */
 		handle_rx_sccp(fi, ranap_msg);
 		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
 		return;
