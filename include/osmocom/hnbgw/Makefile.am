@@ -6,6 +6,7 @@ noinst_HEADERS = \
 	hnbgw_pfcp.h \
 	hnbgw_ranap.h \
 	hnbgw_rua.h \
+	hnbgw_sccp.h \
 	kpi.h \
 	mgw_fsm.h \
 	nft_kpi.h \

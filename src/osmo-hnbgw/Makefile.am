@@ -37,6 +37,7 @@ libhnbgw_la_SOURCES = \
 	hnbgw_l3.c \
 	hnbgw_rua.c \
 	hnbgw_ranap.c \
+	hnbgw_sccp.c \
 	hnbgw_vty.c \
 	context_map.c \
 	context_map_rua.c \

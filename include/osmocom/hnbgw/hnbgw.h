@@ -8,7 +8,6 @@
 #include <osmocom/core/rate_ctr.h>
 #include <osmocom/core/sockaddr_str.h>
 #include <osmocom/gsm/gsm23003.h>
-#include <osmocom/sigtran/sccp_sap.h>
 #include <osmocom/sigtran/osmo_ss7.h>
 #include <osmocom/ctrl/control_if.h>
 #include <osmocom/ranap/RANAP_CN-DomainIndicator.h>
@@ -20,6 +19,7 @@
 #include <osmocom/mgcp_client/mgcp_client_pool.h>
 
 #include <osmocom/hnbgw/nft_kpi.h>
+#include <osmocom/hnbgw/hnbgw_sccp.h>
 
 #define STORE_UPTIME_INTERVAL	10 /* seconds */
 #define HNB_STORE_RAB_DURATIONS_INTERVAL 1 /* seconds */
@@ -201,32 +201,6 @@ static inline bool umts_cell_id_equal(const struct umts_cell_id *a, const struct
 }
 
 struct hnbgw_context_map;
-
-/* osmo-hnbgw keeps a single hnbgw_sccp_user per osmo_sccp_instance, for the local point-code and SSN == RANAP.
- * This relates the (opaque) osmo_sccp_user to osmo-hnbgw's per-ss7 state. */
-struct hnbgw_sccp_user {
-	/* entry in g_hnbgw->sccp.users */
-	struct llist_head entry;
-
-	/* logging context */
-	char *name;
-
-	/* Which 'cs7 instance' is this for? Below sccp_user is registered at the osmo_sccp_instance ss7->sccp. */
-	struct osmo_ss7_instance *ss7;
-
-	/* Local address: cs7 instance's primary PC if present, else the default HNBGW PC; with SSN == RANAP. */
-	struct osmo_sccp_addr local_addr;
-
-	/* osmo_sccp API state for above local address on above ss7 instance. */
-	struct osmo_sccp_user *sccp_user;
-
-	/* Fast access to the hnbgw_context_map responsible for a given SCCP conn_id of the ss7->sccp instance.
-	 * hlist_node: hnbgw_context_map->hnbgw_sccp_user_entry. */
-	DECLARE_HASHTABLE(hnbgw_context_map_by_conn_id, 6);
-};
-
-#define LOG_HSI(HNBGW_SCCP_INST, SUBSYS, LEVEL, FMT, ARGS...) \
-	LOGP(SUBSYS, LEVEL, "(%s) " FMT, (HNBGW_SCCP_INST) ? (HNBGW_SCCP_INST)->name : "null", ##ARGS)
 
 /* User provided configuration for struct hnbgw_cnpool. */
 struct hnbgw_cnpool_cfg {
