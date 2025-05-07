@@ -461,6 +461,28 @@ static const struct rate_ctr_desc cnlink_ctr_description[] = {
 		"RANAP Unitdata RESET ACK messages transmitted",
 	},
 
+	/* SCCP Counters: */
+	[CNLINK_CTR_SCCP_N_UNITDATA_IND] = {
+		"sccp:n_unit_data:ind",
+		"Received SCCP N-UNITDATA.ind (DL)"
+	},
+	[CNLINK_CTR_SCCP_N_CONNECT_CNF] = {
+		"sccp:n_connect:cnf",
+		"Received SCCP N-CONNECT.cnf (DL SCCP CC)"
+	},
+	[CNLINK_CTR_SCCP_N_DATA_IND] = {
+		"sccp:n_data:ind",
+		"Received SCCP N-DATA.ind (DL)"
+	},
+	[CNLINK_CTR_SCCP_N_DISCONNECT_IND] = {
+		"sccp:n_disconnect:ind",
+		"Received SCCP N-DISCONNECT.ind (DL SCCP RLSD)"
+	},
+	[CNLINK_CTR_SCCP_N_PCSTATE_IND] = {
+		"sccp:n_pcstate:ind",
+		"Received SCCP N-PCSTATE.ind"
+	},
+
 	/* Indicators for CN pool usage */
 	[CNLINK_CTR_CNPOOL_SUBSCR_NEW] = {
 		"cnpool:subscr:new",

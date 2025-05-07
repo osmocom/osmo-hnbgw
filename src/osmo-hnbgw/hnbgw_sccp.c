@@ -100,6 +100,8 @@ static int handle_cn_unitdata(struct hnbgw_sccp_user *hsu,
 	if (!cnlink)
 		return -ENOENT;
 
+	CNLINK_CTR_INC(cnlink, CNLINK_CTR_SCCP_N_UNITDATA_IND);
+
 	if (param->called_addr.ssn != OSMO_SCCP_SSN_RANAP) {
 		LOGP(DCN, LOGL_NOTICE, "N-UNITDATA.ind for unknown SSN %u\n",
 			param->called_addr.ssn);
@@ -124,6 +126,8 @@ static int handle_cn_conn_conf(struct hnbgw_sccp_user *hsu,
 	     cnlink_sccp_addr_to_str(map->cnlink, &param->called_addr),
 	     cnlink_sccp_addr_to_str(map->cnlink, &param->calling_addr),
 	     cnlink_sccp_addr_to_str(map->cnlink, &param->responding_addr));
+
+	CNLINK_CTR_INC(map->cnlink, CNLINK_CTR_SCCP_N_CONNECT_CNF);
 
 	map_sccp_dispatch(map, MAP_SCCP_EV_RX_CONNECTION_CONFIRM, oph->msg);
 	return 0;
@@ -157,6 +161,8 @@ static int handle_cn_disc_ind(struct hnbgw_sccp_user *hsu,
 	     param->conn_id,
 	     cnlink_sccp_addr_to_str(map->cnlink, &param->responding_addr),
 	     osmo_sua_sccp_cause_name(param->cause, cause_buf, sizeof(cause_buf)));
+
+	CNLINK_CTR_INC(map->cnlink, CNLINK_CTR_SCCP_N_DISCONNECT_IND);
 
 	return map_sccp_dispatch(map, MAP_SCCP_EV_RX_RELEASED, oph->msg);
 }
@@ -203,6 +209,8 @@ static void handle_pcstate_ind(struct hnbgw_sccp_user *hsu, const struct osmo_sc
 	cnlink = cnlink_find_by_remote_pc(cs7, pcst->affected_pc);
 	if (!cnlink)
 		return;
+
+	CNLINK_CTR_INC(cnlink, CNLINK_CTR_SCCP_N_PCSTATE_IND);
 
 	/* See if this marks the point code to have become available, or to have been lost.
 	 *
