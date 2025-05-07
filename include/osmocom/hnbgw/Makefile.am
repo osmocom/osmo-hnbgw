@@ -1,4 +1,5 @@
 noinst_HEADERS = \
+	cnlink.h \
 	context_map.h \
 	hnbgw.h \
 	hnbgw_cn.h \

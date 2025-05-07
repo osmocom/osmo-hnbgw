@@ -19,7 +19,8 @@
 #include <osmocom/mgcp_client/mgcp_client_pool.h>
 
 #include <osmocom/hnbgw/nft_kpi.h>
-#include <osmocom/hnbgw/hnbgw_sccp.h>
+#include <osmocom/hnbgw/cnlink.h>
+#include <osmocom/hnbgw/hnbgw_cn.h>
 
 #define STORE_UPTIME_INTERVAL	10 /* seconds */
 #define HNB_STORE_RAB_DURATIONS_INTERVAL 1 /* seconds */
@@ -202,93 +203,6 @@ static inline bool umts_cell_id_equal(const struct umts_cell_id *a, const struct
 
 struct hnbgw_context_map;
 
-/* User provided configuration for struct hnbgw_cnpool. */
-struct hnbgw_cnpool_cfg {
-	uint8_t nri_bitlen;
-	struct osmo_nri_ranges *null_nri_ranges;
-};
-
-/* User provided configuration for struct hnbgw_cnlink. */
-struct hnbgw_cnlink_cfg {
-	/* cs7 address book entry to indicate both the remote point-code of the peer, as well as which cs7 instance to
-	 * use. */
-	char *remote_addr_name;
-
-	struct osmo_nri_ranges *nri_ranges;
-};
-
-/* Collection of CN peers to distribute UE connections across. MSCs for DOMAIN_CS, SGSNs for DOMAIN_PS. */
-struct hnbgw_cnpool {
-	RANAP_CN_DomainIndicator_t domain;
-
-	/* CN pool string used in VTY config and logging, "iucs" or "iups". */
-	const char *pool_name;
-	/* CN peer string used in VTY config and logging, "msc" or "sgsn". */
-	const char *peer_name;
-	/* What we use as the remote MSC/SGSN point-code if the user does not configure any address. */
-	uint32_t default_remote_pc;
-
-	struct hnbgw_cnpool_cfg vty;
-	struct hnbgw_cnpool_cfg use;
-
-	/* List of struct hnbgw_cnlink */
-	struct llist_head cnlinks;
-
-	unsigned int round_robin_next_nr;
-	/* Emergency calls potentially select a different set of MSCs, so to not mess up the normal round-robin
-	 * behavior, emergency calls need a separate round-robin counter. */
-	unsigned int round_robin_next_emerg_nr;
-
-	/* rate counter group that child hnbgw_cnlinks should use (points to msc_ctrg_desc or sgsn_ctrg_desc) */
-	const struct rate_ctr_group_desc *cnlink_ctrg_desc;
-
-	/* Running counters for this pool */
-	struct rate_ctr_group *ctrs;
-};
-
-#define CNPOOL_CTR_INC(cnpool, x) rate_ctr_inc2((cnpool)->ctrs, x)
-
-/* A CN peer, like 'msc 0' or 'sgsn 23' */
-struct hnbgw_cnlink {
-	struct llist_head entry;
-
-	/* backpointer to CS or PS CN pool. */
-	struct hnbgw_cnpool *pool;
-
-	struct osmo_fsm_inst *fi;
-
-	int nr;
-
-	struct hnbgw_cnlink_cfg vty;
-	struct hnbgw_cnlink_cfg use;
-
-	/* To print in logging/VTY */
-	char *name;
-
-	/* Copy of the address book entry use.remote_addr_name. */
-	struct osmo_sccp_addr remote_addr;
-
-	/* The SCCP instance for the cs7 instance indicated by remote_addr_name. (Multiple hnbgw_cnlinks may use the
-	 * same hnbgw_sccp_user -- there is exactly one hnbgw_sccp_user per configured cs7 instance.) */
-	struct hnbgw_sccp_user *hnbgw_sccp_user;
-
-	/* linked list of hnbgw_context_map */
-	struct llist_head map_list;
-
-	bool allow_attach;
-	bool allow_emerg;
-	struct llist_head paging;
-
-	struct rate_ctr_group *ctrs;
-};
-
-#define LOG_CNLINK(CNLINK, SUBSYS, LEVEL, FMT, ARGS...) \
-	LOGP(SUBSYS, LEVEL, "(%s) " FMT, (CNLINK) ? (CNLINK)->name : "null", ##ARGS)
-
-#define CNLINK_CTR_INC(cnlink, x) rate_ctr_inc2((cnlink)->ctrs, x)
-
-struct hnbgw_cnlink *cnlink_get_nr(struct hnbgw_cnpool *cnpool, int nr, bool create_if_missing);
-
 static inline bool cnlink_is_cs(const struct hnbgw_cnlink *cnlink)
 {
 	return cnlink && cnlink->pool->domain == DOMAIN_CS;
@@ -297,17 +211,6 @@ static inline bool cnlink_is_cs(const struct hnbgw_cnlink *cnlink)
 static inline bool cnlink_is_ps(const struct hnbgw_cnlink *cnlink)
 {
 	return cnlink && cnlink->pool->domain == DOMAIN_PS;
-}
-
-static inline struct osmo_sccp_instance *cnlink_sccp(const struct hnbgw_cnlink *cnlink)
-{
-	if (!cnlink)
-		return NULL;
-	if (!cnlink->hnbgw_sccp_user)
-		return NULL;
-	if (!cnlink->hnbgw_sccp_user->ss7)
-		return NULL;
-	return osmo_ss7_get_sccp(cnlink->hnbgw_sccp_user->ss7);
 }
 
 /* The lifecycle of the hnb_context object is the same as its conn */
