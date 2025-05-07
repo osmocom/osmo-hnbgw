@@ -62,6 +62,7 @@ enum hnbgw_cnlink_ctr {
 	CNLINK_CTR_SCCP_N_DATA_IND,
 	CNLINK_CTR_SCCP_N_DISCONNECT_IND,
 	CNLINK_CTR_SCCP_N_PCSTATE_IND,
+	CNLINK_CTR_SCCP_RLSD_CN_ORIGIN,
 
 	/* Counters related to link selection from a CN pool. */
 	CNLINK_CTR_CNPOOL_SUBSCR_NEW,

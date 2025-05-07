@@ -482,6 +482,10 @@ static const struct rate_ctr_desc cnlink_ctr_description[] = {
 		"sccp:n_pcstate:ind",
 		"Received SCCP N-PCSTATE.ind"
 	},
+	[CNLINK_CTR_SCCP_RLSD_CN_ORIGIN] = {
+		"sccp:rlsd_cn_origin",
+		"Received unexpected SCCP RSLD originated unilaterally by CN"
+	},
 
 	/* Indicators for CN pool usage */
 	[CNLINK_CTR_CNPOOL_SUBSCR_NEW] = {

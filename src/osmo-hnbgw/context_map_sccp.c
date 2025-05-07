@@ -211,6 +211,7 @@ static struct msgb *wait_cc_tx_msg_list_dequeue(struct hnbgw_context_map *map)
 static void map_sccp_init_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
 {
 	struct msgb *ranap_msg = NULL;
+	struct hnbgw_context_map *map = fi->priv;
 
 	switch (event) {
 
@@ -238,6 +239,7 @@ static void map_sccp_init_action(struct osmo_fsm_inst *fi, uint32_t event, void 
 	case MAP_SCCP_EV_RX_RELEASED:
 		/* SCCP RLSD received from CN. This will never happen since we haven't even asked for a connection, but
 		 * for completeness: */
+		CNLINK_CTR_INC(map->cnlink, CNLINK_CTR_SCCP_RLSD_CN_ORIGIN);
 		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
 		return;
 
@@ -283,6 +285,7 @@ static void map_sccp_wait_cc_action(struct osmo_fsm_inst *fi, uint32_t event, vo
 		ranap_msg = data;
 		/* SCCP RLSD received from CN. This will never happen since we haven't even received a Connection
 		 * Confirmed, but for completeness: */
+		CNLINK_CTR_INC(map->cnlink, CNLINK_CTR_SCCP_RLSD_CN_ORIGIN);
 		handle_rx_sccp(fi, ranap_msg);
 		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
 		return;
@@ -311,6 +314,7 @@ static void map_sccp_connected_onenter(struct osmo_fsm_inst *fi, uint32_t prev_s
 
 static void map_sccp_connected_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
 {
+	struct hnbgw_context_map *map = fi->priv;
 	struct msgb *ranap_msg = NULL;
 	bool rua_disconnect_err_condition;
 
@@ -361,6 +365,7 @@ static void map_sccp_connected_action(struct osmo_fsm_inst *fi, uint32_t event, 
 	case MAP_SCCP_EV_RX_RELEASED:
 		ranap_msg = data;
 		/* The CN sends an N-Disconnect (SCCP Released). */
+		CNLINK_CTR_INC(map->cnlink, CNLINK_CTR_SCCP_RLSD_CN_ORIGIN);
 		handle_rx_sccp(fi, ranap_msg);
 		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
 		return;
