@@ -340,6 +340,87 @@ static int sccp_sap_up(struct osmo_prim_hdr *oph, void *ctx)
 	return rc;
 }
 
+/***********************************************************************
+ * Submit primitives to SCCP User SAP
+ ***********************************************************************/
+
+int hnbgw_sccp_user_tx_unitdata_req(struct hnbgw_sccp_user *hsu, const struct osmo_sccp_addr *called_addr, struct msgb *ranap_msg)
+{
+	if (!hsu) {
+		LOGP(DCN, LOGL_ERROR, "Failed to send SCCP N-UNITDATA.req: no SCCP User\n");
+		return -1;
+	}
+	OSMO_ASSERT(called_addr);
+	return osmo_sccp_tx_unitdata_msg(hsu->sccp_user,
+					 &hsu->local_addr,
+					 called_addr,
+					 ranap_msg);
+}
+
+int hnbgw_sccp_user_tx_connect_req(struct hnbgw_sccp_user *hsu, const struct osmo_sccp_addr *called_addr, uint32_t scu_conn_id, struct msgb *ranap_msg)
+{
+	struct osmo_scu_prim *prim;
+	int rc;
+
+	if (!hsu) {
+		LOGP(DCN, LOGL_ERROR, "Failed to send SCCP N-CONNECT.req(%u): no SCCP User\n", scu_conn_id);
+		return -1;
+	}
+
+	OSMO_ASSERT(called_addr);
+
+	prim = (struct osmo_scu_prim *)msgb_push(ranap_msg, sizeof(*prim));
+	osmo_prim_init(&prim->oph, SCCP_SAP_USER, OSMO_SCU_PRIM_N_CONNECT, PRIM_OP_REQUEST, ranap_msg);
+	prim->u.connect.called_addr = *called_addr;
+	prim->u.connect.calling_addr = hsu->local_addr;
+	prim->u.connect.sccp_class = 2;
+	prim->u.connect.conn_id = scu_conn_id;
+
+	rc = osmo_sccp_user_sap_down_nofree(hsu->sccp_user, &prim->oph);
+	if (rc)
+		LOG_HSU(hsu, DCN, LOGL_ERROR, "Failed to send SCCP Connection Request to CN\n");
+	return rc;
+}
+
+int hnbgw_sccp_user_tx_data_req(struct hnbgw_sccp_user *hsu, uint32_t scu_conn_id, struct msgb *ranap_msg)
+{
+	struct osmo_scu_prim *prim;
+	int rc;
+
+	if (!hsu) {
+		LOGP(DCN, LOGL_ERROR, "Failed to send SCCP N-DATA.req(%u): no SCCP User\n", scu_conn_id);
+		return -1;
+	}
+
+	prim = (struct osmo_scu_prim *)msgb_push(ranap_msg, sizeof(*prim));
+	osmo_prim_init(&prim->oph, SCCP_SAP_USER, OSMO_SCU_PRIM_N_DATA, PRIM_OP_REQUEST, ranap_msg);
+	prim->u.data.conn_id = scu_conn_id;
+
+	rc = osmo_sccp_user_sap_down_nofree(hsu->sccp_user, &prim->oph);
+	if (rc)
+		LOG_HSU(hsu, DCN, LOGL_ERROR, "Failed to send SCCP N-DATA.req(%u)\n", scu_conn_id);
+	return rc;
+}
+
+int hnbgw_sccp_user_tx_disconnect_req(struct hnbgw_sccp_user *hsu, uint32_t scu_conn_id)
+{
+	int rc;
+
+	if (!hsu) {
+		LOGP(DCN, LOGL_ERROR, "Failed to send SCCP N-DISCONNECT.req(%u): no SCCP User\n", scu_conn_id);
+		return -1;
+	}
+
+	rc = osmo_sccp_tx_disconn(hsu->sccp_user, scu_conn_id, NULL, 0);
+	if (rc)
+		LOG_HSU(hsu, DCN, LOGL_ERROR, "Failed to send SCCP N-DISCONNECT.req(%u)\n", scu_conn_id);
+	return rc;
+}
+
+/***********************************************************************
+ * struct hnbgw_sccp_user lifecycle:
+ ***********************************************************************/
+
 static int hnbgw_sccp_user_use_cb(struct osmo_use_count_entry *e, int32_t old_use_count, const char *file, int line)
 {
 	struct hnbgw_sccp_user *hsu = e->use_count->talloc_object;

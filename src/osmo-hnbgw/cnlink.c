@@ -138,6 +138,13 @@ static void link_lost(struct hnbgw_cnlink *cnlink)
 		context_map_cnlink_lost(map);
 }
 
+static int hnbgw_cnlink_tx_sccp_unitdata_req(struct hnbgw_cnlink *cnlink, struct msgb *msg)
+{
+	return hnbgw_sccp_user_tx_unitdata_req(cnlink->hnbgw_sccp_user,
+					       &cnlink->remote_addr,
+					       msg);
+}
+
 static void tx_reset(struct hnbgw_cnlink *cnlink)
 {
 	struct msgb *msg;
@@ -192,10 +199,7 @@ static void tx_reset(struct hnbgw_cnlink *cnlink)
 
 	msg = ranap_new_msg_reset2(cnlink->pool->domain, &cause, use_grnc_id);
 	CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_TX_UDT_RESET);
-	osmo_sccp_tx_unitdata_msg(cnlink->hnbgw_sccp_user->sccp_user,
-				  &cnlink->hnbgw_sccp_user->local_addr,
-				  &cnlink->remote_addr,
-				  msg);
+	hnbgw_cnlink_tx_sccp_unitdata_req(cnlink, msg);
 }
 
 static void tx_reset_ack(struct hnbgw_cnlink *cnlink)
@@ -243,10 +247,7 @@ static void tx_reset_ack(struct hnbgw_cnlink *cnlink)
 
 	msg = ranap_new_msg_reset_ack(cnlink->pool->domain, use_grnc_id);
 	CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_TX_UDT_RESET_ACK);
-	osmo_sccp_tx_unitdata_msg(cnlink->hnbgw_sccp_user->sccp_user,
-				  &cnlink->hnbgw_sccp_user->local_addr,
-				  &cnlink->remote_addr,
-				  msg);
+	hnbgw_cnlink_tx_sccp_unitdata_req(cnlink, msg);
 }
 
 static void cnlink_disc_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state)

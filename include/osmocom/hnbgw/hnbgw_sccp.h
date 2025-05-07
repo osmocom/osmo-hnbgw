@@ -1,9 +1,12 @@
 /* SCCP, ITU Q.711 - Q.714 */
 #pragma once
 
+#include <stdint.h>
+
 #include <osmocom/core/hashtable.h>
 #include <osmocom/core/linuxlist.h>
 #include <osmocom/core/prim.h>
+#include <osmocom/core/msgb.h>
 #include <osmocom/core/use_count.h>
 
 #include <osmocom/sigtran/sccp_sap.h>
@@ -46,3 +49,11 @@ struct hnbgw_sccp_user {
 	OSMO_ASSERT(osmo_use_count_get_put(&(hsu)->use_count, use, -1) == 0)
 
 struct hnbgw_sccp_user *hnbgw_sccp_user_alloc(int ss7_inst_id);
+
+int hnbgw_sccp_user_tx_unitdata_req(struct hnbgw_sccp_user *hsu, const struct osmo_sccp_addr *called_addr,
+				    struct msgb *ranap_msg);
+int hnbgw_sccp_user_tx_connect_req(struct hnbgw_sccp_user *hsu, const struct osmo_sccp_addr *called_addr,
+				   uint32_t scu_conn_id, struct msgb *ranap_msg);
+int hnbgw_sccp_user_tx_data_req(struct hnbgw_sccp_user *hsu, uint32_t scu_conn_id,
+				struct msgb *ranap_msg);
+int hnbgw_sccp_user_tx_disconnect_req(struct hnbgw_sccp_user *hsu, uint32_t scu_conn_id);
