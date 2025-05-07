@@ -32,7 +32,7 @@ struct hnbgw_sccp_user {
 	DECLARE_HASHTABLE(hnbgw_context_map_by_conn_id, 6);
 };
 
-#define LOG_HSI(HNBGW_SCCP_INST, SUBSYS, LEVEL, FMT, ARGS...) \
-	LOGP(SUBSYS, LEVEL, "(%s) " FMT, (HNBGW_SCCP_INST) ? (HNBGW_SCCP_INST)->name : "null", ##ARGS)
+#define LOG_HSU(HSU, SUBSYS, LEVEL, FMT, ARGS...) \
+	LOGP(SUBSYS, LEVEL, "(%s) " FMT, (HSU) ? (HSU)->name : "null", ##ARGS)
 
 struct hnbgw_sccp_user *hnbgw_sccp_user_alloc(const struct hnbgw_cnlink *cnlink, int ss7_inst_id);

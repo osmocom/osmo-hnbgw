@@ -71,7 +71,7 @@ static struct hnbgw_cnlink *cnlink_from_addr(struct hnbgw_sccp_user *hsu, const 
 	struct hnbgw_cnlink *cnlink = NULL;
 	cnlink = hnbgw_cnlink_find_by_addr(hsu, calling_addr);
 	if (!cnlink) {
-		LOG_HSI(hsu, DRANAP, LOGL_ERROR, "Rx from unknown SCCP peer: %s: %s\n",
+		LOG_HSU(hsu, DRANAP, LOGL_ERROR, "Rx from unknown SCCP peer: %s: %s\n",
 			osmo_sccp_inst_addr_name(osmo_ss7_get_sccp(hsu->ss7), calling_addr),
 			osmo_scu_prim_hdr_name_c(OTC_SELECT, oph));
 		return NULL;
