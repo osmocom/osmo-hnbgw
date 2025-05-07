@@ -23,7 +23,6 @@
 #include <osmocom/hnbgw/hnbgw_cn.h>
 
 #define STORE_UPTIME_INTERVAL	10 /* seconds */
-#define HNB_STORE_RAB_DURATIONS_INTERVAL 1 /* seconds */
 
 enum {
 	DMAIN,
@@ -39,15 +38,6 @@ enum {
 extern const struct log_info hnbgw_log_info;
 extern struct vty_app_info hnbgw_vty_info;
 
-#define LOGHNB(HNB_CTX, ss, lvl, fmt, args ...) \
-	LOGP(ss, lvl, "(%s) " fmt, hnb_context_name(HNB_CTX), ## args)
-
-#define LOG_HNBP(HNBP, lvl, fmt, args...) \
-	LOGP(DHNB, lvl, "(%s) " fmt, \
-	     (HNBP) ? \
-		     (((HNBP)->id_str && *(HNBP)->id_str) ? (HNBP)->id_str : "no-cell-id") \
-		     : "null", ## args)
-
 #define DOMAIN_CS RANAP_CN_DomainIndicator_cs_domain
 #define DOMAIN_PS RANAP_CN_DomainIndicator_ps_domain
 
@@ -56,11 +46,6 @@ static inline const char *ranap_domain_name(RANAP_CN_DomainIndicator_t domain)
 {
 	return get_value_string(ranap_domain_names, domain);
 }
-
-enum hnb_ctrl_node {
-	CTRL_NODE_HNB = _LAST_CTRL_NODE,
-	_LAST_CTRL_NODE_HNB
-};
 
 #define HNBGW_LOCAL_IP_DEFAULT "0.0.0.0"
 /* TODO: CS and PS now both connect to OsmoSTP, i.e. that's always going to be the same address. Drop the
@@ -84,123 +69,6 @@ enum hnb_ctrl_node {
 
 #define IUH_MSGB_SIZE	2048
 
-enum hnb_rate_ctr {
-	HNB_CTR_IUH_ESTABLISHED,
-	HNB_CTR_RANAP_PS_ERR_IND_UL,
-	HNB_CTR_RANAP_CS_ERR_IND_UL,
-	HNB_CTR_RANAP_PS_RESET_REQ_UL,
-	HNB_CTR_RANAP_CS_RESET_REQ_UL,
-
-	HNB_CTR_RANAP_PS_RAB_ACT_REQ,
-	HNB_CTR_RANAP_CS_RAB_ACT_REQ,
-
-	HNB_CTR_RANAP_PS_RAB_ACT_CNF,
-	HNB_CTR_RANAP_CS_RAB_ACT_CNF,
-
-	HNB_CTR_RANAP_PS_RAB_ACT_FAIL,
-	HNB_CTR_RANAP_CS_RAB_ACT_FAIL,
-
-	HNB_CTR_RANAP_PS_RAB_MOD_REQ,
-	HNB_CTR_RANAP_CS_RAB_MOD_REQ,
-
-	HNB_CTR_RANAP_PS_RAB_MOD_CNF,
-	HNB_CTR_RANAP_CS_RAB_MOD_CNF,
-
-	HNB_CTR_RANAP_PS_RAB_MOD_FAIL,
-	HNB_CTR_RANAP_CS_RAB_MOD_FAIL,
-
-	HNB_CTR_RANAP_PS_RAB_REL_REQ,
-	HNB_CTR_RANAP_CS_RAB_REL_REQ,
-	HNB_CTR_RANAP_PS_RAB_REL_REQ_ABNORMAL,
-	HNB_CTR_RANAP_CS_RAB_REL_REQ_ABNORMAL,
-
-	HNB_CTR_RANAP_PS_RAB_REL_CNF,
-	HNB_CTR_RANAP_CS_RAB_REL_CNF,
-
-	HNB_CTR_RANAP_PS_RAB_REL_FAIL,
-	HNB_CTR_RANAP_CS_RAB_REL_FAIL,
-
-	HNB_CTR_RANAP_PS_RAB_REL_IMPLICIT,
-	HNB_CTR_RANAP_CS_RAB_REL_IMPLICIT,
-	HNB_CTR_RANAP_PS_RAB_REL_IMPLICIT_ABNORMAL,
-	HNB_CTR_RANAP_CS_RAB_REL_IMPLICIT_ABNORMAL,
-
-	HNB_CTR_RUA_ERR_IND,
-
-	HNB_CTR_RUA_PS_CONNECT_UL,
-	HNB_CTR_RUA_CS_CONNECT_UL,
-
-	HNB_CTR_RUA_PS_DISCONNECT_UL,
-	HNB_CTR_RUA_CS_DISCONNECT_UL,
-	HNB_CTR_RUA_PS_DISCONNECT_DL,
-	HNB_CTR_RUA_CS_DISCONNECT_DL,
-
-	HNB_CTR_RUA_PS_DT_UL,
-	HNB_CTR_RUA_CS_DT_UL,
-	HNB_CTR_RUA_PS_DT_DL,
-	HNB_CTR_RUA_CS_DT_DL,
-
-	HNB_CTR_RUA_UDT_UL,
-	HNB_CTR_RUA_UDT_DL,
-
-	HNB_CTR_PS_PAGING_ATTEMPTED,
-	HNB_CTR_CS_PAGING_ATTEMPTED,
-
-	HNB_CTR_RAB_ACTIVE_MILLISECONDS_TOTAL,
-
-	HNB_CTR_DTAP_CS_LU_REQ,
-	HNB_CTR_DTAP_CS_LU_ACC,
-	HNB_CTR_DTAP_CS_LU_REJ,
-
-	HNB_CTR_DTAP_PS_ATT_REQ,
-	HNB_CTR_DTAP_PS_ATT_ACK,
-	HNB_CTR_DTAP_PS_ATT_REJ,
-
-	HNB_CTR_DTAP_PS_RAU_REQ,
-	HNB_CTR_DTAP_PS_RAU_ACK,
-	HNB_CTR_DTAP_PS_RAU_REJ,
-
-	HNB_CTR_GTPU_PACKETS_UL,
-	HNB_CTR_GTPU_TOTAL_BYTES_UL,
-	HNB_CTR_GTPU_UE_BYTES_UL,
-	HNB_CTR_GTPU_PACKETS_DL,
-	HNB_CTR_GTPU_TOTAL_BYTES_DL,
-	HNB_CTR_GTPU_UE_BYTES_DL,
-};
-
-enum hnb_stat {
-	HNB_STAT_UPTIME_SECONDS,
-};
-
-struct umts_cell_id {
-	struct osmo_plmn_id plmn;	/*!< Mobile Country Code and Mobile Network Code (000-00 to 999-999) */
-	uint16_t lac;	/*!< Locaton Area Code (1-65534) */
-	uint8_t rac;	/*!< Routing Area Code (0-255) */
-	uint16_t sac;	/*!< Service Area Code */
-	uint32_t cid;	/*!< Cell ID */
-};
-int umts_cell_id_to_str_buf(char *buf, size_t buflen, const struct umts_cell_id *ucid);
-char *umts_cell_id_to_str_c(void *ctx, const struct umts_cell_id *ucid);
-const char *umts_cell_id_to_str(const struct umts_cell_id *ucid);
-int umts_cell_id_from_str(struct umts_cell_id *ucid, const char *instr);
-uint32_t umts_cell_id_hash(const struct umts_cell_id *ucid);
-
-/*! are both given umts_cell_id euqal? */
-static inline bool umts_cell_id_equal(const struct umts_cell_id *a, const struct umts_cell_id *b)
-{
-	if (osmo_plmn_cmp(&a->plmn, &b->plmn))
-		return false;
-	if (a->lac != b->lac)
-		return false;
-	if (a->rac != b->rac)
-		return false;
-	if (a->sac != b->sac)
-		return false;
-	if (a->cid != b->cid)
-		return false;
-	return true;
-}
-
 struct hnbgw_context_map;
 
 static inline bool cnlink_is_cs(const struct hnbgw_cnlink *cnlink)
@@ -212,86 +80,6 @@ static inline bool cnlink_is_ps(const struct hnbgw_cnlink *cnlink)
 {
 	return cnlink && cnlink->pool->domain == DOMAIN_PS;
 }
-
-/* The lifecycle of the hnb_context object is the same as its conn */
-struct hnb_context {
-	/*! Entry in HNB-global list of HNB */
-	struct llist_head list;
-	/*! SCTP socket + write queue for Iuh to this specific HNB */
-	struct osmo_stream_srv *conn;
-	/*! copied from HNB-Identity-Info IE */
-	char identity_info[256];
-	/*! copied from Cell Identity IE */
-	struct umts_cell_id id;
-
-	/*! SCTP stream ID for HNBAP */
-	uint16_t hnbap_stream;
-	/*! SCTP stream ID for RUA */
-	uint16_t rua_stream;
-
-	/*! True if a HNB-REGISTER-REQ from this HNB has been accepted. */
-	bool hnb_registered;
-
-	/* linked list of hnbgw_context_map */
-	struct llist_head map_list;
-
-	/*! pointer to the associated hnb persistent state. Always present after HNB-Register */
-	struct hnb_persistent *persistent;
-};
-
-#define HNBP_CTR(hnbp, x) rate_ctr_group_get_ctr((hnbp)->ctrs, x)
-#define HNBP_CTR_INC(hnbp, x) rate_ctr_inc(HNBP_CTR(hnbp, x))
-#define HNBP_CTR_ADD(hnbp, x, y) rate_ctr_add2((hnbp)->ctrs, x, y)
-
-#define HNBP_STAT(hbp, x) osmo_stat_item_group_get_item((hnbp)->statg, x)
-#define HNBP_STAT_SET(hnbp, x, val) osmo_stat_item_set(HNBP_STAT(hnbp, x), val)
-
-/* persistent data for one HNB.  This continues to exist even as conn / hnb_context is deleted on disconnect */
-struct hnb_persistent {
-	/*! Entry in HNBGW-global list of hnb_persistent */
-	struct llist_head list;
-	/*! Entry in hash table g_hnbgw->hnb_persistent_by_id. */
-	struct hlist_node node_by_id;
-	/*! back-pointer to hnb_context.  Can be NULL if no context at this point */
-	struct hnb_context *ctx;
-
-	/*! unique cell identity; copied from HNB REGISTER REQ */
-	struct umts_cell_id id;
-	/*! stringified version of the cell identiy above (for printing/naming) */
-	const char *id_str;
-
-	/*! copied from HNB-Identity-Info IE */
-	time_t updowntime;
-
-	struct rate_ctr_group *ctrs;
-	struct osmo_stat_item_group *statg;
-
-	/* State that the main thread needs in order to know what was requested from the nft worker threads and what
-	 * still needs to be requested. */
-	struct {
-		/* Whether a persistent named counter was added in nftables for this cell id. */
-		bool persistent_counter_added;
-
-		/* The last hNodeB GTP-U address we asked the nft maintenance thread to set up.
-		 * osmo_sockaddr_str_is_nonzero(addr_remote) == false when no rules were added yet, and when
-		 * we asked the nft maintenance thread to remove the rules for this hNodeB because it has
-		 * disconnected. */
-		struct osmo_sockaddr_str addr_remote;
-
-		/* the nft handles needed to clean up the UL and DL rules when the hNodeB disconnects,
-		 * and the last seen counter value gotten from nft. */
-		struct {
-			struct nft_kpi_handle h;
-			struct nft_kpi_val v;
-		} ul;
-		struct {
-			struct nft_kpi_handle h;
-			struct nft_kpi_val v;
-		} dl;
-	} nft_kpi;
-
-	struct osmo_timer_list disconnected_timeout;
-};
 
 struct hnbgw {
 	struct {
@@ -375,21 +163,7 @@ extern void *talloc_asn1_ctx;
 void g_hnbgw_alloc(void *ctx);
 
 int hnbgw_rua_accept_cb(struct osmo_stream_srv_link *srv, int fd);
-int hnb_ctrl_cmds_install(void);
-int hnb_ctrl_node_lookup(void *data, vector vline, int *node_type, void **node_data, int *i);
 int hnbgw_mgw_setup(void);
-
-struct hnb_context *hnb_context_by_identity_info(const char *identity_info);
-const char *hnb_context_name(struct hnb_context *ctx);
-
-void hnb_context_release(struct hnb_context *ctx);
-void hnb_context_release_ue_state(struct hnb_context *ctx);
-
-struct hnb_persistent *hnb_persistent_alloc(const struct umts_cell_id *id);
-struct hnb_persistent *hnb_persistent_find_by_id(const struct umts_cell_id *id);
-void hnb_persistent_registered(struct hnb_persistent *hnbp);
-void hnb_persistent_deregistered(struct hnb_persistent *hnbp);
-void hnb_persistent_free(struct hnb_persistent *hnbp);
 
 void hnbgw_vty_init(void);
 int hnbgw_vty_go_parent(struct vty *vty);
@@ -407,7 +181,5 @@ static inline bool hnb_gw_is_gtp_mapping_enabled(void)
 struct msgb *hnbgw_ranap_msg_alloc(const char *name);
 
 int hnbgw_peek_l3_ul(struct hnbgw_context_map *map, struct msgb *ranap_msg);
-
-unsigned long long hnb_get_updowntime(const struct hnb_context *ctx);
 
 uint32_t get_next_ue_ctx_id(void);

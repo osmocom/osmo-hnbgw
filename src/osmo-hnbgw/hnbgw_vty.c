@@ -31,6 +31,8 @@
 
 #include <osmocom/hnbgw/vty.h>
 
+#include <osmocom/hnbgw/hnb.h>
+#include <osmocom/hnbgw/hnb_persistent.h>
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/hnbgw_cn.h>
 #include <osmocom/hnbgw/context_map.h>

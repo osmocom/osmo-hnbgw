@@ -33,6 +33,8 @@
 
 #include "asn1helpers.h"
 
+#include <osmocom/hnbgw/hnb.h>
+#include <osmocom/hnbgw/hnb_persistent.h>
 #include <osmocom/hnbgw/hnbgw_cn.h>
 #include <osmocom/hnbgw/hnbgw_ranap.h>
 #include <osmocom/rua/rua_common.h>

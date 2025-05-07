@@ -26,6 +26,7 @@
 #include <osmocom/gsm/protocol/gsm_04_08.h>
 #include <osmocom/gsm/protocol/gsm_04_08_gprs.h>
 
+#include <osmocom/hnbgw/hnb_persistent.h>
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/kpi.h>

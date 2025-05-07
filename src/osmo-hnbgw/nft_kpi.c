@@ -19,8 +19,10 @@
 
 #include <osmocom/core/logging.h>
 #include <osmocom/core/it_q.h>
+#include <osmocom/hnbgw/hnb_persistent.h>
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/nft_kpi.h>
+#include <osmocom/hnbgw/umts_cell_id.h>
 
 #include "config.h"
 

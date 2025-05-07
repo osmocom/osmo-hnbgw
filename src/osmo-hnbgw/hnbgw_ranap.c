@@ -39,6 +39,8 @@
 #include <osmocom/pfcp/pfcp_cp_peer.h>
 #endif
 
+#include <osmocom/hnbgw/hnb.h>
+#include <osmocom/hnbgw/hnb_persistent.h>
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/hnbgw_rua.h>
 #include <osmocom/hnbgw/hnbgw_cn.h>

@@ -24,6 +24,7 @@
 #include <osmocom/core/utils.h>
 #include <osmocom/core/fsm.h>
 
+#include <osmocom/hnbgw/hnb.h>
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/tdefs.h>

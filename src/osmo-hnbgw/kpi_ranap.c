@@ -24,6 +24,7 @@
 
 #include <osmocom/ranap/ranap_common_ran.h>
 
+#include <osmocom/hnbgw/hnb_persistent.h>
 #include <osmocom/hnbgw/hnbgw_cn.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/kpi.h>

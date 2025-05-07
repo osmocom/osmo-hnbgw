@@ -24,14 +24,17 @@
 #include <osmocom/core/utils.h>
 #include <osmocom/core/socket.h>
 #include <osmocom/core/sockaddr_str.h>
-#include <osmocom/hnbgw/hnbgw.h>
+
 
 #include <osmocom/ranap/ranap_ies_defs.h>
 #include <osmocom/ranap/iu_helpers.h>
-#include <osmocom/hnbgw/ranap_rab_ass.h>
 #include <osmocom/ranap/ranap_common.h>
 #include <osmocom/ranap/ranap_common_cn.h>
 #include <osmocom/ranap/ranap_common_ran.h>
+
+#include <osmocom/hnbgw/hnb.h>
+#include <osmocom/hnbgw/hnbgw.h>
+#include <osmocom/hnbgw/ranap_rab_ass.h>
 
 static void *msgb_ctx;
 extern void *talloc_asn1_ctx;

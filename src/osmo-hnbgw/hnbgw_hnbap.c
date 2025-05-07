@@ -33,6 +33,8 @@
 #include <osmocom/hnbap/hnbap_common.h>
 #include <osmocom/ranap/iu_helpers.h>
 
+#include <osmocom/hnbgw/hnb.h>
+#include <osmocom/hnbgw/hnb_persistent.h>
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbap/hnbap_ies_defs.h>
 

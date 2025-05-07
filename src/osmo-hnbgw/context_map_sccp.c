@@ -27,6 +27,7 @@
 
 #include <osmocom/sigtran/sccp_helpers.h>
 
+#include <osmocom/hnbgw/hnb.h>
 #include <osmocom/hnbgw/hnbgw_cn.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/hnbgw_ranap.h>

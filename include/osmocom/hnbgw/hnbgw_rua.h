@@ -4,6 +4,8 @@
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/rua/RUA_Cause.h>
 
+struct hnb_context;
+
 int hnbgw_rua_rx(struct hnb_context *hnb, struct msgb *msg);
 
 int rua_tx_udt(struct hnb_context *hnb, const uint8_t *data, unsigned int len);

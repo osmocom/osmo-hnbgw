@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <osmocom/core/linuxlist.h>
 #include <osmocom/core/utils.h>
+#include <osmocom/hnbgw/hnb.h>
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/gsm/gsm48.h>
 

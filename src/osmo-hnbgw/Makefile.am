@@ -32,6 +32,8 @@ noinst_LTLIBRARIES = \
 	$(NULL)
 
 libhnbgw_la_SOURCES = \
+	hnb.c \
+	hnb_persistent.c \
 	hnbgw.c \
 	hnbgw_hnbap.c \
 	hnbgw_l3.c \
@@ -50,6 +52,7 @@ libhnbgw_la_SOURCES = \
 	kpi_dtap.c \
 	kpi_ranap.c \
 	tdefs.c \
+	umts_cell_id.c \
 	nft_kpi.c \
 	$(NULL)
 

@@ -1,6 +1,9 @@
 #include <stdio.h>
+#include <errno.h>
 
-#include <osmocom/hnbgw/hnbgw.h>
+#include <osmocom/core/utils.h>
+
+#include <osmocom/hnbgw/umts_cell_id.h>
 
 struct test {
 	const char *id_str;

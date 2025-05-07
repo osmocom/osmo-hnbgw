@@ -1,6 +1,8 @@
 noinst_HEADERS = \
 	cnlink.h \
 	context_map.h \
+	hnb.h \
+	hnb_persistent.h \
 	hnbgw.h \
 	hnbgw_cn.h \
 	hnbgw_hnbap.h \
@@ -15,5 +17,6 @@ noinst_HEADERS = \
 	ps_rab_fsm.h \
 	ranap_rab_ass.h \
 	tdefs.h \
+	umts_cell_id.h \
 	vty.h \
 	$(NULL)

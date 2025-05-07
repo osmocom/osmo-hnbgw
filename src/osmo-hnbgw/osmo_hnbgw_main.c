@@ -45,6 +45,7 @@
 
 #include <osmocom/ranap/ranap_common.h>
 
+#include <osmocom/hnbgw/hnb.h>
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/hnbgw_cn.h>
 #include <osmocom/hnbgw/hnbgw_pfcp.h>
