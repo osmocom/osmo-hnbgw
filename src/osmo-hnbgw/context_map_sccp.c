@@ -128,6 +128,7 @@ static int tx_sccp_cr(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 		ranap_msg = hnbgw_ranap_msg_alloc("SCCP-CR-empty");
 	}
 
+	CNLINK_CTR_INC(map->cnlink, CNLINK_CTR_SCCP_N_CONNECT_REQ);
 	return hnbgw_sccp_user_tx_connect_req(map->cnlink->hnbgw_sccp_user,
 					      &map->cnlink->remote_addr,
 					      map->scu_conn_id,
@@ -146,6 +147,7 @@ static int tx_sccp_df1(struct osmo_fsm_inst *fi, struct msgb *ranap_msg)
 		return -1;
 	}
 
+	CNLINK_CTR_INC(map->cnlink, CNLINK_CTR_SCCP_N_DATA_REQ);
 	return hnbgw_sccp_user_tx_data_req(map->cnlink->hnbgw_sccp_user,
 					   map->scu_conn_id,
 					   ranap_msg);
@@ -160,6 +162,7 @@ static int tx_sccp_rlsd(struct osmo_fsm_inst *fi)
 		return -1;
 	}
 
+	CNLINK_CTR_INC(map->cnlink, CNLINK_CTR_SCCP_N_DISCONNECT_REQ);
 	return hnbgw_sccp_user_tx_disconnect_req(map->cnlink->hnbgw_sccp_user,
 						 map->scu_conn_id);
 }

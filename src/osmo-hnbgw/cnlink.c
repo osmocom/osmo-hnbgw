@@ -140,6 +140,7 @@ static void link_lost(struct hnbgw_cnlink *cnlink)
 
 static int hnbgw_cnlink_tx_sccp_unitdata_req(struct hnbgw_cnlink *cnlink, struct msgb *msg)
 {
+	CNLINK_CTR_INC(cnlink, CNLINK_CTR_SCCP_N_UNITDATA_REQ);
 	return hnbgw_sccp_user_tx_unitdata_req(cnlink->hnbgw_sccp_user,
 					       &cnlink->remote_addr,
 					       msg);

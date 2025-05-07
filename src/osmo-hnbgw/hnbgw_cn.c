@@ -462,17 +462,33 @@ static const struct rate_ctr_desc cnlink_ctr_description[] = {
 	},
 
 	/* SCCP Counters: */
+	[CNLINK_CTR_SCCP_N_UNITDATA_REQ] = {
+		"sccp:n_unit_data:req",
+		"Submit SCCP N-UNITDATA.req (UL)"
+	},
 	[CNLINK_CTR_SCCP_N_UNITDATA_IND] = {
 		"sccp:n_unit_data:ind",
 		"Received SCCP N-UNITDATA.ind (DL)"
+	},
+	[CNLINK_CTR_SCCP_N_CONNECT_REQ] = {
+		"sccp:n_connect:req",
+		"Submit SCCP N-CONNECT.req (UL SCCP CR)"
 	},
 	[CNLINK_CTR_SCCP_N_CONNECT_CNF] = {
 		"sccp:n_connect:cnf",
 		"Received SCCP N-CONNECT.cnf (DL SCCP CC)"
 	},
+	[CNLINK_CTR_SCCP_N_DATA_REQ] = {
+		"sccp:n_data:req",
+		"SUBMIT SCCP N-DATA.req (UL)"
+	},
 	[CNLINK_CTR_SCCP_N_DATA_IND] = {
 		"sccp:n_data:ind",
 		"Received SCCP N-DATA.ind (DL)"
+	},
+	[CNLINK_CTR_SCCP_N_DISCONNECT_REQ] = {
+		"sccp:n_disconnect:req",
+		"Submit SCCP N-DISCONNECT.req (UL SCCP RLC)"
 	},
 	[CNLINK_CTR_SCCP_N_DISCONNECT_IND] = {
 		"sccp:n_disconnect:ind",
