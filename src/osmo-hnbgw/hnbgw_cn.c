@@ -423,15 +423,67 @@ static void hnbgw_cnlink_log_self(struct hnbgw_cnlink *cnlink)
 		   cnlink->name, cnlink->use.remote_addr_name ? : "(default remote point-code)");
 }
 
+static struct hnbgw_sccp_user *hnbgw_sccp_user_alloc(const struct hnbgw_cnlink *cnlink, int ss7_id)
+{
+	struct osmo_ss7_instance *ss7 = NULL;
+	struct osmo_sccp_instance *sccp;
+	struct osmo_sccp_user *sccp_user;
+	uint32_t local_pc;
+	struct hnbgw_sccp_user *hsu;
+
+	sccp = osmo_sccp_simple_client_on_ss7_id(g_hnbgw,
+						 ss7_id,
+						 cnlink->name,
+						 DEFAULT_PC_HNBGW,
+						 OSMO_SS7_ASP_PROT_M3UA,
+						 0,
+						 "localhost",
+						 -1,
+						 "localhost");
+	if (!sccp) {
+		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Failed to configure SCCP on 'cs7 instance %u'\n",
+			   ss7_id);
+		return NULL;
+	}
+	ss7 = osmo_sccp_get_ss7(sccp);
+	LOG_CNLINK(cnlink, DCN, LOGL_NOTICE, "created SCCP instance on cs7 instance %u\n", osmo_ss7_instance_get_id(ss7));
+
+	/* Bind the SCCP user, using the cs7 instance's default point-code if one is configured, or osmo-hnbgw's default
+	 * local PC. */
+	local_pc = osmo_ss7_instance_get_primary_pc(ss7);
+	if (!osmo_ss7_pc_is_valid(local_pc))
+		local_pc = DEFAULT_PC_HNBGW;
+
+	LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "binding OsmoHNBGW user to cs7 instance %u, local PC %u = %s\n",
+		   osmo_ss7_instance_get_id(ss7), local_pc, osmo_ss7_pointcode_print(ss7, local_pc));
+
+	sccp_user = osmo_sccp_user_bind_pc(sccp, "OsmoHNBGW", sccp_sap_up, OSMO_SCCP_SSN_RANAP, local_pc);
+	if (!sccp_user) {
+		LOGP(DCN, LOGL_ERROR, "Failed to init SCCP User\n");
+		return NULL;
+	}
+
+	hsu = talloc_zero(cnlink, struct hnbgw_sccp_user);
+	*hsu = (struct hnbgw_sccp_user){
+		.name = talloc_asprintf(hsu, "cs7-%u.sccp", osmo_ss7_instance_get_id(ss7)),
+		.ss7 = ss7,
+		.sccp_user = sccp_user,
+	};
+	osmo_sccp_make_addr_pc_ssn(&hsu->local_addr, local_pc, OSMO_SCCP_SSN_RANAP);
+	hash_init(hsu->hnbgw_context_map_by_conn_id);
+	osmo_sccp_user_set_priv(sccp_user, hsu);
+
+	llist_add_tail(&hsu->entry, &g_hnbgw->sccp.users);
+
+	return hsu;
+}
+
 /* If not present yet, set up all of osmo_ss7_instance, osmo_sccp_instance and hnbgw_sccp_user for the given cnlink.
  * The cs7 instance nr to use is determined by cnlink->remote_addr_name, or cs7 instance 0 if that is not present.
  * Set cnlink->hnbgw_sccp_user to the new SCCP instance. Return 0 on success, negative on error. */
 int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink)
 {
 	struct osmo_ss7_instance *ss7 = NULL;
-	struct osmo_sccp_instance *sccp;
-	struct osmo_sccp_user *sccp_user;
-	uint32_t local_pc;
 	struct hnbgw_sccp_user *hsu;
 
 	/* If a hnbgw_sccp_user has already been set up, use that. */
@@ -492,52 +544,7 @@ int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink)
 
 	/* No SCCP instance yet for this ss7. Create it. If no address name is given that resolves to a
 	 * particular cs7 instance above, use 'cs7 instance 0'. */
-	sccp = osmo_sccp_simple_client_on_ss7_id(g_hnbgw,
-						 ss7 ? osmo_ss7_instance_get_id(ss7) : 0,
-						 cnlink->name,
-						 DEFAULT_PC_HNBGW,
-						 OSMO_SS7_ASP_PROT_M3UA,
-						 0,
-						 "localhost",
-						 -1,
-						 "localhost");
-	if (!sccp) {
-		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Failed to configure SCCP on 'cs7 instance %u'\n",
-			   ss7 ? osmo_ss7_instance_get_id(ss7) : 0);
-		return -1;
-	}
-	ss7 = osmo_sccp_get_ss7(sccp);
-	LOG_CNLINK(cnlink, DCN, LOGL_NOTICE, "created SCCP instance on cs7 instance %u\n", osmo_ss7_instance_get_id(ss7));
-
-	/* Bind the SCCP user, using the cs7 instance's default point-code if one is configured, or osmo-hnbgw's default
-	 * local PC. */
-	local_pc = osmo_ss7_instance_get_primary_pc(ss7);
-	if (!osmo_ss7_pc_is_valid(local_pc))
-		local_pc = DEFAULT_PC_HNBGW;
-
-	LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "binding OsmoHNBGW user to cs7 instance %u, local PC %u = %s\n",
-		   osmo_ss7_instance_get_id(ss7), local_pc, osmo_ss7_pointcode_print(ss7, local_pc));
-
-	sccp_user = osmo_sccp_user_bind_pc(sccp, "OsmoHNBGW", sccp_sap_up, OSMO_SCCP_SSN_RANAP, local_pc);
-	if (!sccp_user) {
-		LOGP(DCN, LOGL_ERROR, "Failed to init SCCP User\n");
-		return -1;
-	}
-
-	hsu = talloc_zero(cnlink, struct hnbgw_sccp_user);
-	*hsu = (struct hnbgw_sccp_user){
-		.name = talloc_asprintf(hsu, "cs7-%u.sccp", osmo_ss7_instance_get_id(ss7)),
-		.ss7 = ss7,
-		.sccp_user = sccp_user,
-	};
-	osmo_sccp_make_addr_pc_ssn(&hsu->local_addr, local_pc, OSMO_SCCP_SSN_RANAP);
-	hash_init(hsu->hnbgw_context_map_by_conn_id);
-	osmo_sccp_user_set_priv(sccp_user, hsu);
-
-	llist_add_tail(&hsu->entry, &g_hnbgw->sccp.users);
-
-	cnlink->hnbgw_sccp_user = hsu;
-
+	cnlink->hnbgw_sccp_user = hnbgw_sccp_user_alloc(cnlink, ss7 ? osmo_ss7_instance_get_id(ss7) : 0);
 	hnbgw_cnlink_log_self(cnlink);
 	return 0;
 }
