@@ -332,18 +332,70 @@ static int sccp_sap_up(struct osmo_prim_hdr *oph, void *ctx)
 	return rc;
 }
 
-
-struct hnbgw_sccp_user *hnbgw_sccp_user_alloc(const struct hnbgw_cnlink *cnlink, int ss7_id)
+static int hnbgw_sccp_user_use_cb(struct osmo_use_count_entry *e, int32_t old_use_count, const char *file, int line)
 {
-	struct osmo_ss7_instance *ss7 = NULL;
+	struct hnbgw_sccp_user *hsu = e->use_count->talloc_object;
+	int32_t total;
+	int level;
+
+	if (!e->use)
+		return -EINVAL;
+
+	total = osmo_use_count_total(&hsu->use_count);
+
+	if (total == 0
+	    || (total == 1 && old_use_count == 0 && e->count == 1))
+		level = LOGL_INFO;
+	else
+		level = LOGL_DEBUG;
+
+	LOGPSRC(DCN, level, file, line,
+		"%s: %s %s: now used by %s\n",
+		hsu->name,
+		(e->count - old_use_count) > 0 ? "+" : "-",
+		e->use,
+		osmo_use_count_to_str_c(OTC_SELECT, &hsu->use_count));
+
+	if (e->count < 0)
+		return -ERANGE;
+
+	if (total == 0)
+		talloc_free(hsu);
+	return 0;
+}
+
+static int hnbgw_sccp_user_talloc_destructor(struct hnbgw_sccp_user *hsu)
+{
+	if (hsu->sccp_user) {
+		osmo_sccp_user_unbind(hsu->sccp_user);
+		hsu->sccp_user = NULL;
+	}
+	llist_del(&hsu->entry);
+	return 0;
+}
+
+struct hnbgw_sccp_user *hnbgw_sccp_user_alloc(int ss7_id)
+{
 	struct osmo_sccp_instance *sccp;
-	struct osmo_sccp_user *sccp_user;
 	uint32_t local_pc;
 	struct hnbgw_sccp_user *hsu;
 
+	hsu = talloc_zero(g_hnbgw, struct hnbgw_sccp_user);
+	OSMO_ASSERT(hsu);
+	*hsu = (struct hnbgw_sccp_user){
+		.name = talloc_asprintf(hsu, "cs7-%u-sccp-OsmoHNBGW", ss7_id),
+		.use_count = {
+			.talloc_object = hsu,
+			.use_cb = hnbgw_sccp_user_use_cb,
+		},
+	};
+	hash_init(hsu->hnbgw_context_map_by_conn_id);
+	llist_add_tail(&hsu->entry, &g_hnbgw->sccp.users);
+	talloc_set_destructor(hsu, hnbgw_sccp_user_talloc_destructor);
+
 	sccp = osmo_sccp_simple_client_on_ss7_id(g_hnbgw,
 						 ss7_id,
-						 cnlink->name,
+						 hsu->name,
 						 DEFAULT_PC_HNBGW,
 						 OSMO_SS7_ASP_PROT_M3UA,
 						 0,
@@ -351,40 +403,37 @@ struct hnbgw_sccp_user *hnbgw_sccp_user_alloc(const struct hnbgw_cnlink *cnlink,
 						 -1,
 						 "localhost");
 	if (!sccp) {
-		LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "Failed to configure SCCP on 'cs7 instance %u'\n",
-			   ss7_id);
-		return NULL;
+		LOG_HSU(hsu, DCN, LOGL_ERROR, "Failed to configure SCCP on 'cs7 instance %u'\n",
+			ss7_id);
+		goto free_hsu_ret;
 	}
-	ss7 = osmo_sccp_get_ss7(sccp);
-	LOG_CNLINK(cnlink, DCN, LOGL_NOTICE, "created SCCP instance on cs7 instance %u\n", osmo_ss7_instance_get_id(ss7));
+	hsu->ss7 = osmo_sccp_get_ss7(sccp);
+	LOG_HSU(hsu, DCN, LOGL_NOTICE, "created SCCP instance on cs7 instance %u\n", osmo_ss7_instance_get_id(hsu->ss7));
 
 	/* Bind the SCCP user, using the cs7 instance's default point-code if one is configured, or osmo-hnbgw's default
 	 * local PC. */
-	local_pc = osmo_ss7_instance_get_primary_pc(ss7);
+	local_pc = osmo_ss7_instance_get_primary_pc(hsu->ss7);
 	if (!osmo_ss7_pc_is_valid(local_pc))
 		local_pc = DEFAULT_PC_HNBGW;
 
-	LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "binding OsmoHNBGW user to cs7 instance %u, local PC %u = %s\n",
-		   osmo_ss7_instance_get_id(ss7), local_pc, osmo_ss7_pointcode_print(ss7, local_pc));
+	LOG_HSU(hsu, DCN, LOGL_DEBUG, "binding OsmoHNBGW user to cs7 instance %u, local PC %u = %s\n",
+		osmo_ss7_instance_get_id(hsu->ss7), local_pc, osmo_ss7_pointcode_print(hsu->ss7, local_pc));
 
-	sccp_user = osmo_sccp_user_bind_pc(sccp, "OsmoHNBGW", sccp_sap_up, OSMO_SCCP_SSN_RANAP, local_pc);
-	if (!sccp_user) {
-		LOGP(DCN, LOGL_ERROR, "Failed to init SCCP User\n");
-		return NULL;
+	char *sccp_user_name = talloc_asprintf(hsu, "%s-RANAP", hsu->name);
+	hsu->sccp_user = osmo_sccp_user_bind_pc(sccp, sccp_user_name, sccp_sap_up, OSMO_SCCP_SSN_RANAP, local_pc);
+	talloc_free(sccp_user_name);
+	if (!hsu->sccp_user) {
+		LOG_HSU(hsu, DCN, LOGL_ERROR, "Failed to init SCCP User\n");
+		goto free_hsu_ret;
 	}
 
-	hsu = talloc_zero(cnlink, struct hnbgw_sccp_user);
-	*hsu = (struct hnbgw_sccp_user){
-		.name = talloc_asprintf(hsu, "cs7-%u.sccp", osmo_ss7_instance_get_id(ss7)),
-		.ss7 = ss7,
-		.sccp_user = sccp_user,
-	};
 	osmo_sccp_make_addr_pc_ssn(&hsu->local_addr, local_pc, OSMO_SCCP_SSN_RANAP);
-	hash_init(hsu->hnbgw_context_map_by_conn_id);
-	osmo_sccp_user_set_priv(sccp_user, hsu);
-
-	llist_add_tail(&hsu->entry, &g_hnbgw->sccp.users);
+	osmo_sccp_user_set_priv(hsu->sccp_user, hsu);
 
 	return hsu;
+
+free_hsu_ret:
+	talloc_free(hsu);
+	return NULL;
 }
 

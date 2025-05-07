@@ -98,11 +98,28 @@ struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
 	return cnlink;
 }
 
+void hnbgw_cnlink_drop_sccp(struct hnbgw_cnlink *cnlink)
+{
+	struct hnbgw_context_map *map, *map2;
+	struct hnbgw_sccp_user *hsu;
+
+	llist_for_each_entry_safe(map, map2, &cnlink->map_list, hnbgw_cnlink_entry) {
+		map_sccp_dispatch(map, MAP_SCCP_EV_USER_ABORT, NULL);
+	}
+
+	OSMO_ASSERT(cnlink->hnbgw_sccp_user);
+	hsu = cnlink->hnbgw_sccp_user;
+	cnlink->hnbgw_sccp_user = NULL;
+	hnbgw_sccp_user_put(hsu, HSU_USE_CNLINK);
+}
+
 void cnlink_term_and_free(struct hnbgw_cnlink *cnlink)
 {
 	if (!cnlink)
 		return;
 	osmo_fsm_inst_term(cnlink->fi, OSMO_FSM_TERM_REQUEST, NULL);
+	if (cnlink->hnbgw_sccp_user)
+		hnbgw_cnlink_drop_sccp(cnlink);
 	talloc_free(cnlink);
 }
 

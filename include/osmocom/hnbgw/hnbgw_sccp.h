@@ -4,6 +4,7 @@
 #include <osmocom/core/hashtable.h>
 #include <osmocom/core/linuxlist.h>
 #include <osmocom/core/prim.h>
+#include <osmocom/core/use_count.h>
 
 #include <osmocom/sigtran/sccp_sap.h>
 
@@ -27,6 +28,9 @@ struct hnbgw_sccp_user {
 	/* osmo_sccp API state for above local address on above ss7 instance. */
 	struct osmo_sccp_user *sccp_user;
 
+	/* Ref count of users of this struct, ie.referencing it in cnlink->hnbgw_sccp_user */
+	struct osmo_use_count use_count;
+
 	/* Fast access to the hnbgw_context_map responsible for a given SCCP conn_id of the ss7->sccp instance.
 	 * hlist_node: hnbgw_context_map->hnbgw_sccp_user_entry. */
 	DECLARE_HASHTABLE(hnbgw_context_map_by_conn_id, 6);
@@ -35,4 +39,10 @@ struct hnbgw_sccp_user {
 #define LOG_HSU(HSU, SUBSYS, LEVEL, FMT, ARGS...) \
 	LOGP(SUBSYS, LEVEL, "(%s) " FMT, (HSU) ? (HSU)->name : "null", ##ARGS)
 
-struct hnbgw_sccp_user *hnbgw_sccp_user_alloc(const struct hnbgw_cnlink *cnlink, int ss7_inst_id);
+#define HSU_USE_CNLINK "cnlink"
+#define hnbgw_sccp_user_get(hsu, use) \
+	OSMO_ASSERT(osmo_use_count_get_put(&(hsu)->use_count, use, 1) == 0)
+#define hnbgw_sccp_user_put(hsu, use) \
+	OSMO_ASSERT(osmo_use_count_get_put(&(hsu)->use_count, use, -1) == 0)
+
+struct hnbgw_sccp_user *hnbgw_sccp_user_alloc(int ss7_inst_id);

@@ -134,17 +134,6 @@ static bool hnbgw_cnlink_sccp_cfg_changed(struct hnbgw_cnlink *cnlink)
 	return changed;
 }
 
-static void hnbgw_cnlink_drop_sccp(struct hnbgw_cnlink *cnlink)
-{
-	struct hnbgw_context_map *map, *map2;
-
-	llist_for_each_entry_safe(map, map2, &cnlink->map_list, hnbgw_cnlink_entry) {
-		map_sccp_dispatch(map, MAP_SCCP_EV_USER_ABORT, NULL);
-	}
-
-	cnlink->hnbgw_sccp_user = NULL;
-}
-
 static void hnbgw_cnlink_log_self(struct hnbgw_cnlink *cnlink)
 {
 	struct osmo_ss7_instance *ss7 = cnlink->hnbgw_sccp_user->ss7;
@@ -210,9 +199,10 @@ int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink)
 		llist_for_each_entry(hsu, &g_hnbgw->sccp.users, entry) {
 			if (hsu->ss7 != ss7)
 				continue;
-			cnlink->hnbgw_sccp_user = hsu;
 			LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "using existing SCCP instance %s on cs7 instance %u\n",
-				   hsu->name, osmo_ss7_instance_get_id(ss7));
+				hsu->name, osmo_ss7_instance_get_id(ss7));
+			cnlink->hnbgw_sccp_user = hsu;
+			hnbgw_sccp_user_get(cnlink->hnbgw_sccp_user, HSU_USE_CNLINK);
 			hnbgw_cnlink_log_self(cnlink);
 			return 0;
 		}
@@ -222,7 +212,8 @@ int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink)
 
 	/* No SCCP instance yet for this ss7. Create it. If no address name is given that resolves to a
 	 * particular cs7 instance above, use 'cs7 instance 0'. */
-	cnlink->hnbgw_sccp_user = hnbgw_sccp_user_alloc(cnlink, ss7 ? osmo_ss7_instance_get_id(ss7) : 0);
+	cnlink->hnbgw_sccp_user = hnbgw_sccp_user_alloc(ss7 ? osmo_ss7_instance_get_id(ss7) : 0);
+	hnbgw_sccp_user_get(cnlink->hnbgw_sccp_user, HSU_USE_CNLINK);
 	hnbgw_cnlink_log_self(cnlink);
 	return 0;
 }
