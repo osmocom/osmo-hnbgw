@@ -54,11 +54,11 @@ static struct hnbgw_cnlink *hnbgw_cnlink_find_by_addr(const struct hnbgw_sccp_us
 					       const struct osmo_sccp_addr *remote_addr)
 {
 	struct hnbgw_cnlink *cnlink;
-	llist_for_each_entry(cnlink, &g_hnbgw->sccp.cnpool_iucs.cnlinks, entry) {
+	llist_for_each_entry(cnlink, &g_hnbgw->sccp.cnpool_iucs->cnlinks, entry) {
 		if (cnlink_matches(cnlink, hsu, remote_addr))
 			return cnlink;
 	}
-	llist_for_each_entry(cnlink, &g_hnbgw->sccp.cnpool_iups.cnlinks, entry) {
+	llist_for_each_entry(cnlink, &g_hnbgw->sccp.cnpool_iups->cnlinks, entry) {
 		if (cnlink_matches(cnlink, hsu, remote_addr))
 			return cnlink;
 	}
@@ -188,9 +188,9 @@ static struct hnbgw_cnlink *_cnlink_find_by_remote_pc(struct hnbgw_cnpool *cnpoo
 static struct hnbgw_cnlink *cnlink_find_by_remote_pc(struct osmo_ss7_instance *cs7, uint32_t pc)
 {
 	struct hnbgw_cnlink *cnlink;
-	cnlink = _cnlink_find_by_remote_pc(&g_hnbgw->sccp.cnpool_iucs, cs7, pc);
+	cnlink = _cnlink_find_by_remote_pc(g_hnbgw->sccp.cnpool_iucs, cs7, pc);
 	if (!cnlink)
-		cnlink = _cnlink_find_by_remote_pc(&g_hnbgw->sccp.cnpool_iups, cs7, pc);
+		cnlink = _cnlink_find_by_remote_pc(g_hnbgw->sccp.cnpool_iups, cs7, pc);
 	return cnlink;
 }
 

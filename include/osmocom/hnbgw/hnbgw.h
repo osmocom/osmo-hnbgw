@@ -133,9 +133,9 @@ struct hnbgw {
 		struct llist_head users;
 
 		/* Pool of core network peers: MSCs for IuCS */
-		struct hnbgw_cnpool cnpool_iucs;
+		struct hnbgw_cnpool *cnpool_iucs;
 		/* Pool of core network peers: SGSNs for IuPS */
-		struct hnbgw_cnpool cnpool_iups;
+		struct hnbgw_cnpool *cnpool_iups;
 	} sccp;
 	/* MGW pool, also includes the single MGCP client as fallback if no
 	 * pool is configured. */

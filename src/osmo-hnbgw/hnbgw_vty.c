@@ -86,7 +86,7 @@ DEFUN(cfg_hnbgw_iucs, cfg_hnbgw_iucs_cmd,
       "iucs", "Configure IuCS options")
 {
 	vty->node = IUCS_NODE;
-	vty->index = &g_hnbgw->sccp.cnpool_iucs;
+	vty->index = g_hnbgw->sccp.cnpool_iucs;
 	return CMD_SUCCESS;
 }
 
@@ -100,7 +100,7 @@ DEFUN(cfg_hnbgw_iups, cfg_hnbgw_iups_cmd,
       "iups", "Configure IuPS options")
 {
 	vty->node = IUPS_NODE;
-	vty->index = &g_hnbgw->sccp.cnpool_iups;
+	vty->index = g_hnbgw->sccp.cnpool_iups;
 	return CMD_SUCCESS;
 }
 
@@ -167,10 +167,10 @@ DEFUN(show_cnlink, show_cnlink_cmd, "show cnlink",
 {
 	struct hnbgw_cnlink *cnlink;
 	vty_out(vty, "IuCS: ");
-	llist_for_each_entry(cnlink, &g_hnbgw->sccp.cnpool_iucs.cnlinks, entry)
+	llist_for_each_entry(cnlink, &g_hnbgw->sccp.cnpool_iucs->cnlinks, entry)
 		_show_cnlink(vty, cnlink);
 	vty_out(vty, "IuPS: ");
-	llist_for_each_entry(cnlink, &g_hnbgw->sccp.cnpool_iups.cnlinks, entry)
+	llist_for_each_entry(cnlink, &g_hnbgw->sccp.cnpool_iups->cnlinks, entry)
 		_show_cnlink(vty, cnlink);
 	return CMD_SUCCESS;
 }
@@ -511,7 +511,7 @@ DEFUN(cfg_msc_nr, cfg_msc_nr_cmd,
       "Configure an IuCS link to an MSC\n"
       "MSC nr\n")
 {
-	return cnlink_nr(vty, &g_hnbgw->sccp.cnpool_iucs, argc, argv);
+	return cnlink_nr(vty, g_hnbgw->sccp.cnpool_iucs, argc, argv);
 }
 
 /* 'sgsn 0' */
@@ -520,7 +520,7 @@ DEFUN(cfg_sgsn_nr, cfg_sgsn_nr_cmd,
       "Configure an IuPS link to an SGSN\n"
       "SGSN nr\n")
 {
-	return cnlink_nr(vty, &g_hnbgw->sccp.cnpool_iups, argc, argv);
+	return cnlink_nr(vty, g_hnbgw->sccp.cnpool_iups, argc, argv);
 }
 
 /* 'msc 0'  / 'remote-addr my-msc'  and
@@ -716,14 +716,14 @@ DEFUN(show_nri, show_nri_cmd,
 	 *   nri null add ...
 	 */
 	vty_out(vty, "hnbgw%s", VTY_NEWLINE);
-	cnpool_write_nri(vty, &g_hnbgw->sccp.cnpool_iucs, true);
-	cnpool_write_nri(vty, &g_hnbgw->sccp.cnpool_iups, true);
+	cnpool_write_nri(vty, g_hnbgw->sccp.cnpool_iucs, true);
+	cnpool_write_nri(vty, g_hnbgw->sccp.cnpool_iups, true);
 
 	/* msc 0
 	 *   nri add ...
 	 */
-	cnlinks_write_nri(vty, &g_hnbgw->sccp.cnpool_iucs, true);
-	cnlinks_write_nri(vty, &g_hnbgw->sccp.cnpool_iups, true);
+	cnlinks_write_nri(vty, g_hnbgw->sccp.cnpool_iucs, true);
+	cnlinks_write_nri(vty, g_hnbgw->sccp.cnpool_iups, true);
 	return CMD_SUCCESS;
 }
 
@@ -739,9 +739,9 @@ DEFUN_HIDDEN(cnpool_roundrobin_next, cnpool_roundrobin_next_cmd,
 {
 	struct hnbgw_cnpool *cnpool;
 	if (!strcmp("msc", argv[0]))
-		cnpool = &g_hnbgw->sccp.cnpool_iucs;
+		cnpool = g_hnbgw->sccp.cnpool_iucs;
 	else
-		cnpool = &g_hnbgw->sccp.cnpool_iups;
+		cnpool = g_hnbgw->sccp.cnpool_iups;
 	cnpool->round_robin_next_nr = atoi(argv[1]);
 	return CMD_SUCCESS;
 }
@@ -760,9 +760,9 @@ DEFUN(cnlink_ranap_reset, cnlink_ranap_reset_cmd,
 	int nr = atoi(argv[1]);
 
 	if (!strcmp("msc", msc_sgsn))
-		cnpool = &g_hnbgw->sccp.cnpool_iucs;
+		cnpool = g_hnbgw->sccp.cnpool_iucs;
 	else
-		cnpool = &g_hnbgw->sccp.cnpool_iups;
+		cnpool = g_hnbgw->sccp.cnpool_iups;
 
 	cnlink = cnlink_get_nr(cnpool, nr, false);
 	if (!cnlink) {
@@ -801,11 +801,11 @@ DEFUN(cfg_config_apply_sccp, cfg_config_apply_sccp_cmd,
 {
 	struct hnbgw_cnpool *cnpool;
 
-	cnpool = &g_hnbgw->sccp.cnpool_iucs;
+	cnpool = g_hnbgw->sccp.cnpool_iucs;
 	hnbgw_cnpool_apply_cfg(cnpool);
 	hnbgw_cnpool_cnlinks_start_or_restart(cnpool);
 
-	cnpool = &g_hnbgw->sccp.cnpool_iups;
+	cnpool = g_hnbgw->sccp.cnpool_iups;
 	hnbgw_cnpool_apply_cfg(cnpool);
 	hnbgw_cnpool_cnlinks_start_or_restart(cnpool);
 
@@ -1014,8 +1014,8 @@ static int config_write_hnbgw(struct vty *vty)
 	llist_for_each_entry(hnbp, &g_hnbgw->hnb_persistent_list, list)
 		write_one_hnbp(vty, hnbp);
 
-	_config_write_cnpool(vty, &g_hnbgw->sccp.cnpool_iucs);
-	_config_write_cnpool(vty, &g_hnbgw->sccp.cnpool_iups);
+	_config_write_cnpool(vty, g_hnbgw->sccp.cnpool_iucs);
+	_config_write_cnpool(vty, g_hnbgw->sccp.cnpool_iups);
 
 	if (g_hnbgw->config.nft_kpi.enable)
 		vty_out(vty, " nft-kpi%s%s%s",
@@ -1065,13 +1065,13 @@ static void _config_write_cnlink(struct vty *vty, struct hnbgw_cnpool *cnpool)
 
 static int config_write_msc(struct vty *vty)
 {
-	_config_write_cnlink(vty, &g_hnbgw->sccp.cnpool_iucs);
+	_config_write_cnlink(vty, g_hnbgw->sccp.cnpool_iucs);
 	return CMD_SUCCESS;
 }
 
 static int config_write_sgsn(struct vty *vty)
 {
-	_config_write_cnlink(vty, &g_hnbgw->sccp.cnpool_iups);
+	_config_write_cnlink(vty, g_hnbgw->sccp.cnpool_iups);
 	return CMD_SUCCESS;
 }
 
