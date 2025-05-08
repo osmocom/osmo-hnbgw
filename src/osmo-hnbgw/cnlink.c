@@ -347,3 +347,171 @@ int hnbgw_cnlink_tx_ranap_reset_ack(struct hnbgw_cnlink *cnlink)
 	CNLINK_CTR_INC(cnlink, CNLINK_CTR_RANAP_TX_UDT_RESET_ACK);
 	return hnbgw_cnlink_tx_sccp_unitdata_req(cnlink, msg);
 }
+
+static bool addr_has_pc_and_ssn(const struct osmo_sccp_addr *addr)
+{
+	if (!(addr->presence & OSMO_SCCP_ADDR_T_SSN))
+		return false;
+	if (!(addr->presence & OSMO_SCCP_ADDR_T_PC))
+		return false;
+	return true;
+}
+
+static int resolve_addr_name(struct osmo_sccp_addr *dest, struct osmo_ss7_instance **ss7,
+			     const char *addr_name, const char *label,
+			     uint32_t default_pc)
+{
+	if (!addr_name) {
+		osmo_sccp_make_addr_pc_ssn(dest, default_pc, OSMO_SCCP_SSN_RANAP);
+		if (label)
+			LOGP(DCN, LOGL_INFO, "%s remote addr not configured, using default: %s\n", label,
+			     osmo_sccp_addr_name(*ss7, dest));
+		return 0;
+	}
+
+	*ss7 = osmo_sccp_addr_by_name(dest, addr_name);
+	if (!*ss7) {
+		if (label)
+			LOGP(DCN, LOGL_ERROR, "%s remote addr: no such SCCP address book entry: '%s'\n",
+			     label, addr_name);
+		return -1;
+	}
+
+	osmo_sccp_addr_set_ssn(dest, OSMO_SCCP_SSN_RANAP);
+
+	if (!addr_has_pc_and_ssn(dest)) {
+		if (label)
+			LOGP(DCN, LOGL_ERROR, "Invalid/incomplete %s remote-addr: %s\n",
+			     label, osmo_sccp_addr_name(*ss7, dest));
+		return -1;
+	}
+
+	return 0;
+}
+
+char *hnbgw_cnlink_sccp_addr_to_str(struct hnbgw_cnlink *cnlink, const struct osmo_sccp_addr *addr)
+{
+	struct osmo_sccp_instance *sccp = hnbgw_cnlink_sccp(cnlink);
+	if (!sccp)
+		return osmo_sccp_addr_dump(addr);
+	return osmo_sccp_inst_addr_to_str_c(OTC_SELECT, sccp, addr);
+}
+
+static void hnbgw_cnlink_cfg_copy(struct hnbgw_cnlink *cnlink)
+{
+	struct osmo_nri_range *r;
+
+	osmo_talloc_replace_string(cnlink, &cnlink->use.remote_addr_name, cnlink->vty.remote_addr_name);
+
+	osmo_nri_ranges_free(cnlink->use.nri_ranges);
+	cnlink->use.nri_ranges = osmo_nri_ranges_alloc(cnlink);
+	llist_for_each_entry(r, &cnlink->vty.nri_ranges->entries, entry)
+		osmo_nri_ranges_add(cnlink->use.nri_ranges, r);
+}
+
+static bool hnbgw_cnlink_sccp_cfg_changed(struct hnbgw_cnlink *cnlink)
+{
+	bool changed = false;
+
+	if (cnlink->vty.remote_addr_name && cnlink->use.remote_addr_name) {
+		struct osmo_ss7_instance *ss7;
+		struct osmo_sccp_addr remote_addr = {};
+
+		/* Instead of comparing whether the address book entry names are different, actually resolve the
+		 * resulting SCCP address, and only restart the cnlink if the resulting address changed. */
+		resolve_addr_name(&remote_addr, &ss7, cnlink->vty.remote_addr_name, NULL, DEFAULT_PC_HNBGW);
+		if (osmo_sccp_addr_cmp(&remote_addr, &cnlink->remote_addr, OSMO_SCCP_ADDR_T_PC | OSMO_SCCP_ADDR_T_SSN))
+			changed = true;
+	} else if (cnlink->vty.remote_addr_name != cnlink->use.remote_addr_name) {
+		/* One of them is NULL, the other is not. */
+		changed = true;
+	}
+
+	/* if more cnlink configuration is added in the future, it needs to be compared here. */
+
+	return changed;
+}
+
+static void hnbgw_cnlink_log_self(struct hnbgw_cnlink *cnlink)
+{
+	struct osmo_ss7_instance *ss7 = cnlink->hnbgw_sccp_user->ss7;
+	LOG_CNLINK(cnlink, DCN, LOGL_NOTICE, "using: cs7-%u %s <-> %s %s %s\n",
+		   osmo_ss7_instance_get_id(ss7),
+		   /* printing the entire SCCP address is quite long, rather just print the point-code */
+		   osmo_ss7_pointcode_print(ss7, cnlink->hnbgw_sccp_user->local_addr.pc),
+		   osmo_ss7_pointcode_print2(ss7, cnlink->remote_addr.pc),
+		   cnlink->name, cnlink->use.remote_addr_name ? : "(default remote point-code)");
+}
+
+/* If not present yet, set up all of osmo_ss7_instance, osmo_sccp_instance and hnbgw_sccp_user for the given cnlink.
+ * The cs7 instance nr to use is determined by cnlink->remote_addr_name, or cs7 instance 0 if that is not present.
+ * Set cnlink->hnbgw_sccp_user to the new SCCP instance. Return 0 on success, negative on error. */
+int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink)
+{
+	struct osmo_ss7_instance *ss7 = NULL;
+	struct hnbgw_sccp_user *hsu;
+
+	/* If a hnbgw_sccp_user has already been set up, use that. */
+	if (cnlink->hnbgw_sccp_user) {
+		if (hnbgw_cnlink_sccp_cfg_changed(cnlink)) {
+			LOG_CNLINK(cnlink, DCN, LOGL_NOTICE, "config changed, restarting SCCP\n");
+			hnbgw_cnlink_drop_sccp(cnlink);
+		} else {
+			LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "SCCP instance already set up, using %s\n",
+				   cnlink->hnbgw_sccp_user->name);
+			return 0;
+		}
+	} else {
+		LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "no SCCP instance selected yet\n");
+	}
+
+	/* Copy the current configuration: cnlink->use = cnlink->vty */
+	hnbgw_cnlink_cfg_copy(cnlink);
+
+	/* Figure out which cs7 instance to use. If cnlink->remote_addr_name is set, it points to an address book entry
+	 * in a specific cs7 instance. If it is not set, leave ss7 == NULL to use cs7 instance 0. */
+	if (cnlink->use.remote_addr_name) {
+		if (resolve_addr_name(&cnlink->remote_addr, &ss7, cnlink->use.remote_addr_name, cnlink->name,
+				      DEFAULT_PC_HNBGW)) {
+			LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "cannot initialize SCCP: there is no SCCP address named '%s'\n",
+				   cnlink->use.remote_addr_name);
+			return -ENOENT;
+		}
+
+		LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "remote-addr is '%s', using cs7 instance %u\n",
+			   cnlink->use.remote_addr_name, osmo_ss7_instance_get_id(ss7));
+	} else {
+		/* If no address is configured, use the default remote CN address, according to legacy behavior. */
+		osmo_sccp_make_addr_pc_ssn(&cnlink->remote_addr, cnlink->pool->default_remote_pc, OSMO_SCCP_SSN_RANAP);
+	}
+
+	/* If no 'cs7 instance' has been selected by the address, see if there already is a cs7 0 we can use by default.
+	 * If it doesn't exist, it will get created by osmo_sccp_simple_client_on_ss7_id(). */
+	if (!ss7) {
+		ss7 = osmo_ss7_instance_find(0);
+		LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "Using default 'cs7 instance 0' (%s)\n", ss7 ? "already exists" : "will create");
+	}
+
+	if (ss7) {
+		/* Has another cnlink already set up an SCCP instance for this ss7? */
+		llist_for_each_entry(hsu, &g_hnbgw->sccp.users, entry) {
+			if (hsu->ss7 != ss7)
+				continue;
+			LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "using existing SCCP instance %s on cs7 instance %u\n",
+				hsu->name, osmo_ss7_instance_get_id(ss7));
+			cnlink->hnbgw_sccp_user = hsu;
+			hnbgw_sccp_user_get(cnlink->hnbgw_sccp_user, HSU_USE_CNLINK);
+			hnbgw_cnlink_log_self(cnlink);
+			return 0;
+		}
+		/* else cnlink->hnbgw_sccp_user stays NULL and is set up below. */
+		LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "cs7 instance %u has no configured SCCP instance yet\n", osmo_ss7_instance_get_id(ss7));
+	}
+
+	/* No SCCP instance yet for this ss7. Create it. If no address name is given that resolves to a
+	 * particular cs7 instance above, use 'cs7 instance 0'. */
+	cnlink->hnbgw_sccp_user = hnbgw_sccp_user_alloc(ss7 ? osmo_ss7_instance_get_id(ss7) : 0);
+	hnbgw_sccp_user_get(cnlink->hnbgw_sccp_user, HSU_USE_CNLINK);
+	hnbgw_cnlink_log_self(cnlink);
+	return 0;
+}

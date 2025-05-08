@@ -98,6 +98,10 @@ void hnbgw_cnlink_drop_sccp(struct hnbgw_cnlink *cnlink);
 int hnbgw_cnlink_tx_ranap_reset(struct hnbgw_cnlink *cnlink);
 int hnbgw_cnlink_tx_ranap_reset_ack(struct hnbgw_cnlink *cnlink);
 
+int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink);
+
+char *hnbgw_cnlink_sccp_addr_to_str(struct hnbgw_cnlink *cnlink, const struct osmo_sccp_addr *addr);
+
 static inline struct osmo_sccp_instance *hnbgw_cnlink_sccp(const struct hnbgw_cnlink *cnlink)
 {
 	if (!cnlink)
