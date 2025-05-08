@@ -163,12 +163,10 @@ static const struct rate_ctr_group_desc sgsn_ctrg_desc = {
 
 struct hnbgw_cnlink *hnbgw_cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
 {
-	struct osmo_fsm_inst *fi;
 	struct hnbgw_cnlink *cnlink;
 	const struct rate_ctr_group_desc *ctrg_desc;
 
 	OSMO_ASSERT(cnpool);
-	char *name = talloc_asprintf(OTC_SELECT, "%s-%d", cnpool->peer_name, nr);
 
 	switch (cnpool->domain) {
 	case DOMAIN_CS:
@@ -181,27 +179,24 @@ struct hnbgw_cnlink *hnbgw_cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
 		OSMO_ASSERT(0);
 	}
 
-
-	fi = osmo_fsm_inst_alloc(&cnlink_fsm, g_hnbgw, NULL, LOGL_DEBUG, name);
-	OSMO_ASSERT(fi);
-	cnlink = talloc_zero(g_hnbgw, struct hnbgw_cnlink);
-	fi->priv = cnlink;
-
+	cnlink = talloc_zero(cnpool, struct hnbgw_cnlink);
+	OSMO_ASSERT(cnlink);
 	*cnlink = (struct hnbgw_cnlink){
-		.name = name,
 		.pool = cnpool,
-		.fi = fi,
 		.nr = nr,
 		.vty = {
 			/* VTY config defaults for the new cnlink */
 			.nri_ranges = osmo_nri_ranges_alloc(cnlink),
 		},
 		.allow_attach = true,
-		.ctrs = rate_ctr_group_alloc(g_hnbgw, ctrg_desc, nr),
+		.ctrs = rate_ctr_group_alloc(cnlink, ctrg_desc, nr),
 	};
-	talloc_steal(cnlink, name);
+	cnlink->name = talloc_asprintf(cnlink, "%s-%d", cnpool->peer_name, nr);
 	INIT_LLIST_HEAD(&cnlink->map_list);
 	INIT_LLIST_HEAD(&cnlink->paging);
+
+	cnlink->fi = osmo_fsm_inst_alloc(&cnlink_fsm, cnlink, cnlink, LOGL_DEBUG, cnlink->name);
+	OSMO_ASSERT(cnlink->fi);
 
 	llist_add_tail(&cnlink->entry, &cnpool->cnlinks);
 	LOG_CNLINK(cnlink, DCN, LOGL_DEBUG, "allocated\n");
@@ -229,9 +224,14 @@ void hnbgw_cnlink_term_and_free(struct hnbgw_cnlink *cnlink)
 {
 	if (!cnlink)
 		return;
-	osmo_fsm_inst_term(cnlink->fi, OSMO_FSM_TERM_REQUEST, NULL);
+
 	if (cnlink->hnbgw_sccp_user)
 		hnbgw_cnlink_drop_sccp(cnlink);
+
+	osmo_fsm_inst_term(cnlink->fi, OSMO_FSM_TERM_REQUEST, NULL);
+	cnlink->fi = NULL;
+	rate_ctr_group_free(cnlink->ctrs);
+	llist_del(&cnlink->entry);
 	talloc_free(cnlink);
 }
 
