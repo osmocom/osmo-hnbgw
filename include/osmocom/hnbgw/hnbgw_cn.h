@@ -49,9 +49,6 @@ struct hnbgw_cnpool {
 	 * behavior, emergency calls need a separate round-robin counter. */
 	unsigned int round_robin_next_emerg_nr;
 
-	/* rate counter group that child hnbgw_cnlinks should use (points to msc_ctrg_desc or sgsn_ctrg_desc) */
-	const struct rate_ctr_group_desc *cnlink_ctrg_desc;
-
 	/* Running counters for this pool */
 	struct rate_ctr_group *ctrs;
 };

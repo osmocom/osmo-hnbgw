@@ -418,132 +418,6 @@ char *hnbgw_cnlink_sccp_addr_to_str(struct hnbgw_cnlink *cnlink, const struct os
 	return osmo_sccp_inst_addr_to_str_c(OTC_SELECT, sccp, addr);
 }
 
-static const struct rate_ctr_desc cnlink_ctr_description[] = {
-	[CNLINK_CTR_RANAP_RX_UDT_RESET] = {
-		"ranap:rx:udt:reset",
-		"RANAP Unitdata RESET messages received"
-	},
-	[CNLINK_CTR_RANAP_RX_UDT_RESET_ACK] = {
-		"ranap:rx:udt:reset_ack",
-		"RANAP Unitdata RESET ACK messages received",
-	},
-	[CNLINK_CTR_RANAP_RX_UDT_PAGING] = {
-		"ranap:rx:udt:paging",
-		"RANAP Unitdata PAGING messages received",
-	},
-	[CNLINK_CTR_RANAP_RX_UDT_UNKNOWN] = {
-		"ranap:rx:udt:unknown",
-		"Unknown RANAP Unitdata messages received",
-	},
-	[CNLINK_CTR_RANAP_RX_UDT_UNSUPPORTED] = {
-		"ranap:rx:udt:unsupported",
-		"Unsupported RANAP Unitdata messages received",
-	},
-	[CNLINK_CTR_RANAP_RX_UDT_OVERLOAD_IND] = {
-		"ranap:rx:udt:overload_ind",
-		"RANAP Unitdata Overload Indications received",
-	},
-	[CNLINK_CTR_RANAP_RX_UDT_ERROR_IND] = {
-		"ranap:rx:udt:error_ind",
-		"RANAP Unitdata Error Indications received",
-	},
-
-	[CNLINK_CTR_RANAP_TX_UDT_RESET] = {
-		"ranap:tx:udt:reset",
-		"RANAP Unitdata RESET messages transmitted",
-	},
-	[CNLINK_CTR_RANAP_TX_UDT_RESET_ACK] = {
-		"ranap:tx:udt:reset_ack",
-		"RANAP Unitdata RESET ACK messages transmitted",
-	},
-
-	/* SCCP Counters: */
-	[CNLINK_CTR_SCCP_N_UNITDATA_REQ] = {
-		"sccp:n_unit_data:req",
-		"Submit SCCP N-UNITDATA.req (UL)"
-	},
-	[CNLINK_CTR_SCCP_N_UNITDATA_IND] = {
-		"sccp:n_unit_data:ind",
-		"Received SCCP N-UNITDATA.ind (DL)"
-	},
-	[CNLINK_CTR_SCCP_N_CONNECT_REQ] = {
-		"sccp:n_connect:req",
-		"Submit SCCP N-CONNECT.req (UL SCCP CR)"
-	},
-	[CNLINK_CTR_SCCP_N_CONNECT_CNF] = {
-		"sccp:n_connect:cnf",
-		"Received SCCP N-CONNECT.cnf (DL SCCP CC)"
-	},
-	[CNLINK_CTR_SCCP_N_DATA_REQ] = {
-		"sccp:n_data:req",
-		"SUBMIT SCCP N-DATA.req (UL)"
-	},
-	[CNLINK_CTR_SCCP_N_DATA_IND] = {
-		"sccp:n_data:ind",
-		"Received SCCP N-DATA.ind (DL)"
-	},
-	[CNLINK_CTR_SCCP_N_DISCONNECT_REQ] = {
-		"sccp:n_disconnect:req",
-		"Submit SCCP N-DISCONNECT.req (UL SCCP RLC)"
-	},
-	[CNLINK_CTR_SCCP_N_DISCONNECT_IND] = {
-		"sccp:n_disconnect:ind",
-		"Received SCCP N-DISCONNECT.ind (DL SCCP RLSD)"
-	},
-	[CNLINK_CTR_SCCP_N_PCSTATE_IND] = {
-		"sccp:n_pcstate:ind",
-		"Received SCCP N-PCSTATE.ind"
-	},
-	[CNLINK_CTR_SCCP_RLSD_CN_ORIGIN] = {
-		"sccp:rlsd_cn_origin",
-		"Received unexpected SCCP RSLD originated unilaterally by CN"
-	},
-
-	/* Indicators for CN pool usage */
-	[CNLINK_CTR_CNPOOL_SUBSCR_NEW] = {
-		"cnpool:subscr:new",
-		"Complete Layer 3 requests assigned to this CN link by round-robin (no NRI was assigned yet).",
-	},
-	[CNLINK_CTR_CNPOOL_SUBSCR_REATTACH] = {
-		"cnpool:subscr:reattach",
-		"Complete Layer 3 requests assigned to this CN link by round-robin because the subscriber indicates a"
-		" NULL-NRI (previously assigned by another CN link).",
-	},
-	[CNLINK_CTR_CNPOOL_SUBSCR_KNOWN] = {
-		"cnpool:subscr:known",
-		"Complete Layer 3 requests directed to this CN link because the subscriber indicates an NRI of this CN link.",
-	},
-	[CNLINK_CTR_CNPOOL_SUBSCR_PAGED] = {
-		"cnpool:subscr:paged",
-		"Paging Response directed to this CN link because the subscriber was recently paged by this CN link.",
-	},
-	[CNLINK_CTR_CNPOOL_SUBSCR_ATTACH_LOST] = {
-		"cnpool:subscr:attach_lost",
-		"A subscriber indicates an NRI value matching this CN link, but the CN link is not connected:"
-		" a re-attach to another CN link (if available) was forced, with possible service failure.",
-	},
-	[CNLINK_CTR_CNPOOL_EMERG_FORWARDED] = {
-		"cnpool:emerg:forwarded",
-		"Emergency call requests forwarded to this CN link.",
-	},
-};
-
-const struct rate_ctr_group_desc msc_ctrg_desc = {
-	"msc",
-	"MSC",
-	OSMO_STATS_CLASS_GLOBAL,
-	ARRAY_SIZE(cnlink_ctr_description),
-	cnlink_ctr_description,
-};
-
-const struct rate_ctr_group_desc sgsn_ctrg_desc = {
-	"sgsn",
-	"SGSN",
-	OSMO_STATS_CLASS_GLOBAL,
-	ARRAY_SIZE(cnlink_ctr_description),
-	cnlink_ctr_description,
-};
-
 static const struct rate_ctr_desc cnpool_ctr_description[] = {
 	[CNPOOL_CTR_SUBSCR_NO_CNLINK] = {
 		"cnpool:subscr:no_cnlink",
@@ -606,14 +480,12 @@ struct hnbgw_cnpool *hnbgw_cnpool_alloc(RANAP_CN_DomainIndicator_t domain)
 		cnpool->pool_name = "iucs";
 		cnpool->peer_name = "msc";
 		cnpool->default_remote_pc = DEFAULT_PC_MSC;
-		cnpool->cnlink_ctrg_desc = &msc_ctrg_desc;
 		cnpool->ctrs = rate_ctr_group_alloc(cnpool, &iucs_ctrg_desc, 0);
 		break;
 	case DOMAIN_PS:
 		cnpool->pool_name = "iups";
 		cnpool->peer_name = "sgsn";
 		cnpool->default_remote_pc = DEFAULT_PC_SGSN;
-		cnpool->cnlink_ctrg_desc = &sgsn_ctrg_desc;
 		cnpool->ctrs = rate_ctr_group_alloc(cnpool, &iups_ctrg_desc, 0);
 		break;
 	default:
