@@ -149,7 +149,8 @@ static void _show_cnlink(struct vty *vty, struct hnbgw_cnlink *cnlink)
 		return;
 	}
 
-	vty_out(vty, "%s <->",
+	vty_out(vty, "%s: %s <->",
+		cnlink->name,
 		osmo_sccp_user_name(cnlink->hnbgw_sccp_user->sccp_user));
 	vty_out(vty, " %s%s%s%s",
 		cnlink->use.remote_addr_name ? : "",
@@ -526,6 +527,18 @@ DEFUN(cfg_sgsn_nr, cfg_sgsn_nr_cmd,
 /* 'msc 0'  / 'remote-addr my-msc'  and
  * 'sgsn 0' / 'remote-addr my-sgsn'
  */
+DEFUN(cfg_cnlink_name,
+      cfg_cnlink_name_cmd,
+      "name NAME",
+      "Set user defined name for this msc/sgsn\n"
+      "The user defined name to be set for this msc/sgsn\n")
+{
+	struct hnbgw_cnlink *cnlink = vty->index;
+	if (hnbgw_cnlink_set_name(cnlink, argv[0]) < 0)
+		return CMD_WARNING;
+	return CMD_SUCCESS;
+}
+
 DEFUN(cfg_cnlink_remote_addr,
       cfg_cnlink_remote_addr_cmd,
       "remote-addr NAME",
@@ -1057,6 +1070,7 @@ static void _config_write_cnlink(struct vty *vty, struct hnbgw_cnpool *cnpool)
 
 	llist_for_each_entry(cnlink, &cnpool->cnlinks, entry) {
 		vty_out(vty, "%s %d%s", cnpool->peer_name, cnlink->nr, VTY_NEWLINE);
+		vty_out(vty, " name %s%s", cnlink->name, VTY_NEWLINE);
 		if (cnlink->vty.remote_addr_name)
 			vty_out(vty, " remote-addr %s%s", cnlink->vty.remote_addr_name, VTY_NEWLINE);
 		cnlink_write_nri(vty, cnlink, false);
@@ -1098,6 +1112,7 @@ static int config_write_hnbgw_pfcp(struct vty *vty)
 
 static void install_cnlink_elements(int node)
 {
+	install_element(node, &cfg_cnlink_name_cmd);
 	install_element(node, &cfg_cnlink_remote_addr_cmd);
 	install_element(node, &cfg_cnlink_nri_add_cmd);
 	install_element(node, &cfg_cnlink_nri_del_cmd);
