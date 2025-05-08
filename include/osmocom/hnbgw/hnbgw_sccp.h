@@ -57,3 +57,10 @@ int hnbgw_sccp_user_tx_connect_req(struct hnbgw_sccp_user *hsu, const struct osm
 int hnbgw_sccp_user_tx_data_req(struct hnbgw_sccp_user *hsu, uint32_t scu_conn_id,
 				struct msgb *ranap_msg);
 int hnbgw_sccp_user_tx_disconnect_req(struct hnbgw_sccp_user *hsu, uint32_t scu_conn_id);
+
+static inline struct osmo_sccp_instance *hnbgw_sccp_user_get_sccp_instance(const struct hnbgw_sccp_user *hsu)
+{
+	if (!hsu->ss7)
+		return NULL;
+	return osmo_ss7_get_sccp(hsu->ss7);
+}

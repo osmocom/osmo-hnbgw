@@ -108,9 +108,7 @@ static inline struct osmo_sccp_instance *hnbgw_cnlink_sccp(const struct hnbgw_cn
 		return NULL;
 	if (!cnlink->hnbgw_sccp_user)
 		return NULL;
-	if (!cnlink->hnbgw_sccp_user->ss7)
-		return NULL;
-	return osmo_ss7_get_sccp(cnlink->hnbgw_sccp_user->ss7);
+	return hnbgw_sccp_user_get_sccp_instance(cnlink->hnbgw_sccp_user);
 }
 
 /* cnlink_fsm.c related: */
