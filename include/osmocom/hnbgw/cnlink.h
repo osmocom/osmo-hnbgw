@@ -3,6 +3,7 @@
 #include <stdbool.h>
 
 #include <osmocom/core/rate_ctr.h>
+#include <osmocom/core/stat_item.h>
 #include <osmocom/gsm/gsm48.h>
 
 #include <osmocom/sigtran/sccp_sap.h>
@@ -48,6 +49,13 @@ enum hnbgw_cnlink_ctr {
 	CNLINK_CTR_CNPOOL_SUBSCR_ATTACH_LOST,
 	CNLINK_CTR_CNPOOL_EMERG_FORWARDED,
 };
+#define CNLINK_CTR_INC(cnlink, x) rate_ctr_inc2((cnlink)->ctrs, x)
+
+enum cnlink_stat {
+	CNLINK_STAT_CONNECTED,
+};
+#define CNLINK_STAT(cnlink, x) osmo_stat_item_group_get_item((cnlink)->statg, x)
+#define CNLINK_STAT_SET(cnlink, x, val) osmo_stat_item_set(CNLINK_STAT(cnlink, x), val)
 
 /* User provided configuration for struct hnbgw_cnlink. */
 struct hnbgw_cnlink_cfg {
@@ -90,6 +98,7 @@ struct hnbgw_cnlink {
 	struct llist_head paging;
 
 	struct rate_ctr_group *ctrs;
+	struct osmo_stat_item_group *statg;
 };
 
 struct hnbgw_cnlink *hnbgw_cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr);
@@ -125,5 +134,3 @@ struct hnbgw_cnlink *cnlink_find_by_paging_mi(struct hnbgw_cnpool *cnpool, const
 
 #define LOG_CNLINK(CNLINK, SUBSYS, LEVEL, FMT, ARGS...) \
 	LOGP(SUBSYS, LEVEL, "(%s) " FMT, (CNLINK) ? (CNLINK)->name : "null", ##ARGS)
-
-#define CNLINK_CTR_INC(cnlink, x) rate_ctr_inc2((cnlink)->ctrs, x)

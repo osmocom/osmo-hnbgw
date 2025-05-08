@@ -21,6 +21,7 @@
 #include <osmocom/core/fsm.h>
 #include <osmocom/core/tdef.h>
 #include <osmocom/core/stats.h>
+#include <osmocom/core/stat_item.h>
 
 #include <osmocom/gsm/gsm23236.h>
 
@@ -161,19 +162,42 @@ static const struct rate_ctr_group_desc sgsn_ctrg_desc = {
 	cnlink_ctr_description,
 };
 
+static const struct osmo_stat_item_desc cnlink_stat_desc[] = {
+	[CNLINK_STAT_CONNECTED] = { "connected", "Connected (1) or disconnected (0)", NULL, 60, 0 },
+};
+
+const struct osmo_stat_item_group_desc msc_statg_desc = {
+	.group_name_prefix = "msc",
+	.group_description = "MSC",
+	.class_id = OSMO_STATS_CLASS_GLOBAL,
+	.num_items = ARRAY_SIZE(cnlink_stat_desc),
+	.item_desc = cnlink_stat_desc,
+};
+
+const struct osmo_stat_item_group_desc sgsn_statg_desc = {
+	.group_name_prefix = "sgsn",
+	.group_description = "SGSN",
+	.class_id = OSMO_STATS_CLASS_GLOBAL,
+	.num_items = ARRAY_SIZE(cnlink_stat_desc),
+	.item_desc = cnlink_stat_desc,
+};
+
 struct hnbgw_cnlink *hnbgw_cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
 {
 	struct hnbgw_cnlink *cnlink;
 	const struct rate_ctr_group_desc *ctrg_desc;
+	const struct osmo_stat_item_group_desc *statg_desc;
 
 	OSMO_ASSERT(cnpool);
 
 	switch (cnpool->domain) {
 	case DOMAIN_CS:
 		ctrg_desc = &msc_ctrg_desc;
+		statg_desc = &msc_statg_desc;
 		break;
 	case DOMAIN_PS:
 		ctrg_desc = &sgsn_ctrg_desc;
+		statg_desc = &sgsn_statg_desc;
 		break;
 	default:
 		OSMO_ASSERT(0);
@@ -190,6 +214,7 @@ struct hnbgw_cnlink *hnbgw_cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
 		},
 		.allow_attach = true,
 		.ctrs = rate_ctr_group_alloc(cnlink, ctrg_desc, nr),
+		.statg = osmo_stat_item_group_alloc(cnlink, statg_desc, nr),
 	};
 	cnlink->name = talloc_asprintf(cnlink, "%s-%d", cnpool->peer_name, nr);
 	INIT_LLIST_HEAD(&cnlink->map_list);
@@ -230,6 +255,7 @@ void hnbgw_cnlink_term_and_free(struct hnbgw_cnlink *cnlink)
 
 	osmo_fsm_inst_term(cnlink->fi, OSMO_FSM_TERM_REQUEST, NULL);
 	cnlink->fi = NULL;
+	osmo_stat_item_group_free(cnlink->statg);
 	rate_ctr_group_free(cnlink->ctrs);
 	llist_del(&cnlink->entry);
 	talloc_free(cnlink);

@@ -63,6 +63,7 @@ static const struct osmo_tdef_state_timeout cnlink_timeouts[32] = {
 static void link_up(struct hnbgw_cnlink *cnlink)
 {
 	LOGPFSML(cnlink->fi, LOGL_NOTICE, "link up\n");
+	CNLINK_STAT_SET(cnlink, CNLINK_STAT_CONNECTED, 1);
 }
 
 static void link_lost(struct hnbgw_cnlink *cnlink)
@@ -70,6 +71,7 @@ static void link_lost(struct hnbgw_cnlink *cnlink)
 	struct hnbgw_context_map *map, *map2;
 
 	LOGPFSML(cnlink->fi, LOGL_NOTICE, "link lost\n");
+	CNLINK_STAT_SET(cnlink, CNLINK_STAT_CONNECTED, 0);
 
 	llist_for_each_entry_safe(map, map2, &cnlink->map_list, hnbgw_cnlink_entry)
 		context_map_cnlink_lost(map);
