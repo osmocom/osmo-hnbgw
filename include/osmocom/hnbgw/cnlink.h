@@ -13,19 +13,6 @@
 
 struct hnbgw_cnpool;
 
-struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr);
-
-void hnbgw_cnlink_drop_sccp(struct hnbgw_cnlink *cnlink);
-
-bool cnlink_is_conn_ready(const struct hnbgw_cnlink *cnlink);
-void cnlink_rx_reset_cmd(struct hnbgw_cnlink *cnlink);
-void cnlink_rx_reset_ack(struct hnbgw_cnlink *cnlink);
-void cnlink_resend_reset(struct hnbgw_cnlink *cnlink);
-void cnlink_set_disconnected(struct hnbgw_cnlink *cnlink);
-
-const char *cnlink_paging_add_ranap(struct hnbgw_cnlink *cnlink, const RANAP_PagingIEs_t *paging_ies);
-struct hnbgw_cnlink *cnlink_find_by_paging_mi(struct hnbgw_cnpool *cnpool, const struct osmo_mobile_identity *mi);
-
 enum hnbgw_cnlink_ctr {
 	/* TODO: basic counters completely missing
 	 * ...
@@ -105,6 +92,11 @@ struct hnbgw_cnlink {
 	struct rate_ctr_group *ctrs;
 };
 
+struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr);
+void hnbgw_cnlink_drop_sccp(struct hnbgw_cnlink *cnlink);
+int hnbgw_cnlink_tx_ranap_reset(struct hnbgw_cnlink *cnlink);
+int hnbgw_cnlink_tx_ranap_reset_ack(struct hnbgw_cnlink *cnlink);
+
 static inline struct osmo_sccp_instance *cnlink_sccp(const struct hnbgw_cnlink *cnlink)
 {
 	if (!cnlink)
@@ -115,6 +107,18 @@ static inline struct osmo_sccp_instance *cnlink_sccp(const struct hnbgw_cnlink *
 		return NULL;
 	return osmo_ss7_get_sccp(cnlink->hnbgw_sccp_user->ss7);
 }
+
+/* cnlink_fsm.c related: */
+extern struct osmo_fsm cnlink_fsm;
+bool cnlink_is_conn_ready(const struct hnbgw_cnlink *cnlink);
+void cnlink_rx_reset_cmd(struct hnbgw_cnlink *cnlink);
+void cnlink_rx_reset_ack(struct hnbgw_cnlink *cnlink);
+void cnlink_resend_reset(struct hnbgw_cnlink *cnlink);
+void cnlink_set_disconnected(struct hnbgw_cnlink *cnlink);
+
+/* cnlink_paging.c related: */
+const char *cnlink_paging_add_ranap(struct hnbgw_cnlink *cnlink, const RANAP_PagingIEs_t *paging_ies);
+struct hnbgw_cnlink *cnlink_find_by_paging_mi(struct hnbgw_cnpool *cnpool, const struct osmo_mobile_identity *mi);
 
 #define LOG_CNLINK(CNLINK, SUBSYS, LEVEL, FMT, ARGS...) \
 	LOGP(SUBSYS, LEVEL, "(%s) " FMT, (CNLINK) ? (CNLINK)->name : "null", ##ARGS)
