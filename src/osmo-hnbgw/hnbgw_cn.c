@@ -42,10 +42,6 @@
 #include <osmocom/hnbgw/hnbgw_cn.h>
 #include <osmocom/hnbgw/context_map.h>
 
-/***********************************************************************
- * Incoming primitives from SCCP User SAP
- ***********************************************************************/
-
 static bool addr_has_pc_and_ssn(const struct osmo_sccp_addr *addr)
 {
 	if (!(addr->presence & OSMO_SCCP_ADDR_T_SSN))
@@ -94,7 +90,7 @@ void hnbgw_cnpool_apply_cfg(struct hnbgw_cnpool *cnpool)
 	cnpool->use.nri_bitlen = cnpool->vty.nri_bitlen;
 
 	osmo_nri_ranges_free(cnpool->use.null_nri_ranges);
-	cnpool->use.null_nri_ranges = osmo_nri_ranges_alloc(g_hnbgw);
+	cnpool->use.null_nri_ranges = osmo_nri_ranges_alloc(cnpool);
 	llist_for_each_entry(r, &cnpool->vty.null_nri_ranges->entries, entry)
 		osmo_nri_ranges_add(cnpool->use.null_nri_ranges, r);
 }
@@ -269,7 +265,7 @@ static bool is_cnlink_usable(struct hnbgw_cnlink *cnlink, bool is_emerg)
  */
 struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 {
-	struct hnbgw_cnpool *cnpool = map->is_ps ? &g_hnbgw->sccp.cnpool_iups : &g_hnbgw->sccp.cnpool_iucs;
+	struct hnbgw_cnpool *cnpool = map->is_ps ? g_hnbgw->sccp.cnpool_iups : g_hnbgw->sccp.cnpool_iucs;
 	struct hnbgw_cnlink *cnlink;
 	struct hnbgw_cnlink *round_robin_next = NULL;
 	struct hnbgw_cnlink *round_robin_first = NULL;
@@ -578,3 +574,51 @@ const struct rate_ctr_group_desc iups_ctrg_desc = {
 	ARRAY_SIZE(cnpool_ctr_description),
 	cnpool_ctr_description,
 };
+
+static int hnbgw_cnpool_talloc_destructor(struct hnbgw_cnpool *cnpool)
+{
+	struct hnbgw_cnlink *cnlink;
+	osmo_nri_ranges_free(cnpool->vty.null_nri_ranges);
+	cnpool->vty.null_nri_ranges = NULL;
+
+	while ((cnlink = llist_first_entry_or_null(&cnpool->cnlinks, struct hnbgw_cnlink, entry)))
+		hnbgw_cnlink_term_and_free(cnlink);
+	return 0;
+}
+
+struct hnbgw_cnpool *hnbgw_cnpool_alloc(RANAP_CN_DomainIndicator_t domain)
+{
+	struct hnbgw_cnpool *cnpool = talloc_zero(g_hnbgw, struct hnbgw_cnpool);
+	OSMO_ASSERT(cnpool);
+
+	cnpool->domain = domain;
+	cnpool->vty = (struct hnbgw_cnpool_cfg){
+		.nri_bitlen = OSMO_NRI_BITLEN_DEFAULT,
+		.null_nri_ranges = osmo_nri_ranges_alloc(cnpool),
+	};
+	OSMO_ASSERT(cnpool->vty.null_nri_ranges);
+	INIT_LLIST_HEAD(&cnpool->cnlinks);
+
+	talloc_set_destructor(cnpool, hnbgw_cnpool_talloc_destructor);
+
+	switch (domain) {
+	case DOMAIN_CS:
+		cnpool->pool_name = "iucs";
+		cnpool->peer_name = "msc";
+		cnpool->default_remote_pc = DEFAULT_PC_MSC;
+		cnpool->cnlink_ctrg_desc = &msc_ctrg_desc;
+		cnpool->ctrs = rate_ctr_group_alloc(cnpool, &iucs_ctrg_desc, 0);
+		break;
+	case DOMAIN_PS:
+		cnpool->pool_name = "iups";
+		cnpool->peer_name = "sgsn";
+		cnpool->default_remote_pc = DEFAULT_PC_SGSN;
+		cnpool->cnlink_ctrg_desc = &sgsn_ctrg_desc;
+		cnpool->ctrs = rate_ctr_group_alloc(cnpool, &iups_ctrg_desc, 0);
+		break;
+	default:
+		OSMO_ASSERT(0);
+	}
+
+	return cnpool;
+}

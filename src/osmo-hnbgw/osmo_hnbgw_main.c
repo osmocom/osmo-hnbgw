@@ -345,8 +345,8 @@ int main(int argc, char **argv)
 #endif
 	}
 
-	hnbgw_cnpool_start(&g_hnbgw->sccp.cnpool_iucs);
-	hnbgw_cnpool_start(&g_hnbgw->sccp.cnpool_iups);
+	hnbgw_cnpool_start(g_hnbgw->sccp.cnpool_iucs);
+	hnbgw_cnpool_start(g_hnbgw->sccp.cnpool_iups);
 
 	if (hnbgw_cmdline_config.daemonize) {
 		rc = osmo_daemonize();

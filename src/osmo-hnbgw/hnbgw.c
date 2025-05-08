@@ -235,35 +235,8 @@ void g_hnbgw_alloc(void *ctx)
 	g_hnbgw->config.pfcp.remote_port = OSMO_PFCP_PORT;
 #endif
 
-	g_hnbgw->sccp.cnpool_iucs = (struct hnbgw_cnpool){
-		.domain = DOMAIN_CS,
-		.pool_name = "iucs",
-		.peer_name = "msc",
-		.default_remote_pc = DEFAULT_PC_MSC,
-		.vty = {
-			.nri_bitlen = OSMO_NRI_BITLEN_DEFAULT,
-			.null_nri_ranges = osmo_nri_ranges_alloc(g_hnbgw),
-		},
-		.cnlink_ctrg_desc = &msc_ctrg_desc,
-
-		.ctrs = rate_ctr_group_alloc(g_hnbgw, &iucs_ctrg_desc, 0),
-	};
-	INIT_LLIST_HEAD(&g_hnbgw->sccp.cnpool_iucs.cnlinks);
-
-	g_hnbgw->sccp.cnpool_iups = (struct hnbgw_cnpool){
-		.domain = DOMAIN_PS,
-		.pool_name = "iups",
-		.peer_name = "sgsn",
-		.default_remote_pc = DEFAULT_PC_SGSN,
-		.vty = {
-			.nri_bitlen = OSMO_NRI_BITLEN_DEFAULT,
-			.null_nri_ranges = osmo_nri_ranges_alloc(g_hnbgw),
-		},
-		.cnlink_ctrg_desc = &sgsn_ctrg_desc,
-
-		.ctrs = rate_ctr_group_alloc(g_hnbgw, &iups_ctrg_desc, 0),
-	};
-	INIT_LLIST_HEAD(&g_hnbgw->sccp.cnpool_iups.cnlinks);
+	g_hnbgw->sccp.cnpool_iucs = hnbgw_cnpool_alloc(DOMAIN_CS);
+	g_hnbgw->sccp.cnpool_iups = hnbgw_cnpool_alloc(DOMAIN_PS);
 
 	osmo_timer_setup(&g_hnbgw->store_uptime_timer, hnbgw_store_hnb_uptime, g_hnbgw);
 	osmo_timer_schedule(&g_hnbgw->store_uptime_timer, STORE_UPTIME_INTERVAL, 0);

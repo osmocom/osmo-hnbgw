@@ -56,11 +56,7 @@ struct hnbgw_cnpool {
 	struct rate_ctr_group *ctrs;
 };
 
-extern const struct rate_ctr_group_desc iucs_ctrg_desc;
-extern const struct rate_ctr_group_desc iups_ctrg_desc;
-
-extern const struct rate_ctr_group_desc msc_ctrg_desc;
-extern const struct rate_ctr_group_desc sgsn_ctrg_desc;
+struct hnbgw_cnpool *hnbgw_cnpool_alloc(RANAP_CN_DomainIndicator_t domain);
 
 struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map);
 
