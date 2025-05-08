@@ -230,6 +230,17 @@ struct hnbgw_cnlink *hnbgw_cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
 	return cnlink;
 }
 
+int hnbgw_cnlink_set_name(struct hnbgw_cnlink *cnlink, const char *name)
+{
+	talloc_free(cnlink->name);
+	cnlink->name = talloc_strdup(cnlink, name);
+	osmo_fsm_inst_update_id_f_sanitize(cnlink->fi, '-', cnlink->name);
+	/* Update rate_ctr/stats to report by name instead of index: */
+	rate_ctr_group_set_name(cnlink->ctrs, cnlink->name);
+	osmo_stat_item_group_set_name(cnlink->statg, cnlink->name);
+	return 0;
+}
+
 void hnbgw_cnlink_drop_sccp(struct hnbgw_cnlink *cnlink)
 {
 	struct hnbgw_context_map *map, *map2;

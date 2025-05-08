@@ -135,7 +135,9 @@ OsmoHNBGW(config)# ### The config file has no 'msc' or 'sgsn', so defaults have 
 OsmoHNBGW(config)# show running-config
 ...
 msc 0
+ name msc-0
 sgsn 0
+ name sgsn-0
 ...
 
 OsmoHNBGW(config)# msc 1
@@ -224,9 +226,13 @@ OsmoHNBGW(config)# ### Just by entering the nodes above, 'msc 1' and 'sgsn 1' no
 OsmoHNBGW(config)# show running-config
 ...
 msc 0
+ name msc-0
 msc 1
+ name msc-1
 sgsn 0
+ name sgsn-0
 sgsn 1
+ name sgsn-1
 ...
 
 OsmoHNBGW(config)# ### Add {msc,sgsn}x{2,3}
@@ -252,18 +258,26 @@ OsmoHNBGW(config-sgsn)# exit
 OsmoHNBGW(config)# show running-config
 ...
 msc 0
+ name msc-0
 msc 1
+ name msc-1
 msc 2
+ name msc-2
  remote-addr addr-msc2
  no allow-attach
 msc 3
+ name msc-3
  remote-addr addr-msc3
  allow-emergency
 sgsn 0
+ name sgsn-0
 sgsn 1
+ name sgsn-1
 sgsn 2
+ name sgsn-2
  remote-addr addr-sgsn2
 sgsn 3
+ name sgsn-3
  remote-addr addr-sgsn3
 ...
 
@@ -282,16 +296,24 @@ OsmoHNBGW(config-sgsn)# exit
 OsmoHNBGW(config)# show running-config
 ...
 msc 0
+ name msc-0
 msc 1
+ name msc-1
 msc 2
+ name msc-2
  remote-addr addr-msc2
 msc 3
+ name msc-3
  remote-addr addr-msc4
 sgsn 0
+ name sgsn-0
 sgsn 1
+ name sgsn-1
 sgsn 2
+ name sgsn-2
  remote-addr addr-sgsn4
 sgsn 3
+ name sgsn-3
  remote-addr addr-sgsn3
 ...
 
@@ -321,18 +343,26 @@ OsmoHNBGW(config-hnbgw)# show running-config
 hnbgw
 ...
 msc 0
+ name msc-0
  remote-addr addr-msc0
 msc 1
+ name msc-1
 msc 2
+ name msc-2
  remote-addr addr-msc2
 msc 3
+ name msc-3
  remote-addr addr-msc4
 sgsn 0
+ name sgsn-0
  remote-addr addr-sgsn0
 sgsn 1
+ name sgsn-1
 sgsn 2
+ name sgsn-2
  remote-addr addr-sgsn4
 sgsn 3
+ name sgsn-3
  remote-addr addr-sgsn3
 ...
 

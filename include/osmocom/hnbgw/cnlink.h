@@ -104,6 +104,7 @@ struct hnbgw_cnlink {
 struct hnbgw_cnlink *hnbgw_cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr);
 void hnbgw_cnlink_term_and_free(struct hnbgw_cnlink *cnlink);
 void hnbgw_cnlink_drop_sccp(struct hnbgw_cnlink *cnlink);
+int hnbgw_cnlink_set_name(struct hnbgw_cnlink *cnlink, const char *name);
 int hnbgw_cnlink_tx_ranap_reset(struct hnbgw_cnlink *cnlink);
 int hnbgw_cnlink_tx_ranap_reset_ack(struct hnbgw_cnlink *cnlink);
 
