@@ -154,7 +154,7 @@ static void _show_cnlink(struct vty *vty, struct hnbgw_cnlink *cnlink)
 	vty_out(vty, " %s%s%s%s",
 		cnlink->use.remote_addr_name ? : "",
 		cnlink->use.remote_addr_name ? "=" : "",
-		cnlink_sccp_addr_to_str(cnlink, &cnlink->remote_addr),
+		hnbgw_cnlink_sccp_addr_to_str(cnlink, &cnlink->remote_addr),
 		VTY_NEWLINE);
 
 	rt = osmo_ss7_route_lookup(ss7, cnlink->remote_addr.pc);

@@ -92,12 +92,13 @@ struct hnbgw_cnlink {
 	struct rate_ctr_group *ctrs;
 };
 
-struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr);
+struct hnbgw_cnlink *hnbgw_cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr);
+void hnbgw_cnlink_term_and_free(struct hnbgw_cnlink *cnlink);
 void hnbgw_cnlink_drop_sccp(struct hnbgw_cnlink *cnlink);
 int hnbgw_cnlink_tx_ranap_reset(struct hnbgw_cnlink *cnlink);
 int hnbgw_cnlink_tx_ranap_reset_ack(struct hnbgw_cnlink *cnlink);
 
-static inline struct osmo_sccp_instance *cnlink_sccp(const struct hnbgw_cnlink *cnlink)
+static inline struct osmo_sccp_instance *hnbgw_cnlink_sccp(const struct hnbgw_cnlink *cnlink)
 {
 	if (!cnlink)
 		return NULL;

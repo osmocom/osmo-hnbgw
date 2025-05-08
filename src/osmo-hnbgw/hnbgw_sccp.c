@@ -123,9 +123,9 @@ static int handle_cn_conn_conf(struct hnbgw_sccp_user *hsu,
 
 	LOGP(DCN, LOGL_DEBUG, "handle_cn_conn_conf() conn_id=%d, addrs: called=%s calling=%s responding=%s\n",
 	     param->conn_id,
-	     cnlink_sccp_addr_to_str(map->cnlink, &param->called_addr),
-	     cnlink_sccp_addr_to_str(map->cnlink, &param->calling_addr),
-	     cnlink_sccp_addr_to_str(map->cnlink, &param->responding_addr));
+	     hnbgw_cnlink_sccp_addr_to_str(map->cnlink, &param->called_addr),
+	     hnbgw_cnlink_sccp_addr_to_str(map->cnlink, &param->calling_addr),
+	     hnbgw_cnlink_sccp_addr_to_str(map->cnlink, &param->responding_addr));
 
 	CNLINK_CTR_INC(map->cnlink, CNLINK_CTR_SCCP_N_CONNECT_CNF);
 
@@ -159,7 +159,7 @@ static int handle_cn_disc_ind(struct hnbgw_sccp_user *hsu,
 
 	LOGP(DCN, LOGL_DEBUG, "handle_cn_disc_ind() conn_id=%u responding_addr=%s cause=%s\n",
 	     param->conn_id,
-	     cnlink_sccp_addr_to_str(map->cnlink, &param->responding_addr),
+	     hnbgw_cnlink_sccp_addr_to_str(map->cnlink, &param->responding_addr),
 	     osmo_sua_sccp_cause_name(param->cause, cause_buf, sizeof(cause_buf)));
 
 	CNLINK_CTR_INC(map->cnlink, CNLINK_CTR_SCCP_N_DISCONNECT_IND);

@@ -247,7 +247,7 @@ struct hnbgw_cnlink *cnlink_get_nr(struct hnbgw_cnpool *cnpool, int nr, bool cre
 	if (!create_if_missing)
 		return NULL;
 
-	return cnlink_alloc(cnpool, nr);
+	return hnbgw_cnlink_alloc(cnpool, nr);
 }
 
 static bool is_cnlink_usable(struct hnbgw_cnlink *cnlink, bool is_emerg)
@@ -414,9 +414,9 @@ struct hnbgw_cnlink *hnbgw_cnlink_select(struct hnbgw_context_map *map)
 #undef LOG_NRI
 }
 
-char *cnlink_sccp_addr_to_str(struct hnbgw_cnlink *cnlink, const struct osmo_sccp_addr *addr)
+char *hnbgw_cnlink_sccp_addr_to_str(struct hnbgw_cnlink *cnlink, const struct osmo_sccp_addr *addr)
 {
-	struct osmo_sccp_instance *sccp = cnlink_sccp(cnlink);
+	struct osmo_sccp_instance *sccp = hnbgw_cnlink_sccp(cnlink);
 	if (!sccp)
 		return osmo_sccp_addr_dump(addr);
 	return osmo_sccp_inst_addr_to_str_c(OTC_SELECT, sccp, addr);

@@ -34,7 +34,7 @@
 #include <osmocom/hnbgw/tdefs.h>
 #include <osmocom/hnbgw/context_map.h>
 
-struct hnbgw_cnlink *cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
+struct hnbgw_cnlink *hnbgw_cnlink_alloc(struct hnbgw_cnpool *cnpool, int nr)
 {
 	struct osmo_fsm_inst *fi;
 	struct hnbgw_cnlink *cnlink;
@@ -84,7 +84,7 @@ void hnbgw_cnlink_drop_sccp(struct hnbgw_cnlink *cnlink)
 	hnbgw_sccp_user_put(hsu, HSU_USE_CNLINK);
 }
 
-void cnlink_term_and_free(struct hnbgw_cnlink *cnlink)
+void hnbgw_cnlink_term_and_free(struct hnbgw_cnlink *cnlink)
 {
 	if (!cnlink)
 		return;
@@ -127,7 +127,7 @@ int hnbgw_cnlink_tx_ranap_reset(struct hnbgw_cnlink *cnlink)
 
 	LOG_CNLINK(cnlink, DRANAP, LOGL_DEBUG, "Tx RANAP RESET to %s %s\n",
 		   cnlink_is_cs(cnlink) ? "IuCS" : "IuPS",
-		   cnlink_sccp_addr_to_str(cnlink, &cnlink->remote_addr));
+		   hnbgw_cnlink_sccp_addr_to_str(cnlink, &cnlink->remote_addr));
 
 	if (g_hnbgw->config.plmn.mcc) {
 		osmo_plmn_to_bcd(plmn_buf, &g_hnbgw->config.plmn);
@@ -162,7 +162,7 @@ int hnbgw_cnlink_tx_ranap_reset(struct hnbgw_cnlink *cnlink)
 int hnbgw_cnlink_tx_ranap_reset_ack(struct hnbgw_cnlink *cnlink)
 {
 	struct msgb *msg;
-	struct osmo_sccp_instance *sccp = cnlink_sccp(cnlink);
+	struct osmo_sccp_instance *sccp = hnbgw_cnlink_sccp(cnlink);
 	RANAP_GlobalRNC_ID_t grnc_id;
 	RANAP_GlobalRNC_ID_t *use_grnc_id = NULL;
 	uint8_t plmn_buf[3];
@@ -174,8 +174,8 @@ int hnbgw_cnlink_tx_ranap_reset_ack(struct hnbgw_cnlink *cnlink)
 
 	LOG_CNLINK(cnlink, DRANAP, LOGL_NOTICE, "Tx RANAP RESET ACK %s %s --> %s\n",
 		   cnlink_is_cs(cnlink) ? "IuCS" : "IuPS",
-		   cnlink_sccp_addr_to_str(cnlink, &cnlink->hnbgw_sccp_user->local_addr),
-		   cnlink_sccp_addr_to_str(cnlink, &cnlink->remote_addr));
+		   hnbgw_cnlink_sccp_addr_to_str(cnlink, &cnlink->hnbgw_sccp_user->local_addr),
+		   hnbgw_cnlink_sccp_addr_to_str(cnlink, &cnlink->remote_addr));
 
 	if (g_hnbgw->config.plmn.mcc) {
 		osmo_plmn_to_bcd(plmn_buf, &g_hnbgw->config.plmn);

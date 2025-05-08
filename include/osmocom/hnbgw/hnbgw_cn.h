@@ -70,4 +70,4 @@ struct hnbgw_cnlink *cnlink_get_nr(struct hnbgw_cnpool *cnpool, int nr, bool cre
 void hnbgw_cnpool_apply_cfg(struct hnbgw_cnpool *cnpool);
 
 int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink);
-char *cnlink_sccp_addr_to_str(struct hnbgw_cnlink *cnlink, const struct osmo_sccp_addr *addr);
+char *hnbgw_cnlink_sccp_addr_to_str(struct hnbgw_cnlink *cnlink, const struct osmo_sccp_addr *addr);
