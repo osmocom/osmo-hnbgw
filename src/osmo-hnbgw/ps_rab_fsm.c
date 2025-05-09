@@ -173,7 +173,7 @@ void ps_rab_failure(struct ps_rab *rab)
 		osmo_fsm_inst_dispatch(rab->req_fi, PS_RAB_ASS_EV_RAB_FAIL, rab);
 	if (rab->resp_fi)
 		osmo_fsm_inst_dispatch(rab->resp_fi, PS_RAB_ASS_EV_RAB_FAIL, rab);
-	ps_rab_release(rab);
+	ps_rab_release(rab, NULL);
 }
 
 struct ps_rab *ps_rab_start(struct hnbgw_context_map *map, uint8_t rab_id,
@@ -672,6 +672,8 @@ static int ps_rab_fsm_use_cb(struct osmo_use_count_entry *e, int32_t old_use_cou
 static void ps_rab_fsm_wait_use_count_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state)
 {
 	struct ps_rab *rab = fi->priv;
+	if (rab->resp_fi)
+		osmo_fsm_inst_dispatch(rab->resp_fi, PS_RAB_ASS_EV_RAB_RELEASED, rab);
 	OSMO_ASSERT(osmo_use_count_get_put(&rab->use_count, PS_RAB_USE_ACTIVE, -1) == 0);
 }
 
@@ -704,10 +706,12 @@ static void ps_rab_fsm_cleanup(struct osmo_fsm_inst *fi, enum osmo_fsm_term_caus
 	ps_rab_forget_map(rab);
 }
 
-void ps_rab_release(struct ps_rab *rab)
+/* notify_fi can be NULL, in which case no event PS_RAB_ASS_EV_RAB_RELEASED event will be dispatched */
+void ps_rab_release(struct ps_rab *rab, struct osmo_fsm_inst *notify_fi)
 {
 	struct osmo_fsm_inst *fi = rab->fi;
 	ps_rab_forget_map(rab);
+	rab->resp_fi = notify_fi;
 	switch (fi->state) {
 	case PS_RAB_ST_RX_CORE_REMOTE_F_TEID:
 		/* No session requested yet. Nothing to be deleted. */

@@ -85,7 +85,7 @@ struct ps_rab *ps_rab_start(struct hnbgw_context_map *map, uint8_t rab_id,
 
 struct ps_rab *ps_rab_get(struct hnbgw_context_map *map, uint8_t rab_id);
 bool ps_rab_is_established(const struct ps_rab *rab);
-void ps_rab_release(struct ps_rab *rab);
+void ps_rab_release(struct ps_rab *rab, struct osmo_fsm_inst *notify_fi);
 
 struct ps_rab_rx_args {
 	struct addr_teid f_teid;
