@@ -118,7 +118,7 @@ struct osmo_tdef_state_timeout ps_rab_ass_fsm_timeouts[32] = {
 	/* PS_RAB_ASS_ST_WAIT_RABS_ESTABLISHED is terminated by PFCP timeouts via ps_rab_fsm */
 };
 
-#define ps_rab_ass_fsm_state_chg(state) \
+#define ps_rab_ass_fsm_state_chg(fi, state) \
 	osmo_tdef_fsm_inst_state_chg(fi, state, ps_rab_ass_fsm_timeouts, hnbgw_T_defs, -1)
 
 static struct osmo_fsm ps_rab_ass_fsm;
@@ -219,12 +219,9 @@ int hnbgw_gtpmap_rx_rab_ass_req(struct hnbgw_context_map *map, struct msgb *rana
 {
 	RANAP_RAB_AssignmentRequestIEs_t *ies = &message->msg.raB_AssignmentRequestIEs;
 	int i;
-
 	struct ps_rab_ass *rab_ass;
-	struct osmo_fsm_inst *fi;
 
 	rab_ass = ps_rab_ass_alloc(map);
-
 	talloc_steal(rab_ass, message);
 	rab_ass->ranap_rab_ass_req_message = message;
 	/* Now rab_ass owns message and will clean it up */
@@ -258,8 +255,7 @@ int hnbgw_gtpmap_rx_rab_ass_req(struct hnbgw_context_map *map, struct msgb *rana
 
 	/* Got all RABs' state and their Core side GTP info in map->ps_rab_list. For each, a ps_rab_fsm has been started and
 	 * each will call back with PS_RAB_ASS_EV_LOCAL_F_TEIDS_RX or PS_RAB_ASS_EV_RAB_FAIL. */
-	fi = rab_ass->fi;
-	return ps_rab_ass_fsm_state_chg(PS_RAB_ASS_ST_WAIT_LOCAL_F_TEIDS);
+	return ps_rab_ass_fsm_state_chg(rab_ass->fi, PS_RAB_ASS_ST_WAIT_LOCAL_F_TEIDS);
 
 no_rab:
 	ps_rab_ass_failure(rab_ass);
@@ -416,7 +412,6 @@ int hnbgw_gtpmap_rx_rab_ass_resp(struct hnbgw_context_map *map, struct msgb *ran
 	int rc;
 	int i;
 	struct ps_rab_ass *rab_ass;
-	struct osmo_fsm_inst *fi;
 	RANAP_RAB_AssignmentResponseIEs_t *ies;
 
 	/* Make sure we indeed deal with a setup-or-modify list */
@@ -472,8 +467,7 @@ continue_cleanloop:
 	/* Got all RABs' state and updated their Access side GTP info in map->ps_rab_list. For each RAB ID, the matching
 	 * ps_rab_fsm has been instructed to tell the UPF about the Access Remote GTP F-TEID. Each will call back with
 	 * PS_RAB_ASS_EV_RAB_ESTABLISHED or PS_RAB_ASS_EV_RAB_FAIL. */
-	fi = rab_ass->fi;
-	return ps_rab_ass_fsm_state_chg(PS_RAB_ASS_ST_WAIT_RABS_ESTABLISHED);
+	return ps_rab_ass_fsm_state_chg(rab_ass->fi, PS_RAB_ASS_ST_WAIT_RABS_ESTABLISHED);
 }
 
 static void ps_rab_ass_resp_send_if_ready(struct ps_rab_ass *rab_ass);
