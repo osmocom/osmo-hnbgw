@@ -601,8 +601,8 @@ continue_cleanloop:
 	if (rc < 0) {
 		LOG_PS_RAB_ASS(rab_ass, LOGL_ERROR, "Sending RANAP PS RAB-AssignmentResponse failed\n");
 		ps_rab_ass_failure(rab_ass);
+		return;
 	}
-
 	/* The request message has been forwarded. We are done. */
 	osmo_fsm_inst_term(rab_ass->fi, OSMO_FSM_TERM_REGULAR, NULL);
 }
