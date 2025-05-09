@@ -61,6 +61,7 @@ static const struct value_string ps_rab_ass_fsm_event_names[] = {
 	OSMO_VALUE_STRING(PS_RAB_ASS_EV_LOCAL_F_TEIDS_RX),
 	OSMO_VALUE_STRING(PS_RAB_ASS_EV_RAB_ASS_RESP),
 	OSMO_VALUE_STRING(PS_RAB_ASS_EV_RAB_ESTABLISHED),
+	OSMO_VALUE_STRING(PS_RAB_ASS_EV_RAB_RELEASED),
 	OSMO_VALUE_STRING(PS_RAB_ASS_EV_RAB_FAIL),
 	{}
 };
@@ -111,6 +112,9 @@ struct ps_rab_ass {
 	 * ps_rab_fsms, without iterating the RAB Assignment message every time (minor optimisation). */
 	int rabs_count;
 	int rabs_done_count;
+
+	unsigned int rabs_rel_count;
+	unsigned int rabs_rel_done_count;
 };
 
 struct osmo_tdef_state_timeout ps_rab_ass_fsm_timeouts[32] = {
@@ -231,32 +235,39 @@ int hnbgw_gtpmap_rx_rab_ass_req(struct hnbgw_context_map *map, struct msgb *rana
 		goto no_rab;
 	}
 
-	/* Make sure we indeed deal with a setup-or-modify list */
-	if (!(ies->presenceMask & RAB_ASSIGNMENTREQUESTIES_RANAP_RAB_SETUPORMODIFYLIST_PRESENT)) {
-		LOG_MAP(map, DLPFCP, LOGL_ERROR, "RANAP PS RAB AssignmentRequest lacks setup-or-modify list\n");
-		goto no_rab;
+	/* setup-or-modify list */
+	if (ies->presenceMask & RAB_ASSIGNMENTREQUESTIES_RANAP_RAB_SETUPORMODIFYLIST_PRESENT) {
+		/* Multiple RABs may be set up, assemble in list map->ps_rab_list. */
+		for (i = 0; i < ies->raB_SetupOrModifyList.list.count; i++) {
+			RANAP_ProtocolIE_ContainerPair_t *protocol_ie_container_pair;
+			RANAP_ProtocolIE_FieldPair_t *protocol_ie_field_pair;
+
+			protocol_ie_container_pair = ies->raB_SetupOrModifyList.list.array[i];
+			protocol_ie_field_pair = protocol_ie_container_pair->list.array[0];
+			if (!protocol_ie_field_pair)
+				goto no_rab;
+			if (protocol_ie_field_pair->id != RANAP_ProtocolIE_ID_id_RAB_SetupOrModifyItem)
+				goto no_rab;
+
+			if (ps_rab_setup_core_remote(rab_ass, protocol_ie_field_pair))
+				goto no_rab;
+		}
 	}
 
-	/* Multiple RABs may be set up, assemble in list map->ps_rab_list. */
-	for (i = 0; i < ies->raB_SetupOrModifyList.list.count; i++) {
-		RANAP_ProtocolIE_ContainerPair_t *protocol_ie_container_pair;
-		RANAP_ProtocolIE_FieldPair_t *protocol_ie_field_pair;
+	/* Note: ReleaseList is handled at RAB Assign Response time. */
 
-		protocol_ie_container_pair = ies->raB_SetupOrModifyList.list.array[i];
-		protocol_ie_field_pair = protocol_ie_container_pair->list.array[0];
-		if (!protocol_ie_field_pair)
-			goto no_rab;
-		if (protocol_ie_field_pair->id != RANAP_ProtocolIE_ID_id_RAB_SetupOrModifyItem)
-			goto no_rab;
-
-		if (ps_rab_setup_core_remote(rab_ass, protocol_ie_field_pair))
-			goto no_rab;
+	if (rab_ass->rabs_count > 0) {
+		/* Got all RABs' state and their Core side GTP info in map->ps_rab_list.
+		 * For each, a ps_rab_fsm has been started and each will call back with
+		 * PS_RAB_ASS_EV_LOCAL_F_TEIDS_RX or PS_RAB_ASS_EV_RAB_FAIL. */
+		return ps_rab_ass_fsm_state_chg(rab_ass->fi, PS_RAB_ASS_ST_WAIT_LOCAL_F_TEIDS);
 	}
 
-	/* Got all RABs' state and their Core side GTP info in map->ps_rab_list. For each, a ps_rab_fsm has been started and
-	 * each will call back with PS_RAB_ASS_EV_LOCAL_F_TEIDS_RX or PS_RAB_ASS_EV_RAB_FAIL. */
-	return ps_rab_ass_fsm_state_chg(rab_ass->fi, PS_RAB_ASS_ST_WAIT_LOCAL_F_TEIDS);
-
+	/* No Setup-or-modify, only Release RABs. Forward the message as is,
+	 * RABs will be released at RAB ASS Response time. */
+	map_rua_dispatch(map, MAP_RUA_EV_TX_DIRECT_TRANSFER, ranap_msg);
+	osmo_fsm_inst_term(rab_ass->fi, OSMO_FSM_TERM_REGULAR, NULL);
+	return 0;
 no_rab:
 	ps_rab_ass_failure(rab_ass);
 	return -1;
@@ -409,68 +420,127 @@ int hnbgw_gtpmap_rx_rab_ass_resp(struct hnbgw_context_map *map, struct msgb *ran
 	 * each other, we are able to handle mismatching RAB IDs in request and response messages.
 	 */
 
+	RANAP_RAB_AssignmentResponseIEs_t *ies = &message->msg.raB_AssignmentResponseIEs;
 	int rc;
 	int i;
 	struct ps_rab_ass *rab_ass;
-	RANAP_RAB_AssignmentResponseIEs_t *ies;
-
-	/* Make sure we indeed deal with a setup-or-modify list */
-	ies = &message->msg.raB_AssignmentResponseIEs;
-	if (!(ies->presenceMask & RAB_ASSIGNMENTRESPONSEIES_RANAP_RAB_SETUPORMODIFIEDLIST_PRESENT)) {
-		LOG_MAP(map, DRUA, LOGL_ERROR, "RANAP PS RAB AssignmentResponse lacks setup-or-modify list\n");
-		return -1;
-	}
 
 	rab_ass = ps_rab_ass_alloc(map);
-
 	talloc_steal(rab_ass, message);
 	rab_ass->ranap_rab_ass_resp_message = message;
-
 	talloc_steal(rab_ass, ranap_msg);
 	rab_ass->ranap_rab_ass_resp_msgb = ranap_msg;
 	/* Now rab_ass owns message and will clean it up */
 
 	if (!osmo_pfcp_cp_peer_is_associated(g_hnbgw->pfcp.cp_peer)) {
 		LOG_PS_RAB_ASS(rab_ass, LOGL_ERROR, "PFCP is not associated, cannot set up GTP mapping\n");
-		ps_rab_ass_failure(rab_ass);
-		return -1;
+		goto no_rab;
 	}
 
-	LOG_PS_RAB_ASS(rab_ass, LOGL_INFO, "PS RAB-AssignmentResponse received, updating RABs\n");
+	/* setup-or-modify list */
+	if (ies->presenceMask & RAB_ASSIGNMENTRESPONSEIES_RANAP_RAB_SETUPORMODIFIEDLIST_PRESENT) {
 
-	/* Multiple RABs may be set up, bump matching FSMs in list map->ps_rab_list. */
-	for (i = 0; i < ies->raB_SetupOrModifiedList.raB_SetupOrModifiedList_ies.list.count; i++) {
-		RANAP_IE_t *list_ie;
-		RANAP_RAB_SetupOrModifiedItemIEs_t item_ies;
+		LOG_PS_RAB_ASS(rab_ass, LOGL_INFO, "PS RAB-AssignmentResponse received, updating RABs\n");
 
-		list_ie = ies->raB_SetupOrModifiedList.raB_SetupOrModifiedList_ies.list.array[i];
-		if (!list_ie)
-			continue;
+		/* Multiple RABs may be set up, bump matching FSMs in list map->ps_rab_list. */
+		for (i = 0; i < ies->raB_SetupOrModifiedList.raB_SetupOrModifiedList_ies.list.count; i++) {
+			RANAP_IE_t *list_ie;
+			RANAP_RAB_SetupOrModifiedItemIEs_t item_ies;
 
-		rc = ranap_decode_rab_setupormodifieditemies_fromlist(&item_ies,
-								      &list_ie->value);
-		if (rc < 0) {
-			LOG_PS_RAB_ASS(rab_ass, LOGL_ERROR, "Failed to decode PS RAB-AssignmentResponse"
-				       " SetupOrModifiedItemIEs with list index %d\n", i);
-			goto continue_cleanloop;
-		}
+			list_ie = ies->raB_SetupOrModifiedList.raB_SetupOrModifiedList_ies.list.array[i];
+			if (!list_ie)
+				continue;
 
-		if (ps_rab_setup_access_remote(rab_ass, &item_ies.raB_SetupOrModifiedItem))
-			LOG_PS_RAB_ASS(rab_ass, LOGL_ERROR, "Failed to apply PS RAB-AssignmentResponse"
-				       " SetupOrModifiedItemIEs with list index %d\n", i);
-		rab_ass->rabs_count++;
+			rc = ranap_decode_rab_setupormodifieditemies_fromlist(&item_ies,
+									      &list_ie->value);
+			if (rc < 0) {
+				LOG_PS_RAB_ASS(rab_ass, LOGL_ERROR, "Failed to decode PS RAB-AssignmentResponse"
+					       " SetupOrModifiedItemIEs with list index %d\n", i);
+				goto continue_cleanloop;
+			}
+
+			if (ps_rab_setup_access_remote(rab_ass, &item_ies.raB_SetupOrModifiedItem))
+				LOG_PS_RAB_ASS(rab_ass, LOGL_ERROR, "Failed to apply PS RAB-AssignmentResponse"
+					       " SetupOrModifiedItemIEs with list index %d\n", i);
+			rab_ass->rabs_count++;
 
 continue_cleanloop:
-		ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_SetupOrModifiedItem, &item_ies);
+			ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_SetupOrModifiedItem, &item_ies);
+		}
 	}
 
-	/* Got all RABs' state and updated their Access side GTP info in map->ps_rab_list. For each RAB ID, the matching
-	 * ps_rab_fsm has been instructed to tell the UPF about the Access Remote GTP F-TEID. Each will call back with
-	 * PS_RAB_ASS_EV_RAB_ESTABLISHED or PS_RAB_ASS_EV_RAB_FAIL. */
-	return ps_rab_ass_fsm_state_chg(rab_ass->fi, PS_RAB_ASS_ST_WAIT_RABS_ESTABLISHED);
+	/* release list */
+	if (ies->presenceMask & RAB_ASSIGNMENTRESPONSEIES_RANAP_RAB_RELEASEDLIST_PRESENT) {
+		/* Multiple RABs may be set up, assemble in list map->ps_rab_list. */
+		RANAP_RAB_ReleasedList_t *r_list = &ies->raB_ReleasedList;
+		for (i = 0; i < r_list->raB_ReleasedList_ies.list.count; i++) {
+			RANAP_IE_t *released_list_ie = r_list->raB_ReleasedList_ies.list.array[i];
+			RANAP_RAB_ReleasedItemIEs_t _rab_rel_item_ies = {};
+			RANAP_RAB_ReleasedItemIEs_t *rab_rel_item_ies = &_rab_rel_item_ies;
+			RANAP_RAB_ReleasedItem_t *rab_rel_item;
+			uint8_t rab_id;
+			struct ps_rab *rab;
+
+			if (!released_list_ie)
+				goto no_rab;
+			if (released_list_ie->id != RANAP_ProtocolIE_ID_id_RAB_ReleasedItem)
+				goto no_rab;
+
+			rc = ranap_decode_rab_releaseditemies_fromlist(rab_rel_item_ies, &released_list_ie->value);
+			if (rc < 0) {
+				LOG_MAP(map, DLPFCP, LOGL_NOTICE, "Rx RAB ASS REQ (REL): Failed decoding ReleaseItem %u\n", i);
+				goto no_rab;
+			}
+
+			rab_rel_item = &rab_rel_item_ies->raB_ReleasedItem;
+			/* The RAB-ID is defined as a bitstring with a size of 8 (1 byte),
+			 * See also RANAP-IEs.asn, RAB-ID ::= BIT STRING (SIZE (8)) */
+			rab_id = rab_rel_item->rAB_ID.buf[0];
+			ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_ReleasedItem, rab_rel_item_ies);
+
+			rab = ps_rab_get(map, rab_id);
+			if (rab) {
+				rab_ass->rabs_rel_count++;
+				ps_rab_release(rab, rab_ass->fi);
+			} else {
+				LOG_MAP(map, DLPFCP, LOGL_NOTICE, "Rx RAB ASS REQ (REL) for unknown rab_id %u\n", rab_id);
+			}
+		}
+	}
+
+	if (rab_ass->rabs_count > 0 || rab_ass->rabs_rel_count > 0) {
+		/* Got all RABs' state and updated their Access side GTP info in map->ps_rab_list.
+		 * For each RAB ID, the matching ps_rab_fsm has been instructed to tell the UPF about
+		 * the Access Remote GTP F-TEID. Each will call back with PS_RAB_ASS_EV_RAB_ESTABLISHED
+		 * or PS_RAB_ASS_EV_RAB_FAIL. */
+		return ps_rab_ass_fsm_state_chg(rab_ass->fi, PS_RAB_ASS_ST_WAIT_RABS_ESTABLISHED);
+	}
+
+	/* No Setup-or-modify nor Release RABs. Forward the message as is. */
+	rc = map_sccp_dispatch(map, MAP_SCCP_EV_TX_DATA_REQUEST, ranap_msg);
+	if (rc < 0) {
+		LOG_PS_RAB_ASS(rab_ass, LOGL_ERROR, "Sending RANAP PS RAB-AssignmentResponse failed\n");
+		goto no_rab;
+	}
+	/* The request message has been forwarded. We are done. */
+	osmo_fsm_inst_term(rab_ass->fi, OSMO_FSM_TERM_REGULAR, NULL);
+	return 0;
+
+no_rab:
+	ps_rab_ass_failure(rab_ass);
+	return -1;
 }
 
 static void ps_rab_ass_resp_send_if_ready(struct ps_rab_ass *rab_ass);
+static void ps_rab_ass_resp_send_if_ready_quick(struct ps_rab_ass *rab_ass)
+{
+	/* some RABs are still pending, postpone going through the message until all are done. */
+	if (rab_ass->rabs_done_count < rab_ass->rabs_count)
+		return;
+	if (rab_ass->rabs_rel_done_count < rab_ass->rabs_rel_count)
+		return;
+	ps_rab_ass_resp_send_if_ready(rab_ass);
+}
 
 static void ps_rab_ass_fsm_wait_rabs_established(struct osmo_fsm_inst *fi, uint32_t event, void *data)
 {
@@ -479,12 +549,13 @@ static void ps_rab_ass_fsm_wait_rabs_established(struct osmo_fsm_inst *fi, uint3
 	switch (event) {
 	case PS_RAB_ASS_EV_RAB_ESTABLISHED:
 		rab_ass->rabs_done_count++;
-		if (rab_ass->rabs_done_count < rab_ass->rabs_count) {
-			/* some RABs are still pending, postpone going through the message until all are done. */
-			return;
-		}
 		/* All RABs have succeeded, ready to forward */
-		ps_rab_ass_resp_send_if_ready(rab_ass);
+		ps_rab_ass_resp_send_if_ready_quick(rab_ass);
+		return;
+
+	case PS_RAB_ASS_EV_RAB_RELEASED:
+		rab_ass->rabs_rel_done_count++;
+		ps_rab_ass_resp_send_if_ready_quick(rab_ass);
 		return;
 
 	case PS_RAB_ASS_EV_RAB_FAIL:
@@ -628,7 +699,7 @@ void hnbgw_gtpmap_release(struct hnbgw_context_map *map)
 	struct ps_rab_ass *rab_ass, *next;
 	struct ps_rab *rab, *next2;
 	llist_for_each_entry_safe(rab, next2, &map->ps_rab_list, entry) {
-		ps_rab_release(rab);
+		ps_rab_release(rab, NULL);
 	}
 	llist_for_each_entry_safe(rab_ass, next, &map->ps_rab_ass_list, entry) {
 		osmo_fsm_inst_term(rab_ass->fi, OSMO_FSM_TERM_REGULAR, NULL);
@@ -658,6 +729,7 @@ static const struct osmo_fsm_state ps_rab_ass_fsm_states[] = {
 		.action = ps_rab_ass_fsm_wait_rabs_established,
 		.in_event_mask = 0
 			| S(PS_RAB_ASS_EV_RAB_ESTABLISHED)
+			| S(PS_RAB_ASS_EV_RAB_RELEASED)
 			| S(PS_RAB_ASS_EV_RAB_FAIL)
 			,
 	},
