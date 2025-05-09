@@ -88,8 +88,8 @@ struct hnbgw_context_map *context_map_alloc(struct hnb_context *hnb, uint32_t ru
 	map->hnb_ctx = hnb;
 	map->rua_ctx_id = rua_ctx_id;
 	map->is_ps = is_ps;
-	INIT_LLIST_HEAD(&map->ps_rab_ass);
-	INIT_LLIST_HEAD(&map->ps_rabs);
+	INIT_LLIST_HEAD(&map->ps_rab_ass_list);
+	INIT_LLIST_HEAD(&map->ps_rab_list);
 
 	map_rua_fsm_alloc(map);
 

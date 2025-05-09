@@ -200,15 +200,15 @@ struct hnbgw_context_map {
 	 * and Request and Response don't necessarily match the RAB IDs contained. In practice I only ever see a single
 	 * RAB matching in Request and Response, but we cannot rely on that to always be true.
 	 *
-	 * The state of each RAB's PFCP negotiation is kept separately in the list ps_rabs, and as soon as all RABs
+	 * The state of each RAB's PFCP negotiation is kept separately in the field ps_rab_list, and as soon as all RABs
 	 * appearing in a PS RAB Assignment message have completed their PFCP setup, we can replace the GTP info for the
 	 * RAB IDs and forward the RAB Assignment Request to HNB / the RAB Assignment Response to CN.
 	 */
-	struct llist_head ps_rab_ass;
+	struct llist_head ps_rab_ass_list;
 
 	/* All PS RABs and their GTP tunnel mappings. list of struct ps_rab. Each ps_rab FSM handles the PFCP
 	 * communication for one particular RAB ID. */
-	struct llist_head ps_rabs;
+	struct llist_head ps_rab_list;
 
 	/* RAB state tracking. As RAB-ID is an 8-bit integer, we need 256 elements in the array */
 	uint8_t rab_state[256];

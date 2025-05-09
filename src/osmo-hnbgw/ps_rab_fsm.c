@@ -107,7 +107,7 @@ static struct ps_rab *ps_rab_alloc(struct hnbgw_context_map *map, uint8_t rab_id
 
 	OSMO_ASSERT(osmo_use_count_get_put(&rab->use_count, PS_RAB_USE_ACTIVE, 1) == 0);
 
-	llist_add_tail(&rab->entry, &map->ps_rabs);
+	llist_add_tail(&rab->entry, &map->ps_rab_list);
 	return rab;
 }
 
@@ -121,7 +121,7 @@ struct ps_rab *ps_rab_find_by_seid(uint64_t seid, bool is_cp_seid)
 		struct hnbgw_context_map *map;
 		llist_for_each_entry(map, &hnb->map_list, hnb_list) {
 			struct ps_rab *rab;
-			llist_for_each_entry(rab, &map->ps_rabs, entry) {
+			llist_for_each_entry(rab, &map->ps_rab_list, entry) {
 				uint64_t rab_seid = is_cp_seid ? rab->cp_seid : rab->up_f_seid.seid;
 				if (rab_seid == seid)
 					return rab;
@@ -154,7 +154,7 @@ static struct osmo_pfcp_msg *ps_rab_new_pfcp_msg_req(struct ps_rab *rab, enum os
 struct ps_rab *ps_rab_get(struct hnbgw_context_map *map, uint8_t rab_id)
 {
 	struct ps_rab *rab;
-	llist_for_each_entry(rab, &map->ps_rabs, entry) {
+	llist_for_each_entry(rab, &map->ps_rab_list, entry) {
 		if (rab->rab_id != rab_id)
 			continue;
 		return rab;
@@ -692,7 +692,7 @@ static void ps_rab_fsm_allstate_action(struct osmo_fsm_inst *fi, uint32_t event,
 
 static void ps_rab_forget_map(struct ps_rab *rab)
 {
-	/* remove from map->ps_rabs */
+	/* remove from map->ps_rab_list */
 	if (rab->map)
 		llist_del(&rab->entry);
 	rab->map = NULL;
