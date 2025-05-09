@@ -81,10 +81,10 @@ enum ps_rab_ass_state {
  * This structure manages the RAB Assignment procedures, and the currently set up RABs:
  *
  * - hnbgw_context_map
- *   - .ps_rab_ass: list of PS RAB Assignment procedures
+ *   - .ps_rab_ass_list: list of PS RAB Assignment procedures
  *     - ps_rab_ass_fsm: one RANAP PS RAB Assignment procedure
  *     - ...
- *   - .ps_rabs: list of individual PS RABs
+ *   - .ps_rab_list: list of individual PS RABs
  *     - ps_rab_fsm: one GTP mapping with PFCP session to the UPF, for a single RAB
  *     - ...
  *
@@ -140,7 +140,7 @@ static struct ps_rab_ass *ps_rab_ass_alloc(struct hnbgw_context_map *map)
 	};
 	fi->priv = rab_ass;
 
-	llist_add_tail(&rab_ass->entry, &map->ps_rab_ass);
+	llist_add_tail(&rab_ass->entry, &map->ps_rab_ass_list);
 	return rab_ass;
 }
 
@@ -240,7 +240,7 @@ int hnbgw_gtpmap_rx_rab_ass_req(struct hnbgw_context_map *map, struct msgb *rana
 		goto no_rab;
 	}
 
-	/* Multiple RABs may be set up, assemble in list rab_ass->ps_rabs. */
+	/* Multiple RABs may be set up, assemble in list map->ps_rab_list. */
 	for (i = 0; i < ies->raB_SetupOrModifyList.list.count; i++) {
 		RANAP_ProtocolIE_ContainerPair_t *protocol_ie_container_pair;
 		RANAP_ProtocolIE_FieldPair_t *protocol_ie_field_pair;
@@ -256,7 +256,7 @@ int hnbgw_gtpmap_rx_rab_ass_req(struct hnbgw_context_map *map, struct msgb *rana
 			goto no_rab;
 	}
 
-	/* Got all RABs' state and their Core side GTP info in map->ps_rabs. For each, a ps_rab_fsm has been started and
+	/* Got all RABs' state and their Core side GTP info in map->ps_rab_list. For each, a ps_rab_fsm has been started and
 	 * each will call back with PS_RAB_ASS_EV_LOCAL_F_TEIDS_RX or PS_RAB_ASS_EV_RAB_FAIL. */
 	fi = rab_ass->fi;
 	return ps_rab_ass_fsm_state_chg(PS_RAB_ASS_ST_WAIT_LOCAL_F_TEIDS);
@@ -443,7 +443,7 @@ int hnbgw_gtpmap_rx_rab_ass_resp(struct hnbgw_context_map *map, struct msgb *ran
 
 	LOG_PS_RAB_ASS(rab_ass, LOGL_INFO, "PS RAB-AssignmentResponse received, updating RABs\n");
 
-	/* Multiple RABs may be set up, bump matching FSMs in list rab_ass->ps_rabs. */
+	/* Multiple RABs may be set up, bump matching FSMs in list map->ps_rab_list. */
 	for (i = 0; i < ies->raB_SetupOrModifiedList.raB_SetupOrModifiedList_ies.list.count; i++) {
 		RANAP_IE_t *list_ie;
 		RANAP_RAB_SetupOrModifiedItemIEs_t item_ies;
@@ -469,7 +469,7 @@ continue_cleanloop:
 		ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_RANAP_RAB_SetupOrModifiedItem, &item_ies);
 	}
 
-	/* Got all RABs' state and updated their Access side GTP info in map->ps_rabs. For each RAB ID, the matching
+	/* Got all RABs' state and updated their Access side GTP info in map->ps_rab_list. For each RAB ID, the matching
 	 * ps_rab_fsm has been instructed to tell the UPF about the Access Remote GTP F-TEID. Each will call back with
 	 * PS_RAB_ASS_EV_RAB_ESTABLISHED or PS_RAB_ASS_EV_RAB_FAIL. */
 	fi = rab_ass->fi;
@@ -618,14 +618,14 @@ static void ps_rab_ass_fsm_cleanup(struct osmo_fsm_inst *fi, enum osmo_fsm_term_
 	struct ps_rab_ass *rab_ass = fi->priv;
 	struct ps_rab *rab;
 
-	llist_for_each_entry(rab, &rab_ass->map->ps_rabs, entry) {
+	llist_for_each_entry(rab, &rab_ass->map->ps_rab_list, entry) {
 		if (rab->req_fi == fi)
 			rab->req_fi = NULL;
 		if (rab->resp_fi == fi)
 			rab->resp_fi = NULL;
 	}
 
-	/* remove from map->ps_rab_ass */
+	/* remove from map->ps_rab_ass_list */
 	llist_del(&rab_ass->entry);
 }
 
@@ -633,10 +633,10 @@ void hnbgw_gtpmap_release(struct hnbgw_context_map *map)
 {
 	struct ps_rab_ass *rab_ass, *next;
 	struct ps_rab *rab, *next2;
-	llist_for_each_entry_safe(rab, next2, &map->ps_rabs, entry) {
+	llist_for_each_entry_safe(rab, next2, &map->ps_rab_list, entry) {
 		ps_rab_release(rab);
 	}
-	llist_for_each_entry_safe(rab_ass, next, &map->ps_rab_ass, entry) {
+	llist_for_each_entry_safe(rab_ass, next, &map->ps_rab_ass_list, entry) {
 		osmo_fsm_inst_term(rab_ass->fi, OSMO_FSM_TERM_REGULAR, NULL);
 	}
 }
