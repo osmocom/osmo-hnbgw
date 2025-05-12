@@ -382,11 +382,9 @@ static void kpi_ranap_process_ul_rab_ass_resp(struct hnbgw_context_map *map, ran
 			/* differentiate modify / activate */
 			switch (map->rab_state[rab_id]) {
 			case RAB_STATE_ACT_REQ:
-				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_ACT_FAIL : HNB_CTR_RANAP_CS_RAB_ACT_FAIL);
 				map->rab_state[rab_id] = RAB_STATE_INACTIVE;
 				break;
 			case RAB_STATE_ACTIVE:
-				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_MOD_FAIL : HNB_CTR_RANAP_CS_RAB_MOD_FAIL);
 				// FIXME: does it remain active after modification failure?
 				break;
 			default:
