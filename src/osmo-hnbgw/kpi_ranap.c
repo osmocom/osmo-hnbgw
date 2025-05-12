@@ -52,18 +52,16 @@ static void kpi_ranap_process_dl_iu_rel_cmd(struct hnbgw_context_map *map, const
 
 	/* When Iu is released, all RABs are released implicitly */
 	for (unsigned int i = 0; i < ARRAY_SIZE(map->rab_state); i++) {
-		unsigned int ctr_num;
 		switch (map->rab_state[i]) {
 		case RAB_STATE_ACTIVE:
 			if (cause->present == RANAP_Cause_PR_nAS ||
 			    cause->choice.nAS == RANAP_CauseNAS_normal_release) {
-				ctr_num = HNB_CTR_RANAP_PS_RAB_REL_IMPLICIT;
+				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_REL_IMPLICIT :
+								HNB_CTR_RANAP_CS_RAB_REL_IMPLICIT);
 			} else {
-				ctr_num = HNB_CTR_RANAP_PS_RAB_REL_IMPLICIT_ABNORMAL;
+				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_REL_IMPLICIT_ABNORMAL :
+								HNB_CTR_RANAP_CS_RAB_REL_IMPLICIT_ABNORMAL);
 			}
-			if (!map->is_ps)
-				ctr_num++;
-			HNBP_CTR_INC(hnbp, ctr_num);
 			break;
 		}
 	}
@@ -132,7 +130,6 @@ static void kpi_ranap_process_dl_rab_ass_req(struct hnbgw_context_map *map, rana
 			RANAP_RAB_ReleaseItemIEs_t _rab_rel_item_ies = {};
 			RANAP_RAB_ReleaseItemIEs_t *rab_rel_item_ies = &_rab_rel_item_ies;
 			RANAP_RAB_ReleaseItem_t *rab_rel_item;
-			unsigned int ctr_num;
 			uint8_t rab_id;
 
 			if (!release_list_ie)
@@ -153,13 +150,12 @@ static void kpi_ranap_process_dl_rab_ass_req(struct hnbgw_context_map *map, rana
 			case RAB_STATE_ACTIVE:
 				if (rab_rel_item->cause.present == RANAP_Cause_PR_nAS &&
 				    rab_rel_item->cause.choice.nAS == RANAP_CauseNAS_normal_release) {
-					ctr_num = HNB_CTR_RANAP_PS_RAB_REL_REQ;
+					HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_REL_REQ :
+									HNB_CTR_RANAP_CS_RAB_REL_REQ);
 				} else {
-					ctr_num = HNB_CTR_RANAP_PS_RAB_REL_REQ_ABNORMAL;
+					HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_REL_REQ_ABNORMAL :
+									HNB_CTR_RANAP_CS_RAB_REL_REQ_ABNORMAL);
 				}
-				if (!map->is_ps)
-					ctr_num++;
-				HNBP_CTR_INC(hnbp, ctr_num);
 				break;
 			default:
 				LOG_MAP(map, DRANAP, LOGL_NOTICE,
