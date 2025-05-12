@@ -106,13 +106,17 @@ static void kpi_ranap_process_dl_rab_ass_req(struct hnbgw_context_map *map, rana
 			 * new, it is a setup */
 			switch (map->rab_state[rab_id]) {
 			case RAB_STATE_ACTIVE:
-				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_MOD_REQ : HNB_CTR_RANAP_CS_RAB_MOD_REQ);
+				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_MOD_REQ :
+								HNB_CTR_RANAP_CS_RAB_MOD_REQ);
 				break;
 			case RAB_STATE_INACTIVE:
-				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_ACT_REQ : HNB_CTR_RANAP_CS_RAB_ACT_REQ);
+				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_ACT_REQ :
+								HNB_CTR_RANAP_CS_RAB_ACT_REQ);
 				map->rab_state[rab_id] = RAB_STATE_ACT_REQ;
 				break;
 			default:
+				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_ACT_REQ_UNEXP :
+								HNB_CTR_RANAP_CS_RAB_ACT_REQ_UNEXP);
 				LOG_MAP(map, DRANAP, LOGL_NOTICE,
 					"Unexpected RAB Activation/Modification Req for RAB in state %s\n",
 					hnbgw_rab_state_name(map->rab_state[rab_id]));
@@ -158,6 +162,8 @@ static void kpi_ranap_process_dl_rab_ass_req(struct hnbgw_context_map *map, rana
 				}
 				break;
 			default:
+				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_REL_REQ_UNEXP :
+								HNB_CTR_RANAP_CS_RAB_REL_REQ_UNEXP);
 				LOG_MAP(map, DRANAP, LOGL_NOTICE,
 					"Unexpected RAB Release Req in state %s\n",
 					hnbgw_rab_state_name(map->rab_state[rab_id]));
@@ -247,13 +253,17 @@ static void kpi_ranap_process_ul_rab_ass_resp(struct hnbgw_context_map *map, ran
 			/* differentiate modify / activate */
 			switch (map->rab_state[rab_id]) {
 			case RAB_STATE_ACT_REQ:
-				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_ACT_CNF : HNB_CTR_RANAP_CS_RAB_ACT_CNF);
+				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_ACT_CNF :
+								HNB_CTR_RANAP_CS_RAB_ACT_CNF);
 				map->rab_state[rab_id] = RAB_STATE_ACTIVE;
 				break;
 			case RAB_STATE_ACTIVE:
-				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_MOD_CNF : HNB_CTR_RANAP_CS_RAB_MOD_CNF);
+				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_MOD_CNF :
+								HNB_CTR_RANAP_CS_RAB_MOD_CNF);
 				break;
 			default:
+				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_ACT_CNF_UNEXP :
+								HNB_CTR_RANAP_CS_RAB_ACT_CNF_UNEXP);
 				LOG_MAP(map, DRANAP, LOGL_NOTICE,
 					"Unexpected RAB Activation/Modification Conf for RAB in state %s\n",
 					hnbgw_rab_state_name(map->rab_state[rab_id]));
@@ -267,8 +277,6 @@ static void kpi_ranap_process_ul_rab_ass_resp(struct hnbgw_context_map *map, ran
 	if (ies->presenceMask & RAB_ASSIGNMENTRESPONSEIES_RANAP_RAB_RELEASEDLIST_PRESENT) {
 		RANAP_RAB_ReleasedList_t *r_list = &ies->raB_ReleasedList;
 		/* increment number of released RABs, we don't need to do that individually during iteration */
-		HNBP_CTR_ADD(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_REL_CNF : HNB_CTR_RANAP_CS_RAB_REL_CNF,
-			     r_list->raB_ReleasedList_ies.list.count);
 		for (unsigned int i = 0; i < r_list->raB_ReleasedList_ies.list.count; i++) {
 			RANAP_IE_t *released_list_ie = r_list->raB_ReleasedList_ies.list.array[i];
 			RANAP_RAB_ReleasedItemIEs_t _rab_rel_item_ies = {};
@@ -292,8 +300,12 @@ static void kpi_ranap_process_ul_rab_ass_resp(struct hnbgw_context_map *map, ran
 
 			switch (map->rab_state[rab_id]) {
 			case RAB_STATE_REL_REQ:
+				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_REL_CNF :
+								HNB_CTR_RANAP_CS_RAB_REL_CNF);
 				break;
 			default:
+				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_REL_CNF_UNEXP :
+								HNB_CTR_RANAP_CS_RAB_REL_CNF_UNEXP);
 				LOG_MAP(map, DRANAP, LOGL_NOTICE,
 					"Unexpected RAB Release Conf for RAB in state %s\n",
 					hnbgw_rab_state_name(map->rab_state[rab_id]));
@@ -335,14 +347,18 @@ static void kpi_ranap_process_ul_rab_ass_resp(struct hnbgw_context_map *map, ran
 			/* differentiate modify / activate */
 			switch (map->rab_state[rab_id]) {
 			case RAB_STATE_ACT_REQ:
-				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_ACT_FAIL : HNB_CTR_RANAP_CS_RAB_ACT_FAIL);
+				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_ACT_FAIL :
+								HNB_CTR_RANAP_CS_RAB_ACT_FAIL);
 				map->rab_state[rab_id] = RAB_STATE_INACTIVE;
 				break;
 			case RAB_STATE_ACTIVE:
-				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_MOD_FAIL : HNB_CTR_RANAP_CS_RAB_MOD_FAIL);
+				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_MOD_FAIL :
+								HNB_CTR_RANAP_CS_RAB_MOD_FAIL);
 				// FIXME: does it remain active after modification failure?
 				break;
 			default:
+				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_ACT_FAIL_UNEXP :
+								HNB_CTR_RANAP_CS_RAB_ACT_FAIL_UNEXP);
 				LOG_MAP(map, DRANAP, LOGL_NOTICE,
 					"Unexpected RAB Activation/Modification Failed for RAB in state %s\n",
 					hnbgw_rab_state_name(map->rab_state[rab_id]));
@@ -356,8 +372,6 @@ static void kpi_ranap_process_ul_rab_ass_resp(struct hnbgw_context_map *map, ran
 	if (ies->presenceMask & RAB_ASSIGNMENTRESPONSEIES_RANAP_RAB_RELEASEFAILEDLIST_PRESENT) {
 		RANAP_RAB_ReleaseFailedList_t *rf_list = &ies->raB_ReleaseFailedList;
 		/* increment number of released RABs, we don't need to do that individually during iteration */
-		HNBP_CTR_ADD(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_REL_FAIL : HNB_CTR_RANAP_CS_RAB_REL_FAIL,
-			     rf_list->raB_FailedList_ies.list.count);
 		for (unsigned int i = 0; i < rf_list->raB_FailedList_ies.list.count; i++) {
 			RANAP_IE_t *failed_list_ie = rf_list->raB_FailedList_ies.list.array[i];
 			RANAP_RAB_FailedItemIEs_t _rab_failed_item_ies = {};
@@ -382,12 +396,18 @@ static void kpi_ranap_process_ul_rab_ass_resp(struct hnbgw_context_map *map, ran
 			/* differentiate modify / activate */
 			switch (map->rab_state[rab_id]) {
 			case RAB_STATE_ACT_REQ:
+				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_REL_FAIL :
+								HNB_CTR_RANAP_CS_RAB_REL_FAIL);
 				map->rab_state[rab_id] = RAB_STATE_INACTIVE;
 				break;
 			case RAB_STATE_ACTIVE:
+				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_REL_FAIL :
+								HNB_CTR_RANAP_CS_RAB_REL_FAIL);
 				// FIXME: does it remain active after modification failure?
 				break;
 			default:
+				HNBP_CTR_INC(hnbp, map->is_ps ? HNB_CTR_RANAP_PS_RAB_REL_FAIL_UNEXP :
+								HNB_CTR_RANAP_CS_RAB_REL_FAIL_UNEXP);
 				LOG_MAP(map, DRANAP, LOGL_NOTICE,
 					"Unexpected RAB Release Failed for RAB in state %s\n",
 					hnbgw_rab_state_name(map->rab_state[rab_id]));

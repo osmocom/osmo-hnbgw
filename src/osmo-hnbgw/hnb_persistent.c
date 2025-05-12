@@ -63,16 +63,28 @@ const struct rate_ctr_desc hnb_ctr_description[] = {
 		"ranap:ps:rab_act:req", "PS RAB Activations requested" },
 	[HNB_CTR_RANAP_CS_RAB_ACT_REQ] = {
 		"ranap:cs:rab_act:req", "CS RAB Activations requested" },
+	[HNB_CTR_RANAP_PS_RAB_ACT_REQ_UNEXP] = {
+		"ranap:ps:rab_act:req_unexp", "PS RAB Activations requested in unexpected state" },
+	[HNB_CTR_RANAP_CS_RAB_ACT_REQ_UNEXP] = {
+		"ranap:cs:rab_act:req_unexp", "CS RAB Activations requested in unexpected state" },
 
 	[HNB_CTR_RANAP_PS_RAB_ACT_CNF] = {
 		"ranap:ps:rab_act:cnf", "PS RAB Activations confirmed" },
 	[HNB_CTR_RANAP_CS_RAB_ACT_CNF] = {
 		"ranap:cs:rab_act:cnf", "CS RAB Activations confirmed" },
+	[HNB_CTR_RANAP_PS_RAB_ACT_CNF_UNEXP] = {
+		"ranap:ps:rab_act:cnf_unexp", "PS RAB Activations confirmed in unexpected state" },
+	[HNB_CTR_RANAP_CS_RAB_ACT_CNF_UNEXP] = {
+		"ranap:cs:rab_act:cnf_unexp", "CS RAB Activations confirmed in unexpected state" },
 
 	[HNB_CTR_RANAP_PS_RAB_ACT_FAIL] = {
 		"ranap:ps:rab_act:fail", "PS RAB Activations failed" },
 	[HNB_CTR_RANAP_CS_RAB_ACT_FAIL] = {
 		"ranap:cs:rab_act:fail", "CS RAB Activations failed" },
+	[HNB_CTR_RANAP_PS_RAB_ACT_FAIL_UNEXP] = {
+		"ranap:ps:rab_act:fail_unexp", "PS RAB Activations failed in unexpected state" },
+	[HNB_CTR_RANAP_CS_RAB_ACT_FAIL_UNEXP] = {
+		"ranap:cs:rab_act:fail_unexp", "CS RAB Activations failed in unexpected state" },
 
 
 	[HNB_CTR_RANAP_PS_RAB_MOD_REQ] = {
@@ -98,16 +110,28 @@ const struct rate_ctr_desc hnb_ctr_description[] = {
 		"ranap:ps:rab_rel:req:abnormal", "PS RAB Release requested (by CN), abnormal" },
 	[HNB_CTR_RANAP_CS_RAB_REL_REQ_ABNORMAL] = {
 		"ranap:cs:rab_rel:req:abnormal", "CS RAB Release requested (by CN), abnormal" },
+	[HNB_CTR_RANAP_PS_RAB_REL_REQ_UNEXP] = {
+		"ranap:ps:rab_rel:req:unexp", "PS RAB Release requested (by CN) in unexpected state" },
+	[HNB_CTR_RANAP_CS_RAB_REL_REQ_UNEXP] = {
+		"ranap:cs:rab_rel:req:unexp", "CS RAB Release requested (by CN) in unexpected state" },
 
 	[HNB_CTR_RANAP_PS_RAB_REL_CNF] = {
 		"ranap:ps:rab_rel:cnf", "PS RAB Release confirmed" },
 	[HNB_CTR_RANAP_CS_RAB_REL_CNF] = {
 		"ranap:cs:rab_rel:cnf", "CS RAB Release confirmed" },
+	[HNB_CTR_RANAP_PS_RAB_REL_CNF_UNEXP] = {
+		"ranap:ps:rab_rel:cnf_unexp", "PS RAB Release confirmed in unexpected state" },
+	[HNB_CTR_RANAP_CS_RAB_REL_CNF_UNEXP] = {
+		"ranap:cs:rab_rel:cnf_unexp", "CS RAB Release confirmed in unexpected state" },
 
 	[HNB_CTR_RANAP_PS_RAB_REL_FAIL] = {
 		"ranap:ps:rab_rel:fail", "PS RAB Release failed" },
 	[HNB_CTR_RANAP_CS_RAB_REL_FAIL] = {
 		"ranap:cs:rab_rel:fail", "CS RAB Release failed" },
+	[HNB_CTR_RANAP_PS_RAB_REL_FAIL_UNEXP] = {
+		"ranap:ps:rab_rel:fail_unexp", "PS RAB Release failed in unexpected state" },
+	[HNB_CTR_RANAP_CS_RAB_REL_FAIL_UNEXP] = {
+		"ranap:cs:rab_rel:fail_unexp", "CS RAB Release failed in unexpected state" },
 
 	[HNB_CTR_RANAP_PS_RAB_REL_IMPLICIT] = {
 		"ranap:ps:rab_rel:implicit:normal", "PS RAB Release implicit (during Iu Release), normal" },
