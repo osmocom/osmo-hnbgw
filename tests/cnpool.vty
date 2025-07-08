@@ -134,10 +134,23 @@ OsmoHNBGW(config)# sgsn ?
 OsmoHNBGW(config)# ### The config file has no 'msc' or 'sgsn', so defaults have been set up
 OsmoHNBGW(config)# show running-config
 ...
+cs7 instance 0
+ point-code 0.23.5
+...
+ sccp-address addr-dyn-msc-default
+  routing-indicator PC
+  point-code 0.23.1
+  subsystem-number 142
+ sccp-address addr-dyn-sgsn-default
+  routing-indicator PC
+  point-code 0.23.4
+...
 msc 0
  name msc-0
+ remote-addr addr-dyn-msc-default
 sgsn 0
  name sgsn-0
+ remote-addr addr-dyn-sgsn-default
 ...
 
 OsmoHNBGW(config)# msc 1
@@ -227,10 +240,12 @@ OsmoHNBGW(config)# show running-config
 ...
 msc 0
  name msc-0
+ remote-addr addr-dyn-msc-default
 msc 1
  name msc-1
 sgsn 0
  name sgsn-0
+ remote-addr addr-dyn-sgsn-default
 sgsn 1
  name sgsn-1
 ...
@@ -259,6 +274,7 @@ OsmoHNBGW(config)# show running-config
 ...
 msc 0
  name msc-0
+ remote-addr addr-dyn-msc-default
 msc 1
  name msc-1
 msc 2
@@ -271,6 +287,7 @@ msc 3
  allow-emergency
 sgsn 0
  name sgsn-0
+ remote-addr addr-dyn-sgsn-default
 sgsn 1
  name sgsn-1
 sgsn 2
@@ -297,6 +314,7 @@ OsmoHNBGW(config)# show running-config
 ...
 msc 0
  name msc-0
+ remote-addr addr-dyn-msc-default
 msc 1
  name msc-1
 msc 2
@@ -307,6 +325,7 @@ msc 3
  remote-addr addr-msc4
 sgsn 0
  name sgsn-0
+ remote-addr addr-dyn-sgsn-default
 sgsn 1
  name sgsn-1
 sgsn 2
@@ -377,4 +396,37 @@ hnbgw
  mgw 0
 ...
 msc 0
+...
+
+OsmoHNBGW(config-hnbgw)# exit
+OsmoHNBGW(config)# ### Apply all SCCP changes:
+OsmoHNBGW(config)# apply sccp
+OsmoHNBGW(config)# show running-config
+...
+hnbgw
+...
+msc 0
+ name msc-0
+ remote-addr addr-msc0
+msc 1
+ name msc-1
+ remote-addr addr-dyn-msc-default
+msc 2
+ name msc-2
+ remote-addr addr-msc2
+msc 3
+ name msc-3
+ remote-addr addr-msc4
+sgsn 0
+ name sgsn-0
+ remote-addr addr-sgsn0
+sgsn 1
+ name sgsn-1
+ remote-addr addr-dyn-sgsn-default
+sgsn 2
+ name sgsn-2
+ remote-addr addr-sgsn4
+sgsn 3
+ name sgsn-3
+ remote-addr addr-sgsn3
 ...

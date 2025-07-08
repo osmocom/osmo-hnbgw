@@ -56,6 +56,8 @@ static inline const char *ranap_domain_name(RANAP_CN_DomainIndicator_t domain)
 #define DEFAULT_PC_HNBGW ((23 << 3) + 5)
 #define DEFAULT_PC_MSC ((23 << 3) + 1)
 #define DEFAULT_PC_SGSN ((23 << 3) + 4)
+#define DEFAULT_ADDR_NAME_MSC "addr-dyn-msc-default"
+#define DEFAULT_ADDR_NAME_SGSN "addr-dyn-sgsn-default"
 
 /* 25.467 Section 7.1 */
 #define IUH_DEFAULT_SCTP_PORT	29169

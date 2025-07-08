@@ -37,6 +37,7 @@ struct hnbgw_cnpool {
 	const char *peer_name;
 	/* What we use as the remote MSC/SGSN point-code if the user does not configure any address. */
 	uint32_t default_remote_pc;
+	const char *default_addr_name;
 
 	struct hnbgw_cnpool_cfg vty;
 	struct hnbgw_cnpool_cfg use;

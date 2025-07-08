@@ -312,12 +312,14 @@ struct hnbgw_cnpool *hnbgw_cnpool_alloc(RANAP_CN_DomainIndicator_t domain)
 		cnpool->pool_name = "iucs";
 		cnpool->peer_name = "msc";
 		cnpool->default_remote_pc = DEFAULT_PC_MSC;
+		cnpool->default_addr_name = DEFAULT_ADDR_NAME_MSC;
 		cnpool->ctrs = rate_ctr_group_alloc(cnpool, &iucs_ctrg_desc, 0);
 		break;
 	case DOMAIN_PS:
 		cnpool->pool_name = "iups";
 		cnpool->peer_name = "sgsn";
 		cnpool->default_remote_pc = DEFAULT_PC_SGSN;
+		cnpool->default_addr_name = DEFAULT_ADDR_NAME_SGSN;
 		cnpool->ctrs = rate_ctr_group_alloc(cnpool, &iups_ctrg_desc, 0);
 		break;
 	default:
