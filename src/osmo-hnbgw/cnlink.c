@@ -456,7 +456,7 @@ static bool hnbgw_cnlink_sccp_cfg_changed(struct hnbgw_cnlink *cnlink)
 
 		/* Instead of comparing whether the address book entry names are different, actually resolve the
 		 * resulting SCCP address, and only restart the cnlink if the resulting address changed. */
-		resolve_addr_name(&remote_addr, &ss7, cnlink->vty.remote_addr_name, NULL, DEFAULT_PC_HNBGW);
+		resolve_addr_name(&remote_addr, &ss7, cnlink->vty.remote_addr_name, NULL, cnlink->pool->default_remote_pc);
 		if (osmo_sccp_addr_cmp(&remote_addr, &cnlink->remote_addr, OSMO_SCCP_ADDR_T_PC | OSMO_SCCP_ADDR_T_SSN))
 			changed = true;
 	} else if (cnlink->vty.remote_addr_name != cnlink->use.remote_addr_name) {
@@ -509,7 +509,7 @@ int hnbgw_cnlink_start_or_restart(struct hnbgw_cnlink *cnlink)
 	 * in a specific cs7 instance. If it is not set, leave ss7 == NULL to use cs7 instance 0. */
 	if (cnlink->use.remote_addr_name) {
 		if (resolve_addr_name(&cnlink->remote_addr, &ss7, cnlink->use.remote_addr_name, cnlink->name,
-				      DEFAULT_PC_HNBGW)) {
+				      cnlink->pool->default_remote_pc)) {
 			LOG_CNLINK(cnlink, DCN, LOGL_ERROR, "cannot initialize SCCP: there is no SCCP address named '%s'\n",
 				   cnlink->use.remote_addr_name);
 			return -ENOENT;
