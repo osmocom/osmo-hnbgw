@@ -201,8 +201,9 @@ static void handle_pcstate_ind(struct hnbgw_sccp_user *hsu, const struct osmo_sc
 	bool disconnected;
 	struct osmo_ss7_instance *cs7 = hsu->ss7;
 
-	LOGP(DCN, LOGL_DEBUG, "N-PCSTATE ind: affected_pc=%u sp_status=%s remote_sccp_status=%s\n",
-	     pcst->affected_pc, osmo_sccp_sp_status_name(pcst->sp_status),
+	LOGP(DCN, LOGL_DEBUG, "N-PCSTATE ind: affected_pc=%u=%s sp_status=%s remote_sccp_status=%s\n",
+	     pcst->affected_pc, osmo_ss7_pointcode_print(cs7, pcst->affected_pc),
+	     osmo_sccp_sp_status_name(pcst->sp_status),
 	     osmo_sccp_rem_sccp_status_name(pcst->remote_sccp_status));
 
 	/* If we don't care about that point-code, ignore PCSTATE. */
@@ -267,16 +268,16 @@ static void handle_pcstate_ind(struct hnbgw_sccp_user *hsu, const struct osmo_sc
 
 	if (disconnected && cnlink_is_conn_ready(cnlink)) {
 		LOG_CNLINK(cnlink, DCN, LOGL_NOTICE,
-			   "now unreachable: N-PCSTATE ind: pc=%u sp_status=%s remote_sccp_status=%s\n",
-			   pcst->affected_pc,
+			   "now unreachable: N-PCSTATE ind: pc=%u=%s sp_status=%s remote_sccp_status=%s\n",
+			   pcst->affected_pc, osmo_ss7_pointcode_print(cs7, pcst->affected_pc),
 			   osmo_sccp_sp_status_name(pcst->sp_status),
 			   osmo_sccp_rem_sccp_status_name(pcst->remote_sccp_status));
 		/* A previously usable cnlink has disconnected. Kick it back to DISC state. */
 		cnlink_set_disconnected(cnlink);
 	} else if (connected && !cnlink_is_conn_ready(cnlink)) {
 		LOG_CNLINK(cnlink, DCN, LOGL_NOTICE,
-			   "now available: N-PCSTATE ind: pc=%u sp_status=%s remote_sccp_status=%s\n",
-			   pcst->affected_pc,
+			   "now available: N-PCSTATE ind: pc=%u=%s sp_status=%s remote_sccp_status=%s\n",
+			   pcst->affected_pc, osmo_ss7_pointcode_print(cs7, pcst->affected_pc),
 			   osmo_sccp_sp_status_name(pcst->sp_status),
 			   osmo_sccp_rem_sccp_status_name(pcst->remote_sccp_status));
 		/* A previously unusable cnlink has become reachable. Trigger immediate RANAP RESET -- we would resend a
