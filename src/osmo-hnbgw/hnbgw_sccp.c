@@ -448,7 +448,8 @@ int hnbgw_sccp_user_tx_disconnect_req(struct hnbgw_sccp_user *hsu, uint32_t scu_
 		return -1;
 	}
 
-	rc = osmo_sccp_tx_disconn(hsu->sccp_user, scu_conn_id, NULL, 0);
+	rc = osmo_sccp_tx_disconn(hsu->sccp_user, scu_conn_id, NULL,
+				  SCCP_RELEASE_CAUSE_END_USER_ORIGINATED);
 	if (rc)
 		LOG_HSU(hsu, DCN, LOGL_ERROR, "Failed to send SCCP N-DISCONNECT.req(%u)\n", scu_conn_id);
 	return rc;
