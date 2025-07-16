@@ -32,6 +32,7 @@
 #include <osmocom/sigtran/sccp_sap.h>
 #include <osmocom/sigtran/sccp_helpers.h>
 #include <osmocom/sigtran/protocol/sua.h>
+#include <osmocom/sccp/sccp_types.h>
 
 #include <osmocom/hnbgw/hnbgw_cn.h>
 #include <osmocom/hnbgw/context_map.h>
@@ -109,6 +110,38 @@ static int handle_cn_unitdata(struct hnbgw_sccp_user *hsu,
 	}
 
 	return hnbgw_ranap_rx_udt_dl(cnlink, param, msgb_l2(oph->msg), msgb_l2len(oph->msg));
+}
+
+static void handle_notice_ind(struct hnbgw_sccp_user *hsu,
+			      const struct osmo_scu_notice_param *param,
+			      const struct osmo_prim_hdr *oph)
+{
+	struct hnbgw_cnlink *cnlink;
+
+	cnlink = cnlink_from_addr(hsu, &param->calling_addr, oph);
+	if (!cnlink) {
+		LOGP(DCN, LOGL_DEBUG, "(calling_addr=%s) N-NOTICE.ind cause=%u='%s' importance=%u didn't match any cnlink, ignoring\n",
+		     osmo_sccp_addr_dump(&param->calling_addr),
+		     param->cause, osmo_sccp_return_cause_name(param->cause),
+		     param->importance);
+		return;
+	}
+
+	LOG_CNLINK(cnlink, DCN, LOGL_NOTICE, "N-NOTICE.ind cause=%u='%s' importance=%u\n",
+		   param->cause, osmo_sccp_return_cause_name(param->cause),
+		   param->importance);
+	CNLINK_CTR_INC(cnlink, CNLINK_CTR_SCCP_N_NOTICE_IND);
+	switch (param->cause) {
+	case SCCP_RETURN_CAUSE_SUBSYSTEM_CONGESTION:
+	case SCCP_RETURN_CAUSE_NETWORK_CONGESTION:
+		/* Transient failures (hopefully), keep going. */
+		return;
+	default:
+		break;
+	}
+
+	/* Messages are not arriving to destination of cnlink. Kick it back to DISC state. */
+	cnlink_set_disconnected(cnlink);
 }
 
 static int handle_cn_conn_conf(struct hnbgw_sccp_user *hsu,
@@ -317,6 +350,9 @@ static int sccp_sap_up(struct osmo_prim_hdr *oph, void *ctx)
 	switch (OSMO_PRIM_HDR(oph)) {
 	case OSMO_PRIM(OSMO_SCU_PRIM_N_UNITDATA, PRIM_OP_INDICATION):
 		rc = handle_cn_unitdata(hsu, &prim->u.unitdata, oph);
+		break;
+	case OSMO_PRIM(OSMO_SCU_PRIM_N_NOTICE, PRIM_OP_INDICATION):
+		handle_notice_ind(hsu, &prim->u.notice, oph);
 		break;
 	case OSMO_PRIM(OSMO_SCU_PRIM_N_CONNECT, PRIM_OP_CONFIRM):
 		rc = handle_cn_conn_conf(hsu, &prim->u.connect, oph);

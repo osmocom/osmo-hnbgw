@@ -84,6 +84,10 @@ static const struct rate_ctr_desc cnlink_ctr_description[] = {
 		"sccp:n_unit_data:ind",
 		"Received SCCP N-UNITDATA.ind (DL)"
 	},
+	[CNLINK_CTR_SCCP_N_NOTICE_IND] = {
+		"sccp:n_notice:ind",
+		"Received SCCP N-NOTICE.ind"
+	},
 	[CNLINK_CTR_SCCP_N_CONNECT_REQ] = {
 		"sccp:n_connect:req",
 		"Submit SCCP N-CONNECT.req (UL SCCP CR)"
