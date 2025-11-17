@@ -22,12 +22,22 @@
 #include "config.h"
 
 #include <string.h>
+#include <netinet/in.h>
+#include <netinet/sctp.h>
 
 #include <osmocom/core/socket.h>
 #include <osmocom/vty/command.h>
 #include <osmocom/vty/tdef_vty.h>
 
 #include <osmocom/gsm/gsm23236.h>
+
+#include <osmocom/netif/stream.h>
+#include <osmocom/netif/sctp.h>
+
+#include <osmocom/sigtran/protocol/sua.h>
+#include <osmocom/sigtran/sccp_helpers.h>
+
+#include <osmocom/mgcp_client/mgcp_client.h>
 
 #include <osmocom/hnbgw/vty.h>
 
@@ -38,11 +48,6 @@
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/tdefs.h>
 #include <osmocom/hnbgw/nft_kpi.h>
-#include <osmocom/sigtran/protocol/sua.h>
-#include <osmocom/sigtran/sccp_helpers.h>
-#include <osmocom/netif/stream.h>
-
-#include <osmocom/mgcp_client/mgcp_client.h>
 
 static struct cmd_node hnbgw_node = {
 	HNBGW_NODE,
@@ -188,20 +193,110 @@ static void vty_dump_hnb_info__map_states(struct vty *vty, const char *name, uns
 	vty_out(vty, VTY_NEWLINE);
 }
 
-static void vty_dump_hnb_info(struct vty *vty, struct hnb_context *hnb)
+static void vty_dump_one_remaddr_sctp(struct vty *vty, int fd)
+{
+	struct sctp_paddrinfo pinfo[OSMO_SOCK_MAX_ADDRS];
+	struct osmo_sockaddr osa = {};
+	size_t pinfo_cnt = ARRAY_SIZE(pinfo);
+	bool more_needed;
+	int rc;
+	unsigned int i;
+
+	rc = osmo_sock_sctp_get_peer_addr_info(fd, &pinfo[0], &pinfo_cnt);
+	if (rc < 0) {
+		char buf_err[128];
+		strerror_r(errno, buf_err, sizeof(buf_err));
+		vty_out(vty, "%% getsockopt(SCTP_GET_PEER_ADDR_INFO) failed: %s%s", buf_err, VTY_NEWLINE);
+		return;
+	}
+
+	more_needed = pinfo_cnt > ARRAY_SIZE(pinfo);
+	if (pinfo_cnt > ARRAY_SIZE(pinfo))
+		pinfo_cnt = ARRAY_SIZE(pinfo);
+
+	for (i = 0; i < pinfo_cnt; i++) {
+		osa.u.sas = pinfo[i].spinfo_address;
+		vty_out(vty, "   RemAddr %-46s State SCTP_%-18s CWND %-8u SRTT %-8u RTO %-8u MTU %-8u%s",
+			osmo_sockaddr_to_str(&osa),
+			osmo_sctp_spinfo_state_str(pinfo[i].spinfo_state),
+			pinfo[i].spinfo_cwnd, pinfo[i].spinfo_srtt,
+			pinfo[i].spinfo_rto, pinfo[i].spinfo_mtu,
+			VTY_NEWLINE);
+	}
+
+	if (more_needed)
+		vty_out(vty, "%% more address buffers needed!%s", VTY_NEWLINE);
+}
+
+static void vty_dump_one_assoc_status_sctp(struct vty *vty, int fd)
+{
+	struct osmo_sockaddr osa = {};
+	struct sctp_status st;
+	socklen_t len;
+	int rc;
+
+	memset(&st, 0, sizeof(st));
+	len = sizeof(st);
+	rc = getsockopt(fd, IPPROTO_SCTP, SCTP_STATUS, &st, &len);
+	if (rc < 0) {
+		char buf_err[128];
+		strerror_r(errno, buf_err, sizeof(buf_err));
+		vty_out(vty, "%% getsockopt(SCTP_STATUS) failed: %s%s", buf_err, VTY_NEWLINE);
+		return;
+	}
+
+	osa.u.sas = st.sstat_primary.spinfo_address;
+	vty_out(vty, "  SCTP-ASSOC: State SCTP_%-18s InStreams %-9u OutStreams %-10u RWND %-8u UNACK %-9u PEND %-7u FRAG %-9u PrimaryAddr %-46s%s",
+		osmo_sctp_sstat_state_str(st.sstat_state),
+		st.sstat_instrms, st.sstat_outstrms,
+		st.sstat_rwnd, st.sstat_unackdata, st.sstat_penddata,
+		st.sstat_fragmentation_point,
+		osmo_sockaddr_to_str(&osa),
+		VTY_NEWLINE);
+
+	vty_dump_one_remaddr_sctp(vty, fd);
+}
+
+static void vty_dump_hnb_info__iuh_fd(struct vty *vty, const struct hnb_context *hnb)
+{
+	int fd;
+	unsigned long long sec;
+
+	vty_out(vty, " Iuh: %s%s",
+		hnb->conn ? osmo_stream_srv_get_sockname(hnb->conn) : "(no addr)", VTY_NEWLINE);
+	if (!hnb->conn)
+		return;
+
+	sec = hnb_get_updowntime(hnb);
+	if (sec) {
+		vty_out(vty, "  Uptime: %llu days %llu hours %llu min. %llu sec.%s",
+			OSMO_SEC2DAY(sec), OSMO_SEC2HRS(sec), OSMO_SEC2MIN(sec), sec % 60, VTY_NEWLINE);
+	}
+
+	fd = osmo_stream_srv_get_fd(hnb->conn);
+	if (fd < 0)
+		return;
+
+	vty_dump_one_assoc_status_sctp(vty, fd);
+
+
+	vty_out(vty, "  HNBAP: SCTP-stream %u%s", hnb->hnbap_stream, VTY_NEWLINE);
+	vty_out(vty, "  RUA: SCTP-stream %u%s", hnb->rua_stream, VTY_NEWLINE);
+}
+
+static void vty_dump_hnb_info(struct vty *vty, const struct hnb_context *hnb)
 {
 	struct hnbgw_context_map *map;
 	unsigned int map_count[2] = {};
 	unsigned int state_count[2][MAP_S_NUM_STATES + 1] = {};
-	unsigned long long sec;
 
 	vty_out(vty, "HNB ");
-	vty_out(vty, "%s", hnb->conn ? osmo_stream_srv_get_sockname(hnb->conn) : "(no addr)");
 	vty_out(vty, " \"%s\"%s", hnb->identity_info, VTY_NEWLINE);
-	vty_out(vty, "    MCC %s MNC %s LAC %u RAC %u SAC %u CID %u SCTP-stream:HNBAP=%u,RUA=%u%s",
-		osmo_mcc_name(hnb->id.plmn.mcc), osmo_mnc_name(hnb->id.plmn.mnc, hnb->id.plmn.mnc_3_digits),
-		hnb->id.lac, hnb->id.rac, hnb->id.sac, hnb->id.cid,
-		hnb->hnbap_stream, hnb->rua_stream, VTY_NEWLINE);
+	vty_out(vty, " MCC %s MNC %s LAC %u RAC %u SAC %u CID %u%s",
+		osmo_mcc_name(hnb->id.plmn.mcc),
+		osmo_mnc_name(hnb->id.plmn.mnc, hnb->id.plmn.mnc_3_digits),
+		hnb->id.lac, hnb->id.rac, hnb->id.sac, hnb->id.cid, VTY_NEWLINE);
+	vty_dump_hnb_info__iuh_fd(vty, hnb);
 
 	llist_for_each_entry(map, &hnb->map_list, hnb_list) {
 		map_count[map->is_ps ? 1 : 0]++;
@@ -209,12 +304,6 @@ static void vty_dump_hnb_info(struct vty *vty, struct hnb_context *hnb)
 	}
 	vty_dump_hnb_info__map_states(vty, "IuCS", map_count[0], state_count[0]);
 	vty_dump_hnb_info__map_states(vty, "IuPS", map_count[1], state_count[1]);
-
-	sec = hnb_get_updowntime(hnb);
-	if (sec) {
-		vty_out(vty, " Iuh Uptime: %llu days %llu hours %llu min. %llu sec.%s",
-			OSMO_SEC2DAY(sec), OSMO_SEC2HRS(sec), OSMO_SEC2MIN(sec), sec % 60, VTY_NEWLINE);
-	}
 }
 
 #define SHOW_HNB_STR SHOW_STR "Display information about HNB\n"
