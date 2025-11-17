@@ -84,6 +84,25 @@ hnbgw
  rnc-id 42
 ...
 
+OsmoHNBGW(config-hnbgw)# iuh
+OsmoHNBGW(config-hnbgw-iuh)# list
+...
+  local-ip A.B.C.D
+  local-port <1-65535>
+  tx-queue-max-length <0-65535>
+  hnbap-allow-tmsi (0|1)
+...
+
+OsmoHNBGW(config-hnbgw-iuh)# tx-queue-max-length 2000
+OsmoHNBGW(config-hnbgw-iuh)# show running-config
+...
+hnbgw
+...
+ iuh
+  tx-queue-max-length 2000
+...
+OsmoHNBGW(config-hnbgw-iuh)# exit
+
 OsmoHNBGW(config-hnbgw)# nft-kpi?
   nft-kpi  Retrieve traffic counters from nftables
 OsmoHNBGW(config-hnbgw)# nft-kpi ?

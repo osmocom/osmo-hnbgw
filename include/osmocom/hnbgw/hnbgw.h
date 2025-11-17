@@ -71,6 +71,8 @@ static inline const char *ranap_domain_name(RANAP_CN_DomainIndicator_t domain)
 
 #define IUH_MSGB_SIZE	2048
 
+#define IUH_TX_QUEUE_MAX_LENGTH 1024
+
 struct hnbgw_context_map;
 
 static inline bool cnlink_is_cs(const struct hnbgw_cnlink *cnlink)
@@ -95,6 +97,9 @@ struct hnbgw {
 		bool log_prefix_hnb_id;
 		bool accept_all_hnb;
 		struct mgcp_client_conf *mgcp_client;
+		struct {
+			unsigned int tx_queue_max_length;
+		} iuh;
 		struct {
 			char *local_addr;
 			uint16_t local_port;

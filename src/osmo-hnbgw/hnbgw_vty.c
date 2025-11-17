@@ -318,6 +318,18 @@ DEFUN(cfg_hnbgw_iuh_local_port, cfg_hnbgw_iuh_local_port_cmd, "local-port <1-655
 	return CMD_SUCCESS;
 }
 
+DEFUN(cfg_hnbgw_iuh_tx_queue_max_length, cfg_hnbgw_iuh_tx_queue_max_length_cmd,
+      "tx-queue-max-length <0-65535>",
+      "Maximum transmit queue length, in msgbs\n"
+      "Amount of msgbs which can be queued at maximum in the transmit queue\n")
+{
+	g_hnbgw->config.iuh.tx_queue_max_length = atoi(argv[0]);
+	if (g_hnbgw->iuh)
+		osmo_stream_srv_link_set_tx_queue_max_length(g_hnbgw->iuh,
+							     g_hnbgw->config.iuh.tx_queue_max_length);
+	return CMD_SUCCESS;
+}
+
 DEFUN(cfg_hnbgw_iuh_hnbap_allow_tmsi, cfg_hnbgw_iuh_hnbap_allow_tmsi_cmd,
       "hnbap-allow-tmsi (0|1)",
       "Allow HNBAP UE Register messages with TMSI or PTMSI identity\n"
@@ -1039,6 +1051,9 @@ static int config_write_hnbgw_iuh(struct vty *vty)
 	if (port && port != IUH_DEFAULT_SCTP_PORT)
 		vty_out(vty, "  local-port %u%s", port, VTY_NEWLINE);
 
+	if (g_hnbgw->config.iuh.tx_queue_max_length != IUH_TX_QUEUE_MAX_LENGTH)
+		vty_out(vty, "  tx-queue-max-length %u%s", g_hnbgw->config.iuh.tx_queue_max_length, VTY_NEWLINE);
+
 	if (!g_hnbgw->config.hnbap_allow_tmsi)
 		vty_out(vty, "  hnbap-allow-tmsi 0%s", VTY_NEWLINE);
 
@@ -1125,6 +1140,7 @@ void hnbgw_vty_init(void)
 
 	install_element(IUH_NODE, &cfg_hnbgw_iuh_local_ip_cmd);
 	install_element(IUH_NODE, &cfg_hnbgw_iuh_local_port_cmd);
+	install_element(IUH_NODE, &cfg_hnbgw_iuh_tx_queue_max_length_cmd);
 	install_element(IUH_NODE, &cfg_hnbgw_iuh_hnbap_allow_tmsi_cmd);
 
 	install_element(HNBGW_NODE, &cfg_hnbgw_iucs_cmd);

@@ -316,6 +316,7 @@ int main(int argc, char **argv)
 	osmo_stream_srv_link_set_port(srv, g_hnbgw->config.iuh_local_port);
 	osmo_stream_srv_link_set_accept_cb(srv, hnbgw_rua_accept_cb);
 	osmo_stream_srv_link_set_msgb_alloc_info(srv, IUH_MSGB_SIZE, 0);
+	osmo_stream_srv_link_set_tx_queue_max_length(srv, g_hnbgw->config.iuh.tx_queue_max_length);
 
 	if (osmo_stream_srv_link_open(srv) < 0) {
 		perror("Cannot open server");
