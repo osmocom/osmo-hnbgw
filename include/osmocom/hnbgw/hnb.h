@@ -72,5 +72,7 @@ const char *hnb_context_name(struct hnb_context *ctx);
 void hnb_context_release(struct hnb_context *ctx);
 void hnb_context_release_ue_state(struct hnb_context *ctx);
 
+void hnb_context_apply_tx_queue_max_length(struct hnb_context *ctx);
+
 unsigned long long hnb_get_updowntime(const struct hnb_context *ctx);
 void hnb_store_rab_durations(struct hnb_context *hnb);

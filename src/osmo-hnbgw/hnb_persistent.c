@@ -275,6 +275,8 @@ struct hnb_persistent *hnb_persistent_alloc(const struct umts_cell_id *id)
 		goto out_free_ctrs;
 	osmo_stat_item_group_set_name(hnbp->statg, hnbp->id_str);
 
+	hnbp->config.iuh_tx_queue_max_length = -1; /* global HNBGW default */
+
 	llist_add(&hnbp->list, &g_hnbgw->hnb_persistent_list);
 	hash_add(g_hnbgw->hnb_persistent_by_id, &hnbp->node_by_id, umts_cell_id_hash(&hnbp->id));
 

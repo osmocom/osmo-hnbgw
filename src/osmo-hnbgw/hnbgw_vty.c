@@ -323,10 +323,17 @@ DEFUN(cfg_hnbgw_iuh_tx_queue_max_length, cfg_hnbgw_iuh_tx_queue_max_length_cmd,
       "Maximum transmit queue length, in msgbs\n"
       "Amount of msgbs which can be queued at maximum in the transmit queue\n")
 {
+	struct hnb_context *hnb;
+
 	g_hnbgw->config.iuh.tx_queue_max_length = atoi(argv[0]);
 	if (g_hnbgw->iuh)
 		osmo_stream_srv_link_set_tx_queue_max_length(g_hnbgw->iuh,
 							     g_hnbgw->config.iuh.tx_queue_max_length);
+
+	/* Apply new default to HNBs which don't hace a specific value set. */
+	llist_for_each_entry(hnb, &g_hnbgw->hnb_list, list)
+		hnb_context_apply_tx_queue_max_length(hnb);
+
 	return CMD_SUCCESS;
 }
 
@@ -874,6 +881,18 @@ DEFUN(cfg_hnbgw_no_hnb, cfg_hnbgw_no_hnb_cmd,
 	return CMD_SUCCESS;
 }
 
+DEFUN(cfg_hnb_tx_queue_max_length, cfg_hnb_tx_queue_max_length_cmd,
+      "tx-queue-max-length <-1-65535>",
+      "Maximum transmit queue length, in msgbs\n"
+      "Amount of msgbs which can be queued at maximum in the tramist queue (-1: Use hnbgw default)\n")
+{
+	struct hnb_persistent *hnbp = vty->index;
+	hnbp->config.iuh_tx_queue_max_length = atoi(argv[0]);
+	if (hnbp->ctx)
+		hnb_context_apply_tx_queue_max_length(hnbp->ctx);
+	return CMD_SUCCESS;
+}
+
 #define NFT_KPI_STR "Retrieve traffic counters from nftables\n"
 
 DEFUN(cfg_hnbgw_nft_kpi, cfg_hnbgw_nft_kpi_cmd,
@@ -997,6 +1016,8 @@ static void _config_write_cnpool(struct vty *vty, struct hnbgw_cnpool *cnpool)
 static void write_one_hnbp(struct vty *vty, const struct hnb_persistent *hnbp)
 {
 	vty_out(vty, " hnb %s%s", hnbp->id_str, VTY_NEWLINE);
+	if (hnbp->config.iuh_tx_queue_max_length >= 0)
+		vty_out(vty, "  tx-queue-max-length %u%s", hnbp->config.iuh_tx_queue_max_length, VTY_NEWLINE);
 }
 
 static int config_write_hnbgw(struct vty *vty)
@@ -1162,6 +1183,7 @@ void hnbgw_vty_init(void)
 	install_element(HNBGW_NODE, &cfg_hnbgw_hnb_cmd);
 	install_element(HNBGW_NODE, &cfg_hnbgw_no_hnb_cmd);
 	install_node(&hnb_node, NULL);
+	install_element(HNB_NODE, &cfg_hnb_tx_queue_max_length_cmd);
 
 	install_element(HNBGW_NODE, &cfg_hnbgw_nft_kpi_cmd);
 	install_element(HNBGW_NODE, &cfg_hnbgw_no_nft_kpi_cmd);

@@ -157,6 +157,10 @@ struct hnb_persistent {
 	struct rate_ctr_group *ctrs;
 	struct osmo_stat_item_group *statg;
 
+	struct {
+		int iuh_tx_queue_max_length; /* -1: Use hnbgw default */
+	} config;
+
 	/* State that the main thread needs in order to know what was requested from the nft worker threads and what
 	 * still needs to be requested. */
 	struct {

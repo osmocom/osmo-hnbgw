@@ -115,6 +115,7 @@ static struct hnb_context *hnb_context_alloc(struct osmo_stream_srv_link *link, 
 	}
 	osmo_stream_srv_set_read_cb(ctx->conn, hnb_read_cb);
 	osmo_stream_srv_set_closed_cb(ctx->conn, hnb_closed_cb);
+	hnb_context_apply_tx_queue_max_length(ctx);
 
 	llist_add_tail(&ctx->list, &g_hnbgw->hnb_list);
 	return ctx;
@@ -204,6 +205,22 @@ unsigned long long hnb_get_updowntime(const struct hnb_context *ctx)
 	if (!ctx->persistent)
 		return 0;
 	return hnbp_get_updowntime(ctx->persistent);
+}
+
+void hnb_context_apply_tx_queue_max_length(struct hnb_context *ctx)
+{
+	unsigned int v;
+	const struct hnb_persistent *hnbp = ctx->persistent;
+
+	if (!ctx->conn)
+		return;
+
+	if (hnbp &&
+	    hnbp->config.iuh_tx_queue_max_length >= 0)
+		v = hnbp->config.iuh_tx_queue_max_length >= 0;
+	else /* Use global HNBGW default */
+		v = g_hnbgw->config.iuh.tx_queue_max_length;
+	osmo_stream_srv_set_tx_queue_max_length(ctx->conn, v);
 }
 
 /***********************************************************************
