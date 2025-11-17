@@ -219,8 +219,8 @@ static void vty_dump_hnb_info(struct vty *vty, struct hnb_context *hnb)
 
 #define SHOW_HNB_STR SHOW_STR "Display information about HNB\n"
 
-DEFUN(show_hnb, show_hnb_cmd, "show hnb all",
-      SHOW_HNB_STR "All HNB\n")
+DEFUN(show_hnb, show_hnb_cmd, "show hnb",
+      SHOW_HNB_STR)
 {
 	struct hnb_context *hnb;
 	unsigned int count = 0;
@@ -240,8 +240,8 @@ DEFUN(show_hnb, show_hnb_cmd, "show hnb all",
 	return CMD_SUCCESS;
 }
 
-DEFUN(show_one_hnb, show_one_hnb_cmd, "show hnb NAME ",
-      SHOW_HNB_STR "HNB name\n")
+DEFUN(show_one_hnb, show_one_hnb_cmd, "show hnb name NAME",
+      SHOW_HNB_STR "HNB name\n" "HNB name\n")
 {
 	struct hnb_context *hnb;
 	const char *identity_info = argv[0];
