@@ -88,9 +88,6 @@ struct hnbgw {
 		const char *iuh_local_ip;
 		/*! SCTP port for Iuh listening */
 		uint16_t iuh_local_port;
-		/*! The UDP port where we receive multiplexed CS user
-		 * plane traffic from HNBs */
-		uint16_t iuh_cs_mux_port;
 		struct osmo_plmn_id plmn;
 		uint16_t rnc_id;
 		bool hnbap_allow_tmsi;
