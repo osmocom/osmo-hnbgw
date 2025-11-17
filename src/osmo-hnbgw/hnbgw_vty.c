@@ -125,7 +125,6 @@ int hnbgw_vty_go_parent(struct vty *vty)
 
 static void _show_cnlink(struct vty *vty, struct hnbgw_cnlink *cnlink)
 {
-	struct osmo_ss7_route *rt;
 	struct osmo_ss7_instance *ss7;
 
 	if (!cnlink) {
@@ -158,8 +157,6 @@ static void _show_cnlink(struct vty *vty, struct hnbgw_cnlink *cnlink)
 		hnbgw_cnlink_sccp_addr_to_str(cnlink, &cnlink->remote_addr),
 		VTY_NEWLINE);
 
-	rt = osmo_ss7_route_lookup(ss7, cnlink->remote_addr.pc);
-	vty_out(vty, "      SS7 route: %s%s", osmo_ss7_route_name(rt, true), VTY_NEWLINE);
 	vty_out(vty, "      RANAP state: %s%s", osmo_fsm_inst_state_name(cnlink->fi), VTY_NEWLINE);
 }
 
