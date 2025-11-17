@@ -87,17 +87,17 @@ static inline bool cnlink_is_ps(const struct hnbgw_cnlink *cnlink)
 
 struct hnbgw {
 	struct {
-		const char *iuh_local_ip;
-		/*! SCTP port for Iuh listening */
-		uint16_t iuh_local_port;
 		struct osmo_plmn_id plmn;
 		uint16_t rnc_id;
-		bool hnbap_allow_tmsi;
 		/*! print hnb-id (true) or MCC-MNC-LAC-RAC-SAC (false) in logs */
 		bool log_prefix_hnb_id;
 		bool accept_all_hnb;
 		struct mgcp_client_conf *mgcp_client;
 		struct {
+			const char *local_ip;
+			/*! SCTP port for Iuh listening */
+			uint16_t local_port;
+			bool hnbap_allow_tmsi;
 			unsigned int tx_queue_max_length;
 		} iuh;
 		struct {

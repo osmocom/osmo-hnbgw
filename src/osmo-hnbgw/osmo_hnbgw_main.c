@@ -300,10 +300,10 @@ int main(int argc, char **argv)
 
 	LOGP(DHNBAP, LOGL_NOTICE, "Using RNC-Id %u\n", g_hnbgw->config.rnc_id);
 
-	OSMO_ASSERT(g_hnbgw->config.iuh_local_ip);
+	OSMO_ASSERT(g_hnbgw->config.iuh.local_ip);
 	LOGP(DMAIN, LOGL_NOTICE, "Listening for Iuh at %s %d\n",
-	     g_hnbgw->config.iuh_local_ip,
-	     g_hnbgw->config.iuh_local_port);
+	     g_hnbgw->config.iuh.local_ip,
+	     g_hnbgw->config.iuh.local_port);
 	srv = osmo_stream_srv_link_create(g_hnbgw);
 	if (!srv) {
 		perror("cannot create server");
@@ -312,8 +312,8 @@ int main(int argc, char **argv)
 	osmo_stream_srv_link_set_data(srv, g_hnbgw);
 	osmo_stream_srv_link_set_proto(srv, IPPROTO_SCTP);
 	osmo_stream_srv_link_set_nodelay(srv, true);
-	osmo_stream_srv_link_set_addr(srv, g_hnbgw->config.iuh_local_ip);
-	osmo_stream_srv_link_set_port(srv, g_hnbgw->config.iuh_local_port);
+	osmo_stream_srv_link_set_addr(srv, g_hnbgw->config.iuh.local_ip);
+	osmo_stream_srv_link_set_port(srv, g_hnbgw->config.iuh.local_port);
 	osmo_stream_srv_link_set_accept_cb(srv, hnbgw_rua_accept_cb);
 	osmo_stream_srv_link_set_msgb_alloc_info(srv, IUH_MSGB_SIZE, 0);
 	osmo_stream_srv_link_set_tx_queue_max_length(srv, g_hnbgw->config.iuh.tx_queue_max_length);

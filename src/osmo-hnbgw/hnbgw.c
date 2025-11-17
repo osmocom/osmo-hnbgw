@@ -211,9 +211,9 @@ void g_hnbgw_alloc(void *ctx)
 	g_hnbgw = talloc_zero(ctx, struct hnbgw);
 
 	/* strdup so we can easily talloc_free in the VTY code */
-	g_hnbgw->config.iuh_local_ip = talloc_strdup(g_hnbgw, HNBGW_LOCAL_IP_DEFAULT);
-	g_hnbgw->config.iuh_local_port = IUH_DEFAULT_SCTP_PORT;
-	g_hnbgw->config.hnbap_allow_tmsi = true;
+	g_hnbgw->config.iuh.local_ip = talloc_strdup(g_hnbgw, HNBGW_LOCAL_IP_DEFAULT);
+	g_hnbgw->config.iuh.local_port = IUH_DEFAULT_SCTP_PORT;
+	g_hnbgw->config.iuh.hnbap_allow_tmsi = true;
 	g_hnbgw->config.log_prefix_hnb_id = true;
 	g_hnbgw->config.accept_all_hnb = true;
 	g_hnbgw->config.iuh.tx_queue_max_length = IUH_TX_QUEUE_MAX_LENGTH;

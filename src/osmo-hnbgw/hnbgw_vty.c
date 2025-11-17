@@ -305,8 +305,8 @@ DEFUN(cfg_hnbgw_iuh_local_ip, cfg_hnbgw_iuh_local_ip_cmd, "local-ip A.B.C.D",
       "Accept Iuh connections on local interface\n"
       "Local interface IP address (default: " HNBGW_LOCAL_IP_DEFAULT ")")
 {
-	talloc_free((void *)g_hnbgw->config.iuh_local_ip);
-	g_hnbgw->config.iuh_local_ip = talloc_strdup(g_hnbgw, argv[0]);
+	talloc_free((void *)g_hnbgw->config.iuh.local_ip);
+	g_hnbgw->config.iuh.local_ip = talloc_strdup(g_hnbgw, argv[0]);
 	return CMD_SUCCESS;
 }
 
@@ -314,7 +314,7 @@ DEFUN(cfg_hnbgw_iuh_local_port, cfg_hnbgw_iuh_local_port_cmd, "local-port <1-655
       "Accept Iuh connections on local port\n"
       "Local interface port (default: 29169)")
 {
-	g_hnbgw->config.iuh_local_port = atoi(argv[0]);
+	g_hnbgw->config.iuh.local_port = atoi(argv[0]);
 	return CMD_SUCCESS;
 }
 
@@ -336,7 +336,7 @@ DEFUN(cfg_hnbgw_iuh_hnbap_allow_tmsi, cfg_hnbgw_iuh_hnbap_allow_tmsi_cmd,
       "Only accept IMSI identity, reject TMSI or PTMSI\n"
       "Accept IMSI, TMSI or PTMSI as UE identity (default)\n")
 {
-	g_hnbgw->config.hnbap_allow_tmsi = (*argv[0] == '1');
+	g_hnbgw->config.iuh.hnbap_allow_tmsi = (*argv[0] == '1');
 	return CMD_SUCCESS;
 }
 
@@ -1043,18 +1043,18 @@ static int config_write_hnbgw_iuh(struct vty *vty)
 
 	vty_out(vty, " iuh%s", VTY_NEWLINE);
 
-	addr = g_hnbgw->config.iuh_local_ip;
+	addr = g_hnbgw->config.iuh.local_ip;
 	if (addr && (strcmp(addr, HNBGW_LOCAL_IP_DEFAULT) != 0))
 		vty_out(vty, "  local-ip %s%s", addr, VTY_NEWLINE);
 
-	port = g_hnbgw->config.iuh_local_port;
+	port = g_hnbgw->config.iuh.local_port;
 	if (port && port != IUH_DEFAULT_SCTP_PORT)
 		vty_out(vty, "  local-port %u%s", port, VTY_NEWLINE);
 
 	if (g_hnbgw->config.iuh.tx_queue_max_length != IUH_TX_QUEUE_MAX_LENGTH)
 		vty_out(vty, "  tx-queue-max-length %u%s", g_hnbgw->config.iuh.tx_queue_max_length, VTY_NEWLINE);
 
-	if (!g_hnbgw->config.hnbap_allow_tmsi)
+	if (!g_hnbgw->config.iuh.hnbap_allow_tmsi)
 		vty_out(vty, "  hnbap-allow-tmsi 0%s", VTY_NEWLINE);
 
 	return CMD_SUCCESS;

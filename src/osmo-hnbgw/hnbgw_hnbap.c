@@ -617,7 +617,7 @@ static int hnbgw_rx_ue_register_req(struct hnb_context *ctx, ANY_t *in)
 		break;
 	case HNBAP_UE_Identity_PR_tMSILAI:
 	case HNBAP_UE_Identity_PR_pTMSIRAI:
-		if (g_hnbgw->config.hnbap_allow_tmsi) {
+		if (g_hnbgw->config.iuh.hnbap_allow_tmsi) {
 			rc = hnbgw_tx_ue_register_acc_tmsi(ctx, &ies.uE_Identity, get_next_ue_ctx_id());
 		} else {
 			cause.present = HNBAP_Cause_PR_radioNetwork;
