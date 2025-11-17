@@ -176,18 +176,6 @@ DEFUN(show_cnlink, show_cnlink_cmd, "show cnlink",
 	return CMD_SUCCESS;
 }
 
-static void vty_out_ofd_addr(struct vty *vty, struct osmo_fd *ofd)
-{
-	char *name;
-	if (!ofd || ofd->fd < 0
-	|| !(name = osmo_sock_get_name(vty, ofd->fd))) {
-	    vty_out(vty, "(no addr)");
-	    return;
-	}
-	vty_out(vty, "%s", name);
-	talloc_free(name);
-}
-
 static void vty_dump_hnb_info__map_states(struct vty *vty, const char *name, unsigned int count,
 					  unsigned int state_count[])
 {
@@ -211,7 +199,7 @@ static void vty_dump_hnb_info(struct vty *vty, struct hnb_context *hnb)
 	unsigned long long sec;
 
 	vty_out(vty, "HNB ");
-	vty_out_ofd_addr(vty, hnb->conn? osmo_stream_srv_get_ofd(hnb->conn) : NULL);
+	vty_out(vty, "%s", hnb->conn ? osmo_stream_srv_get_sockname(hnb->conn) : "(no addr)");
 	vty_out(vty, " \"%s\"%s", hnb->identity_info, VTY_NEWLINE);
 	vty_out(vty, "    MCC %s MNC %s LAC %u RAC %u SAC %u CID %u SCTP-stream:HNBAP=%u,RUA=%u%s",
 		osmo_mcc_name(hnb->id.plmn.mcc), osmo_mnc_name(hnb->id.plmn.mnc, hnb->id.plmn.mnc_3_digits),

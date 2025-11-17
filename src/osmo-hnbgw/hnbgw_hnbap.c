@@ -473,7 +473,7 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	struct hnb_context *hnb, *tmp;
 	HNBAP_HNBRegisterRequestIEs_t ies;
 	int rc;
-	struct osmo_fd *ofd = osmo_stream_srv_get_ofd(ctx->conn);
+	int fd = osmo_stream_srv_get_fd(ctx->conn);
 	char identity_str[256];
 	const char *cell_id_str;
 	struct timespec tp;
@@ -503,7 +503,7 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 	osmo_plmn_from_bcd(ies.plmNidentity.buf, &ctx->id.plmn);
 	cell_id_str = umts_cell_id_to_str(&ctx->id);
 
-	if (getpeername(ofd->fd, &cur_osa.u.sa, &len) < 0) {
+	if (getpeername(fd, &cur_osa.u.sa, &len) < 0) {
 		LOGHNB(ctx, DHNBAP, LOGL_ERROR, "HNB-REGISTER-REQ %s: rejecting due to getpeername() error: %s\n",
 		       cell_id_str, strerror(errno));
 		hnbap_free_hnbregisterrequesties(&ies);
@@ -535,10 +535,10 @@ static int hnbgw_rx_hnb_register_req(struct hnb_context *ctx, ANY_t *in)
 		if (hnb->hnb_registered && ctx != hnb && memcmp(&ctx->id, &hnb->id, sizeof(ctx->id)) == 0) {
 			/* If it's coming from the same remote IP addr+port, then it must be our internal
 			 * fault (bug), and we release the old context to keep going... */
-			struct osmo_fd *other_fd = osmo_stream_srv_get_ofd(hnb->conn);
+			int other_fd = osmo_stream_srv_get_fd(hnb->conn);
 			struct osmo_sockaddr other_osa = {};
 			socklen_t len = sizeof(other_osa);
-			if (getpeername(other_fd->fd, &other_osa.u.sa, &len) < 0) {
+			if (getpeername(other_fd, &other_osa.u.sa, &len) < 0) {
 				LOGHNB(ctx, DHNBAP, LOGL_ERROR, "BUG! Found old registered HNB with invalid socket, releasing it\n");
 				hnb_context_release(hnb);
 				continue;

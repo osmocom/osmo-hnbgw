@@ -95,7 +95,7 @@ struct hnb_context *hnb_context_by_identity_info(const char *identity_info)
 	return NULL;
 }
 
-static int hnb_read_cb(struct osmo_stream_srv *conn);
+static int hnb_read_cb(struct osmo_stream_srv *conn, int res, struct msgb *msg);
 static int hnb_closed_cb(struct osmo_stream_srv *conn);
 
 static struct hnb_context *hnb_context_alloc(struct osmo_stream_srv_link *link, int new_fd)
@@ -107,12 +107,14 @@ static struct hnb_context *hnb_context_alloc(struct osmo_stream_srv_link *link, 
 		return NULL;
 	INIT_LLIST_HEAD(&ctx->map_list);
 
-	ctx->conn = osmo_stream_srv_create(g_hnbgw, link, new_fd, hnb_read_cb, hnb_closed_cb, ctx);
+	ctx->conn = osmo_stream_srv_create2(g_hnbgw, link, new_fd, ctx);
 	if (!ctx->conn) {
 		LOGP(DMAIN, LOGL_INFO, "error while creating connection\n");
 		talloc_free(ctx);
 		return NULL;
 	}
+	osmo_stream_srv_set_read_cb(ctx->conn, hnb_read_cb);
+	osmo_stream_srv_set_closed_cb(ctx->conn, hnb_closed_cb);
 
 	llist_add_tail(&ctx->list, &g_hnbgw->hnb_list);
 	return ctx;
@@ -127,7 +129,7 @@ const char *hnb_context_name(struct hnb_context *ctx)
 	if (ctx->conn) {
 		char hostbuf_r[INET6_ADDRSTRLEN];
 		char portbuf_r[6];
-		int fd = osmo_stream_srv_get_ofd(ctx->conn)->fd;
+		int fd = osmo_stream_srv_get_fd(ctx->conn);
 
 		/* get remote addr */
 		if (osmo_sock_get_ip_and_port(fd, hostbuf_r, sizeof(hostbuf_r), portbuf_r, sizeof(portbuf_r), false) == 0)
@@ -176,7 +178,7 @@ void hnb_context_release(struct hnb_context *ctx)
 
 	if (ctx->conn) { /* we own a conn, we must free it: */
 		LOGHNB(ctx, DMAIN, LOGL_INFO, "Closing HNB SCTP connection %s\n",
-		     osmo_sock_get_name2(osmo_stream_srv_get_ofd(ctx->conn)->fd));
+		       osmo_stream_srv_get_sockname(ctx->conn));
 		/* Avoid our closed_cb calling hnb_context_release() again: */
 		osmo_stream_srv_set_data(ctx->conn, NULL);
 		osmo_stream_srv_destroy(ctx->conn);
@@ -208,36 +210,30 @@ unsigned long long hnb_get_updowntime(const struct hnb_context *ctx)
  * SCTP Socket / stream handling
  ***********************************************************************/
 
-static int hnb_read_cb(struct osmo_stream_srv *conn)
+static int hnb_read_cb(struct osmo_stream_srv *conn, int res, struct msgb *msg)
 {
 	struct hnb_context *hnb = osmo_stream_srv_get_data(conn);
-	struct osmo_fd *ofd = osmo_stream_srv_get_ofd(conn);
-	struct msgb *msg = msgb_alloc(IUH_MSGB_SIZE, "Iuh rx");
+	int flags = msgb_sctp_msg_flags(msg);
 	int rc;
 
-	if (!msg)
-		return -ENOMEM;
-
 	OSMO_ASSERT(hnb);
-	/* we store a reference to the HomeNodeB in the msg->dest for the
-	 * benefit of various downstream processing functions */
-	msg->dst = hnb;
 
-	rc = osmo_stream_srv_recv(conn, msg);
+	LOGHNB(hnb, DMAIN, LOGL_DEBUG, "%s(): sctp_recvmsg() returned %d (flags=0x%x)\n",
+	       __func__, res, flags);
+
 	/* Notification received */
-	if (msgb_sctp_msg_flags(msg) & OSMO_STREAM_SCTP_MSG_FLAGS_NOTIFICATION) {
+	if (flags & OSMO_STREAM_SCTP_MSG_FLAGS_NOTIFICATION) {
 		union sctp_notification *notif = (union sctp_notification *)msgb_data(msg);
-		rc = 0;
 		switch (notif->sn_header.sn_type) {
 		case SCTP_ASSOC_CHANGE:
 			switch (notif->sn_assoc_change.sac_state) {
 			case SCTP_COMM_LOST:
 				LOGHNB(hnb, DMAIN, LOGL_NOTICE,
 				       "sctp_recvmsg(%s) = SCTP_COMM_LOST, closing conn\n",
-				       osmo_sock_get_name2(ofd->fd));
+				       osmo_stream_srv_get_sockname(conn));
+				msgb_free(msg);
 				osmo_stream_srv_destroy(conn);
-				rc = -EBADF;
-				break;
+				return -EBADF;
 			case SCTP_RESTART:
 				LOGHNB(hnb, DMAIN, LOGL_NOTICE, "HNB SCTP conn RESTARTed, marking as HNBAP-unregistered\n");
 				hnb->hnb_registered = false;
@@ -248,39 +244,40 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 				 * queue may contain plenty of oldish messages to be sent. Since the HNB will re-register after
 				 * this, we simply drop all those old messages: */
 				osmo_stream_srv_clear_tx_queue(conn);
-				break;
+				msgb_free(msg);
+				return 0;
 			}
 			break;
 		case SCTP_SHUTDOWN_EVENT:
 			LOGHNB(hnb, DMAIN, LOGL_NOTICE,
 			       "sctp_recvmsg(%s) = SCTP_SHUTDOWN_EVENT, closing conn\n",
-			       osmo_sock_get_name2(ofd->fd));
+			       osmo_stream_srv_get_sockname(conn));
+			msgb_free(msg);
 			osmo_stream_srv_destroy(conn);
-			rc = -EBADF;
-			break;
-		}
-		goto out;
-	} else if (rc == -EAGAIN) {
-		/* Older versions of osmo_stream_srv_recv() not supporting
-		 * msgb_sctp_msg_flags() may still return -EAGAIN when an sctp
-		 * notification is received. */
-		rc = 0;
-		goto out;
-	} else if (rc < 0) {
-		LOGHNB(hnb, DMAIN, LOGL_ERROR, "Error during sctp_recvmsg(%s)\n",
-		       osmo_sock_get_name2(ofd->fd));
-		osmo_stream_srv_destroy(conn);
-		rc = -EBADF;
-		goto out;
-	} else if (rc == 0) {
-		LOGHNB(hnb, DMAIN, LOGL_NOTICE, "Connection closed sctp_recvmsg(%s) = 0\n",
-		       osmo_sock_get_name2(ofd->fd));
-		osmo_stream_srv_destroy(conn);
-		rc = -EBADF;
-		goto out;
-	} else {
-		msgb_put(msg, rc);
+			return -EBADF;
+		default:
+			msgb_free(msg);
+			return 0;
+		};
 	}
+
+	if (OSMO_UNLIKELY(res < 0)) {
+		LOGHNB(hnb, DMAIN, LOGL_ERROR, "Error during sctp_recvmsg(%s)\n",
+		       osmo_stream_srv_get_sockname(conn));
+		msgb_free(msg);
+		osmo_stream_srv_destroy(conn);
+		return -EBADF;
+	} else if (OSMO_UNLIKELY(res == 0)) {
+		LOGHNB(hnb, DMAIN, LOGL_NOTICE, "Connection closed sctp_recvmsg(%s) = 0\n",
+		       osmo_stream_srv_get_sockname(conn));
+		msgb_free(msg);
+		osmo_stream_srv_destroy(conn);
+		return -EBADF;
+	}
+
+	/* we store a reference to the HomeNodeB in the msg->dest for the
+	 * benefit of various downstream processing functions */
+	msg->dst = hnb;
 
 	switch (msgb_sctp_ppid(msg)) {
 	case IUH_PPI_HNBAP:
@@ -290,7 +287,8 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 	case IUH_PPI_RUA:
 		if (!hnb->hnb_registered) {
 			LOGHNB(hnb, DMAIN, LOGL_NOTICE, "Discarding RUA as HNB is not registered\n");
-			goto out;
+			msgb_free(msg);
+			return 0;
 		}
 		hnb->rua_stream = msgb_sctp_stream(msg);
 		rc = hnbgw_rua_rx(hnb, msg);
@@ -307,7 +305,6 @@ static int hnb_read_cb(struct osmo_stream_srv *conn)
 		break;
 	}
 
-out:
 	msgb_free(msg);
 	return rc;
 }
@@ -317,6 +314,8 @@ static int hnb_closed_cb(struct osmo_stream_srv *conn)
 	struct hnb_context *hnb = osmo_stream_srv_get_data(conn);
 	if (!hnb)
 		return 0; /* hnb_context is being freed, nothing do be done */
+
+	LOGHNB(hnb, DMAIN, LOGL_INFO, "connection closed\n");
 
 	/* hnb: conn became broken, let's release the associated hnb.
 	 * conn object is being freed after closed_cb(), so unassign it from hnb
