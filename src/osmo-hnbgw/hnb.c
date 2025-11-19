@@ -132,7 +132,7 @@ const char *hnb_context_name(struct hnb_context *ctx)
 		int fd = osmo_stream_srv_get_fd(ctx->conn);
 
 		/* get remote addr */
-		if (osmo_sock_get_ip_and_port(fd, hostbuf_r, sizeof(hostbuf_r), portbuf_r, sizeof(portbuf_r), false) == 0)
+		if (fd >= 0 && osmo_sock_get_ip_and_port(fd, hostbuf_r, sizeof(hostbuf_r), portbuf_r, sizeof(portbuf_r), false) == 0)
 			result = talloc_asprintf(OTC_SELECT, "%s:%s", hostbuf_r, portbuf_r);
 		else
 			result = "?";
