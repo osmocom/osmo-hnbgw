@@ -23,6 +23,7 @@
 #include <osmocom/pfcp/pfcp_cp_peer.h>
 
 #include <osmocom/hnbgw/hnbgw.h>
+#include <osmocom/hnbgw/hnbgw_pfcp.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/tdefs.h>
 #include <osmocom/hnbgw/ps_rab_fsm.h>
@@ -143,7 +144,7 @@ void ps_rab_pfcp_set_msg_ctx(struct ps_rab *rab, struct osmo_pfcp_msg *m)
 
 static struct osmo_pfcp_msg *ps_rab_new_pfcp_msg_req(struct ps_rab *rab, enum osmo_pfcp_message_type msg_type)
 {
-	struct osmo_pfcp_msg *m = osmo_pfcp_cp_peer_new_req(g_hnbgw->pfcp.cp_peer, msg_type);
+	struct osmo_pfcp_msg *m = osmo_pfcp_cp_peer_new_req(g_hnbgw->pfcp.upf->cp_peer, msg_type);
 
 	m->h.seid_present = true;
 	m->h.seid = rab->up_f_seid.seid;
@@ -320,7 +321,7 @@ static void ps_rab_fsm_wait_pfcp_est_resp_onenter(struct osmo_fsm_inst *fi, uint
 	m->h.seid = 0;
 
 	/* Make a new CP-SEID, our local reference for the PFCP session. */
-	rab->cp_seid = osmo_pfcp_cp_peer_next_seid(g_hnbgw->pfcp.cp_peer);
+	rab->cp_seid = osmo_pfcp_cp_peer_next_seid(g_hnbgw->pfcp.upf->cp_peer);
 	cp_f_seid = (struct osmo_pfcp_ie_f_seid){
 		.seid = rab->cp_seid,
 	};

@@ -43,6 +43,7 @@
 #include <osmocom/pfcp/pfcp_cp_peer.h>
 
 #include <osmocom/hnbgw/hnbgw.h>
+#include <osmocom/hnbgw/hnbgw_pfcp.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/ranap_rab_ass.h>
 #include <osmocom/hnbgw/ps_rab_ass_fsm.h>
@@ -230,7 +231,7 @@ int hnbgw_gtpmap_rx_rab_ass_req(struct hnbgw_context_map *map, struct msgb *rana
 	rab_ass->ranap_rab_ass_req_message = message;
 	/* Now rab_ass owns message and will clean it up */
 
-	if (!osmo_pfcp_cp_peer_is_associated(g_hnbgw->pfcp.cp_peer)) {
+	if (!osmo_pfcp_cp_peer_is_associated(g_hnbgw->pfcp.upf->cp_peer)) {
 		LOG_MAP(map, DLPFCP, LOGL_ERROR, "PFCP is not associated, cannot set up GTP mapping\n");
 		goto no_rab;
 	}
@@ -432,7 +433,7 @@ int hnbgw_gtpmap_rx_rab_ass_resp(struct hnbgw_context_map *map, struct msgb *ran
 	rab_ass->ranap_rab_ass_resp_msgb = ranap_msg;
 	/* Now rab_ass owns message and will clean it up */
 
-	if (!osmo_pfcp_cp_peer_is_associated(g_hnbgw->pfcp.cp_peer)) {
+	if (!osmo_pfcp_cp_peer_is_associated(g_hnbgw->pfcp.upf->cp_peer)) {
 		LOG_PS_RAB_ASS(rab_ass, LOGL_ERROR, "PFCP is not associated, cannot set up GTP mapping\n");
 		goto no_rab;
 	}

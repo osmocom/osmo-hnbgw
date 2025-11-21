@@ -44,6 +44,7 @@
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/hnbgw_rua.h>
 #include <osmocom/hnbgw/hnbgw_cn.h>
+#include <osmocom/hnbgw/hnbgw_pfcp.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/mgw_fsm.h>
 #include <osmocom/hnbgw/ps_rab_ass_fsm.h>
@@ -655,7 +656,7 @@ int hnbgw_ranap_rx_data_dl(struct hnbgw_context_map *map, struct msgb *ranap_msg
 				if (hnb_gw_is_gtp_mapping_enabled()) {
 					LOG_MAP(map, DCN, LOGL_DEBUG,
 						"RAB Assignment: setting up GTP tunnel mapping via UPF %s\n",
-						osmo_sockaddr_to_str_c(OTC_SELECT, osmo_pfcp_cp_peer_get_remote_addr(g_hnbgw->pfcp.cp_peer)));
+						osmo_sockaddr_to_str_c(OTC_SELECT, osmo_pfcp_cp_peer_get_remote_addr(g_hnbgw->pfcp.upf->cp_peer)));
 					return hnbgw_gtpmap_rx_rab_ass_req(map, ranap_msg, message);
 				}
 				/* If no UPF is configured, directly forward the message as-is (no GTP mapping). */

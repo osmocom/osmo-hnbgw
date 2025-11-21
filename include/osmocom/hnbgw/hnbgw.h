@@ -147,9 +147,7 @@ struct hnbgw {
 
 	struct {
 		struct osmo_pfcp_endpoint *ep;
-		struct osmo_pfcp_cp_peer *cp_peer;
-		/* Running counters for the PFCP conn */
-		struct osmo_stat_item_group *statg;
+		struct hnbgw_upf *upf;
 	} pfcp;
 
 	struct osmo_timer_list hnb_store_rab_durations_timer;
