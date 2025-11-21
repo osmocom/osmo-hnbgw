@@ -48,7 +48,9 @@
 #include <osmocom/hnbgw/hnb.h>
 #include <osmocom/hnbgw/hnbgw.h>
 #include <osmocom/hnbgw/hnbgw_cn.h>
+#if ENABLE_PFCP
 #include <osmocom/hnbgw/hnbgw_pfcp.h>
+#endif
 
 static struct {
 	int daemonize;
