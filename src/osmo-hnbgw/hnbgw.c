@@ -19,6 +19,8 @@
  *
  */
 
+#include "config.h"
+
 #include <inttypes.h>
 
 #include <netinet/in.h>
@@ -35,7 +37,6 @@
 
 #include <osmocom/netif/stream.h>
 
-#include "config.h"
 #if ENABLE_PFCP
 #include <osmocom/pfcp/pfcp_proto.h>
 #endif

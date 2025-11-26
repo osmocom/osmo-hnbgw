@@ -15,15 +15,19 @@
  * GNU Affero General Public License for more details.
  */
 
+#include "config.h"
+
 #include <errno.h>
 
 #include <osmocom/core/tdef.h>
 
+#if ENABLE_PFCP
 #include <osmocom/pfcp/pfcp_endpoint.h>
 #include <osmocom/pfcp/pfcp_cp_peer.h>
+#include <osmocom/hnbgw/hnbgw_pfcp.h>
+#endif
 
 #include <osmocom/hnbgw/hnbgw.h>
-#include <osmocom/hnbgw/hnbgw_pfcp.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/tdefs.h>
 #include <osmocom/hnbgw/ps_rab_fsm.h>
@@ -112,6 +116,7 @@ static struct ps_rab *ps_rab_alloc(struct hnbgw_context_map *map, uint8_t rab_id
 	return rab;
 }
 
+#if ENABLE_PFCP
 /* Iterate all ps_rab instances of all context maps and return the one matching the given SEID.
  * If is_cp_seid == true, match seid with rab->cp_seid (e.g. for received PFCP messages).
  * Otherwise match seid with rab->up_f_seid.seid (e.g. for sent PFCP messages). */
@@ -151,6 +156,7 @@ static struct osmo_pfcp_msg *ps_rab_new_pfcp_msg_req(struct ps_rab *rab, enum os
 	ps_rab_pfcp_set_msg_ctx(rab, m);
 	return m;
 }
+#endif /* ENABLE_PFCP */
 
 struct ps_rab *ps_rab_get(struct hnbgw_context_map *map, uint8_t rab_id)
 {

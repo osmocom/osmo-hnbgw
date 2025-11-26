@@ -45,7 +45,7 @@ static const struct osmo_stat_item_group_desc hnbgw_upf_statg_desc = {
 static void pfcp_set_msg_ctx(struct osmo_pfcp_endpoint *ep, struct osmo_pfcp_msg *m, struct osmo_pfcp_msg *req)
 {
 	if (!m->ctx.peer_fi)
-		osmo_pfcp_cp_peer_set_msg_ctx(g_hnbgw->pfcp.upf->cp_peer, m);
+		osmo_pfcp_cp_peer_set_msg_ctx(g_hnbgw->pfcp.cp_peer, m);
 
 	/* If this is a response to an earlier request, just take the msg context from the request message.
 	 * In osmo-hnbgw, a session_fi always points at a ps_rab FSM. */
@@ -79,56 +79,8 @@ static void pfcp_rx_msg(struct osmo_pfcp_endpoint *ep, struct osmo_pfcp_msg *m, 
 
 static void pfcp_cp_peer_assoc_cb(struct osmo_pfcp_cp_peer *cp_peer, bool associated)
 {
-	struct hnbgw_upf *upf = osmo_pfcp_cp_peer_get_priv(cp_peer);
-	OSMO_ASSERT(upf);
-
-	LOGUPF(upf, DLPFCP, LOGL_NOTICE, "PFCP Peer associated: %s\n", associated ? "true" : "false");
+	LOGP(DLPFCP, LOGL_NOTICE, "PFCP Peer associated: %s\n", associated ? "true" : "false");
 	HNBGW_UPF_STAT_SET(HNBGW_UPF_STAT_ASSOCIATED, associated ? 1 : 0);
-}
-
-struct hnbgw_upf *hnbgw_upf_alloc(struct osmo_pfcp_endpoint *ep, const struct osmo_sockaddr *upf_addr)
-{
-	struct hnbgw_upf *upf = talloc_zero(g_hnbgw, struct hnbgw_upf);
-	OSMO_ASSERT(upf);
-
-	upf->statg = osmo_stat_item_group_alloc(g_hnbgw, &hnbgw_upf_statg_desc, 0);
-	if (!upf->statg) {
-		LOGP(DLPFCP, LOGL_ERROR, "Failed creating UPF stats item group\n");
-		goto free_ret;
-	}
-
-	upf->cp_peer = osmo_pfcp_cp_peer_alloc(g_hnbgw, ep, upf_addr);
-	if (!upf->cp_peer) {
-		LOGP(DLPFCP, LOGL_ERROR, "Cannot allocate PFCP CP Peer FSM\n");
-		goto free_ret;
-	}
-	osmo_pfcp_cp_peer_set_priv(upf->cp_peer, upf);
-
-	if (osmo_pfcp_cp_peer_set_associated_cb(upf->cp_peer, pfcp_cp_peer_assoc_cb)) {
-		LOGUPF(upf, DLPFCP, LOGL_ERROR, "Cannot Set PFCP CP Peer associated callback\n");
-		goto free_ret;
-	}
-
-	if (osmo_pfcp_cp_peer_associate(upf->cp_peer)) {
-		LOGUPF(upf, DLPFCP, LOGL_ERROR, "Cannot start PFCP CP Peer FSM\n");
-		goto free_ret;
-	}
-
-	return upf;
-free_ret:
-	osmo_pfcp_cp_peer_free(upf->cp_peer);
-	osmo_stat_item_group_free(upf->statg);
-	talloc_free(upf);
-	return NULL;
-}
-
-void hnbgw_upf_free(struct hnbgw_upf *upf)
-{
-	if (!upf)
-		return;
-
-	osmo_pfcp_cp_peer_free(upf->cp_peer);
-	osmo_stat_item_group_free(upf->statg);
 }
 
 int hnbgw_pfcp_init(void)
@@ -147,6 +99,12 @@ int hnbgw_pfcp_init(void)
 
 	if (!g_hnbgw->config.pfcp.local_addr) {
 		LOGP(DLPFCP, LOGL_ERROR, "Configuration error: missing local PFCP address, required for Node Id\n");
+		return -1;
+	}
+
+	g_hnbgw->pfcp.statg = osmo_stat_item_group_alloc(g_hnbgw, &hnbgw_upf_statg_desc, 0);
+	if (!g_hnbgw->pfcp.statg) {
+		LOGP(DLPFCP, LOGL_ERROR, "Failed creating UPF stats item group\n");
 		return -1;
 	}
 
@@ -174,6 +132,12 @@ int hnbgw_pfcp_init(void)
 		return -1;
 	}
 
+	g_hnbgw->pfcp.ep = ep = osmo_pfcp_endpoint_create(g_hnbgw, &cfg);
+	if (!ep) {
+		LOGP(DLPFCP, LOGL_ERROR, "Failed to allocate PFCP endpoint\n");
+		return -1;
+	}
+
 	/* Set up remote PFCP address to reach UPF at. First parse the string into upf_addr_str. */
 	if (osmo_sockaddr_str_from_str(&upf_addr_str, g_hnbgw->config.pfcp.remote_addr, g_hnbgw->config.pfcp.remote_port)) {
 		LOGP(DLPFCP, LOGL_ERROR, "Error in PFCP remote IP: %s\n",
@@ -187,12 +151,6 @@ int hnbgw_pfcp_init(void)
 		return -1;
 	}
 
-	g_hnbgw->pfcp.ep = ep = osmo_pfcp_endpoint_create(g_hnbgw, &cfg);
-	if (!ep) {
-		LOGP(DLPFCP, LOGL_ERROR, "Failed to allocate PFCP endpoint\n");
-		return -1;
-	}
-
 	/* Start the socket */
 	if (osmo_pfcp_endpoint_bind(ep)) {
 		LOGP(DLPFCP, LOGL_ERROR, "Cannot bind PFCP endpoint\n");
@@ -200,9 +158,18 @@ int hnbgw_pfcp_init(void)
 	}
 
 	/* Associate with UPF */
-	g_hnbgw->pfcp.upf = hnbgw_upf_alloc(ep, &upf_addr);
-	if (!g_hnbgw->pfcp.upf) {
-		LOGP(DLPFCP, LOGL_ERROR, "Failed creating UPF\n");
+	g_hnbgw->pfcp.cp_peer = osmo_pfcp_cp_peer_alloc(g_hnbgw, ep, &upf_addr);
+	if (!g_hnbgw->pfcp.cp_peer) {
+		LOGP(DLPFCP, LOGL_ERROR, "Cannot allocate PFCP CP Peer FSM\n");
+		return -1;
+	}
+	if (osmo_pfcp_cp_peer_set_associated_cb(g_hnbgw->pfcp.cp_peer, pfcp_cp_peer_assoc_cb)) {
+		LOGP(DLPFCP, LOGL_ERROR, "Cannot Set PFCP CP Peer associated callback\n");
+		return -1;
+	}
+
+	if (osmo_pfcp_cp_peer_associate(g_hnbgw->pfcp.cp_peer)) {
+		LOGP(DLPFCP, LOGL_ERROR, "Cannot start PFCP CP Peer FSM\n");
 		return -1;
 	}
 
@@ -213,6 +180,5 @@ void hnbgw_pfcp_release(void)
 {
 	if (!hnb_gw_is_gtp_mapping_enabled())
 		return;
-	hnbgw_upf_free(g_hnbgw->pfcp.upf);
-	g_hnbgw->pfcp.upf = NULL;
+	osmo_stat_item_group_free(g_hnbgw->pfcp.statg);
 }

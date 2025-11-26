@@ -1,9 +1,13 @@
 #pragma once
 
+#include "config.h"
+
 #include <osmocom/core/linuxlist.h>
 #include <osmocom/core/socket.h>
 #include <osmocom/core/use_count.h>
+#if ENABLE_PFCP
 #include <osmocom/pfcp/pfcp_msg.h>
+#endif /* ENABLE_PFCP */
 
 /* A GTP tunnel has two endpoints, each endpoint has an IP address and a Tunnel Endpoint ID. So two struct addr_teid
  * identify one GTP tunnel. For GTP mapping between HNB and CN, we have two tunnels, see also struct half_gtp_map. The
@@ -64,10 +68,12 @@ struct ps_rab {
 	/* Backpointer to the ps_rab_ass_fsm for the RAB Assignment Response from Access that confirmed this RAB. */
 	struct osmo_fsm_inst *resp_fi;
 
+#if ENABLE_PFCP
 	/* PFCP session controlling the GTP mapping for this RAB */
 	uint64_t cp_seid;
 	struct osmo_pfcp_ie_f_seid up_f_seid;
 	bool release_requested;
+#endif
 
 	/* 'local' and 'remote' refer to the GTP information from the UPF's point of view:
 	 * HNB                             UPF                 CN
@@ -95,5 +101,7 @@ struct ps_rab_rx_args {
 int ps_rab_rx_access_remote_f_teid(struct hnbgw_context_map *map, uint8_t rab_id,
 				   const struct ps_rab_rx_args *args);
 
+#if ENABLE_PFCP
 struct ps_rab *ps_rab_find_by_seid(uint64_t seid, bool is_cp_seid);
 void ps_rab_pfcp_set_msg_ctx(struct ps_rab *rab, struct osmo_pfcp_msg *m);
+#endif

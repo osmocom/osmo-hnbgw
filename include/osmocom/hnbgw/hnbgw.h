@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <osmocom/core/select.h>
 #include <osmocom/core/linuxlist.h>
 #include <osmocom/core/hashtable.h>
@@ -100,6 +102,8 @@ struct hnbgw {
 			bool hnbap_allow_tmsi;
 			unsigned int tx_queue_max_length;
 		} iuh;
+
+#if ENABLE_PFCP
 		struct {
 			char *local_addr;
 			uint16_t local_port;
@@ -110,6 +114,8 @@ struct hnbgw {
 				char *core;
 			} netinst;
 		} pfcp;
+#endif /* ENABLE_PFCP */
+
 		struct {
 			bool enable;
 			/* The table name as used in nftables for the ruleset owned by this process. It is "osmo-hnbgw"
@@ -145,10 +151,12 @@ struct hnbgw {
 	 * pool is configured. */
 	struct mgcp_client_pool *mgw_pool;
 
+#if ENABLE_PFCP
 	struct {
 		struct osmo_pfcp_endpoint *ep;
 		struct hnbgw_upf *upf;
 	} pfcp;
+#endif /* ENABLE_PFCP */
 
 	struct osmo_timer_list hnb_store_rab_durations_timer;
 
@@ -177,7 +185,11 @@ int hnbgw_vty_go_parent(struct vty *vty);
  * the two tunnels, mapping the TEIDs and GTP addresses. */
 static inline bool hnb_gw_is_gtp_mapping_enabled(void)
 {
+#if ENABLE_PFCP
 	return g_hnbgw->config.pfcp.remote_addr != NULL;
+#else
+	return false;
+#endif
 }
 
 struct msgb *hnbgw_ranap_msg_alloc(const char *name);

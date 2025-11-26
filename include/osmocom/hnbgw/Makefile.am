@@ -6,7 +6,6 @@ noinst_HEADERS = \
 	hnbgw.h \
 	hnbgw_cn.h \
 	hnbgw_hnbap.h \
-	hnbgw_pfcp.h \
 	hnbgw_ranap.h \
 	hnbgw_rua.h \
 	hnbgw_sccp.h \
@@ -20,3 +19,9 @@ noinst_HEADERS = \
 	umts_cell_id.h \
 	vty.h \
 	$(NULL)
+
+if ENABLE_PFCP
+noinst_HEADERS +=
+	hnbgw_pfcp.h \
+	$(NULL)
+endif

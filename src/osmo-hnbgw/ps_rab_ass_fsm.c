@@ -15,6 +15,8 @@
  * GNU Affero General Public License for more details.
  */
 
+#include "config.h"
+
 #include <errno.h>
 
 #include <asn1c/asn1helpers.h>
@@ -38,19 +40,20 @@
 #include <osmocom/ranap/ranap_ies_defs.h>
 #include <osmocom/ranap/iu_helpers.h>
 
+#if ENABLE_PFCP
 #include <osmocom/pfcp/pfcp_msg.h>
 #include <osmocom/pfcp/pfcp_endpoint.h>
 #include <osmocom/pfcp/pfcp_cp_peer.h>
+#include <osmocom/hnbgw/hnbgw_pfcp.h>
+#endif /* ENABLE_PFCP */
+
 
 #include <osmocom/hnbgw/hnbgw.h>
-#include <osmocom/hnbgw/hnbgw_pfcp.h>
 #include <osmocom/hnbgw/context_map.h>
 #include <osmocom/hnbgw/ranap_rab_ass.h>
 #include <osmocom/hnbgw/ps_rab_ass_fsm.h>
 #include <osmocom/hnbgw/ps_rab_fsm.h>
-
 #include <osmocom/hnbgw/hnbgw_rua.h>
-
 #include <osmocom/hnbgw/tdefs.h>
 
 #define PORT_GTP1_U 2152
