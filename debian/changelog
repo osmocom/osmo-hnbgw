@@ -1,3 +1,81 @@
+osmo-hnbgw (1.8.0) unstable; urgency=medium
+
+  [ Pau Espin Pedrol ]
+  * Log RAB_STATE name instead of value
+  * cosmetic: Add spec references for RUA, RANAP, HNBAP
+  * hnbap: Make hnbgw_tx_ue_register_acc_tmsi() signature similar to hnbgw_tx_ue_register_acc()
+  * Rename function s/hnbgw_decode_ranap_co/hnbgw_decode_ranap_cn_co/g
+  * Add function helper hnbgw_decode_ranap_ran_co()
+  * Move paging logic to its own file
+  * Move DL CL RANAP processing logic to its proper layer file
+  * Move DL CO RANAP processing to its proper layer file
+  * Move UL CO RANAP processing to its proper layer file
+  * Log paging response not matching any request by MI
+  * Fix RAC size in struct umts_cell_id
+  * Drop unused struct ue_context
+  * Set 'hnbap-allow-tmsi 1' by default
+  * Improve paging to support Paging Area ID
+  * rua: Change log err level ERROR->NOTICE regarding received unexpected RUA context
+  * Change log level new conn created NOTICE->INFO
+  * change log level patching GTP info NOTICE->INFO
+  * ranap: No need to set destructor function twice
+  * Change level ERROR->NOTICE trying to transmit msg if RUA disconnected
+  * mgw_fsm: use LOG_MAP() to log error
+  * cosmetic: Improve ranap_msg passing ownership documentation
+  * rua: Handle event TX_DIRECT_TRANSFER in disconnected state discarding msg
+  * cosmetic: context_map.h: Document parameters of all map_sccp_fsm_event values
+  * Fix MAP_SCCP_EV_CN_LINK_LOST never dispatched
+  * context_map_sccp: Queue RUA->SCCP RANAP msgs while in SCCP WAIT_CC state
+  * sccp: Drop error logging for expected scenario
+  * Makefile.am: format to one file per line
+  * Split struct hnbgw_sccp_user allocation & setup to its own function
+  * Move SCCP prim handling to its own hnbgw_sccp.{c,h} file
+  * sccp: Use proper wording s/LOG_HSI/LOG_HSU
+  * Fix lifecycle of struct hnbgw_sccp_user
+  * sccp: Introduce DL-related cnlink rate counters
+  * sccp: Introduce rate counter CNLINK_CTR_SCCP_RLSD_CN_ORIGIN
+  * sccp: Unify path submitting N-*.req
+  * sccp: Introduce UL-related cnlink rate counters
+  * Move hnbgw_cnlink to cnlink.h and hnbgw_cnpool to hnbgw_cn.h
+  * Split hnb_context,hnb_persistent,umts_cell_id to their own files
+  * Split cnlink FSM code to its own file
+  * cnlink: Fix several funcs missing prefix
+  * Convert struct hnbgw_cnpool to be a talloc context
+  * Get rid of cnpool->cnlink_ctrg_desc
+  * Move cnlink funcs from hnbgw_cn.c to cnlink.c
+  * cnlink: Cleanup talloc tree
+  * Introduce func helper hnbgw_sccp_user_get_sccp_instance()
+  * cnlink: Introduce stats group with connected state
+  * vty: Allow setting cnlink msc/sgsn name
+  * context_map: Rename ps_rab(_ass) to denote it is a list
+  * Clean up calls to ps_rab_ass_fsm_state_chg()
+  * ps_rab_ass_fsm: Fix potential use-after-free if Tx RAB-ASS-RESP over SCCP fails
+  * Support tearing down PFCP upon PS-RAB-ASS-REQ (REL)
+  * kpi: Increment counters using enum field explicitly
+  * kpi: Fix wrong counters incremented in RAB Release Failed List
+  * kpi: count RAB actions received in unexpected state
+  * sccp: Avoid setting default local HNBGW PC as default remote PC
+  * Make sure MSC/SGSN PC are added to sccp-addressbook
+  * sigtran: Log N-PCSTATE.ind PC with configured format
+  * sccp: Handle N-NOTICE.ind (Routing Failure of SCCP CL messages)
+  * Use proper SCCP release cause enum value instead of hardcoded value
+  * tests/cnpool.vty: Skip non-related fields under cs7 instance
+  * iuh: Use osmo_stream_srv_create2 API
+  * Remove unused field iuh_cs_mux_port
+  * vty: Drop SS7 route info in 'show cnlink'
+  * hnb: Avoid calling osmo_sock_get_ip_and_port() with negative fd
+  * iuh: Allow setting tx-queue-max-length for all HNBs
+  * Move iuh fields in iuh substruct
+  * hnb: Allow setting Iuh tx-queue-max-length per HNB
+  * vty: Improve 'show hnb' param input
+  * vty: Log Iuh SCTP assoc & rem-addr socket information
+  * Split UPF into its own object
+
+  [ Neels Janosch Hofmeyr ]
+  * fix recently introduced indenting blunder
+
+ -- Pau Espin Pedrol <pespin@sysmocom.de>  Wed, 03 Dec 2025 19:43:56 +0100
+
 osmo-hnbgw (1.7.0) unstable; urgency=medium
 
   [ Neels Janosch Hofmeyr ]
