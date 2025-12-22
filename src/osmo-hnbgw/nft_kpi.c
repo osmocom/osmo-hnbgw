@@ -324,6 +324,23 @@ static void do_nft_ctx_init(void)
 	LOGP(DNFT, LOGL_DEBUG, "thread %s: successfully allocated nft ctx\n", g_nft_thread->label);
 }
 
+static void _nft_add_chain(struct osmo_strbuf *sb,
+			   const char *chain_name,
+			   const char *hook)
+{
+	/* add a chain */
+	OSMO_STRBUF_PRINTF(*sb,
+			   "add chain inet %s %s {"
+			   " type filter hook %s priority 0; policy accept;"
+			   "};\n",
+			   g_nft_thread->table_name, chain_name, hook);
+	/* accept (ignore) all traffic other than GTP-U (udp/2152) */
+	OSMO_STRBUF_PRINTF(*sb, "add rule inet %s %s ip protocol != udp accept;\n",
+			   g_nft_thread->table_name, chain_name);
+	OSMO_STRBUF_PRINTF(*sb, "add rule inet %s %s udp dport != 2152 accept;\n",
+			   g_nft_thread->table_name, chain_name);
+}
+
 /* worker thread */
 static int do_init_table(void)
 {
@@ -332,20 +349,8 @@ static int do_init_table(void)
 
 	/* add global nftables structures */
 	OSMO_STRBUF_PRINTF(sb, "add table inet %s { flags owner; };\n", g_nft_thread->table_name);
-	OSMO_STRBUF_PRINTF(sb,
-			   "add chain inet %s gtpu-ul {"
-			   " type filter hook prerouting priority 0; policy accept;"
-			   " ip protocol != udp accept;"
-			   " udp dport != 2152 accept;"
-			   "};\n",
-			   g_nft_thread->table_name);
-	OSMO_STRBUF_PRINTF(sb,
-			   "add chain inet %s gtpu-dl {"
-			   " type filter hook postrouting priority 0; policy accept;"
-			   " ip protocol != udp accept;"
-			   " udp dport != 2152 accept;"
-			   "};\n",
-			   g_nft_thread->table_name);
+	_nft_add_chain(&sb, "gtpu-ul", "prerouting");
+	_nft_add_chain(&sb, "gtpu-dl", "postrouting");
 	OSMO_ASSERT(sb.chars_needed < sizeof(cmd));
 
 	return nft_run_now(cmd, NULL, NULL);
