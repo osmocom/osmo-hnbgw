@@ -51,22 +51,6 @@
  * context). This simplification was made because usually a voice call will require only one RAB at a time. An exception
  * may be corner cases like video calls, which we do not support at the moment. */
 
-/* Send Iu Release Request, this is done in erroneous cases from which we cannot recover */
-static void tx_release_req(struct hnbgw_context_map *map)
-{
-	struct msgb *msg;
-	static const struct RANAP_Cause cause = {
-		.present = RANAP_Cause_PR_transmissionNetwork,
-		.choice.transmissionNetwork =
-		    RANAP_CauseTransmissionNetwork_iu_transport_connection_failed_to_establish,
-	};
-
-	msg = ranap_new_msg_iu_rel_req(&cause);
-	msg->l2h = msg->data;
-	talloc_steal(OTC_SELECT, msg);
-	map_sccp_dispatch(map, MAP_SCCP_EV_TX_DATA_REQUEST, msg);
-}
-
 #define S(x)	(1 << (x))
 
 extern int asn1_xer_print;
@@ -571,8 +555,11 @@ static void mgw_fsm_release_onenter(struct osmo_fsm_inst *fi, uint32_t prev_stat
 static void mgw_fsm_failure_onenter(struct osmo_fsm_inst *fi, uint32_t prev_state)
 {
 	struct mgw_fsm_priv *mgw_fsm_priv = fi->priv;
-	tx_release_req(mgw_fsm_priv->map);
+	struct hnbgw_context_map *map = mgw_fsm_priv->map;
+	/* terminate map->mgw_fi before communicating the loss,
+	 * to avoid it trying to access while terminating: */
 	osmo_fsm_inst_term(fi, OSMO_FSM_TERM_ERROR, NULL);
+	context_map_mgcp_link_lost(map);
 }
 
 static void mgw_fsm_allstate_action(struct osmo_fsm_inst *fi, uint32_t event, void *data)
@@ -849,7 +836,7 @@ int handle_cs_rab_ass_req(struct hnbgw_context_map *map, struct msgb *ranap_msg,
 		LOG_MAP(map, DMGW, LOGL_ERROR,
 			"%s() RAB-AssignmentRequest with more than one RAB assignment -- abort!\n",
 			__func__);
-		tx_release_req(map);
+		context_map_mgcp_link_lost(map);
 		return -1;
 	}
 
@@ -891,7 +878,7 @@ int mgw_fsm_handle_cs_rab_ass_resp(struct hnbgw_context_map *map, struct msgb *r
 			__func__);
 
 		/* Send a release request, to make sure that the MSC is aware of the problem. */
-		tx_release_req(map);
+		context_map_mgcp_link_lost(map);
 		return -1;
 	}
 

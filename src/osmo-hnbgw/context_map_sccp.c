@@ -50,6 +50,7 @@ static const struct value_string map_sccp_fsm_event_names[] = {
 	OSMO_VALUE_STRING(MAP_SCCP_EV_RX_RELEASED),
 	OSMO_VALUE_STRING(MAP_SCCP_EV_USER_ABORT),
 	OSMO_VALUE_STRING(MAP_SCCP_EV_CN_LINK_LOST),
+	OSMO_VALUE_STRING(MAP_SCCP_EV_MGCP_LINK_LOST),
 	{}
 };
 
@@ -215,6 +216,7 @@ static void map_sccp_init_action(struct osmo_fsm_inst *fi, uint32_t event, void 
 	case MAP_SCCP_EV_RAN_LINK_LOST:
 	case MAP_SCCP_EV_USER_ABORT:
 	case MAP_SCCP_EV_CN_LINK_LOST:
+	case MAP_SCCP_EV_MGCP_LINK_LOST:
 		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
 		return;
 
@@ -260,6 +262,7 @@ static void map_sccp_wait_cc_action(struct osmo_fsm_inst *fi, uint32_t event, vo
 	case MAP_SCCP_EV_RAN_LINK_LOST:
 	case MAP_SCCP_EV_USER_ABORT:
 	case MAP_SCCP_EV_CN_LINK_LOST:
+	case MAP_SCCP_EV_MGCP_LINK_LOST:
 		map->please_disconnect = true;
 		return;
 
@@ -347,6 +350,8 @@ static void map_sccp_connected_action(struct osmo_fsm_inst *fi, uint32_t event, 
 		/* The user is asking for disconnection, so there is no Iu Release in progress. Disconnect now. */
 	case MAP_SCCP_EV_CN_LINK_LOST:
 		/* The CN peer has sent a RANAP RESET, so the old link that this map ran on is lost */
+	case MAP_SCCP_EV_MGCP_LINK_LOST:
+		/* The MGW failed somehow, we cannot continue */
 		tx_sccp_rlsd(fi);
 		map_sccp_fsm_state_chg(MAP_SCCP_ST_DISCONNECTED);
 		return;
@@ -418,6 +423,7 @@ static void map_sccp_wait_rlsd_action(struct osmo_fsm_inst *fi, uint32_t event, 
 	case MAP_SCCP_EV_RAN_LINK_LOST:
 	case MAP_SCCP_EV_USER_ABORT:
 	case MAP_SCCP_EV_CN_LINK_LOST:
+	case MAP_SCCP_EV_MGCP_LINK_LOST:
 	case MAP_SCCP_EV_RAN_DISC:
 		/* Stop waiting for RLSD, send RLSD now. */
 		tx_sccp_rlsd(fi);
@@ -498,6 +504,7 @@ static const struct osmo_fsm_state map_sccp_fsm_states[] = {
 			| S(MAP_SCCP_EV_RX_RELEASED)
 			| S(MAP_SCCP_EV_USER_ABORT)
 			| S(MAP_SCCP_EV_CN_LINK_LOST)
+			| S(MAP_SCCP_EV_MGCP_LINK_LOST)
 			,
 		.out_state_mask = 0
 			| S(MAP_SCCP_ST_INIT)
@@ -516,6 +523,7 @@ static const struct osmo_fsm_state map_sccp_fsm_states[] = {
 			| S(MAP_SCCP_EV_RX_RELEASED)
 			| S(MAP_SCCP_EV_USER_ABORT)
 			| S(MAP_SCCP_EV_CN_LINK_LOST)
+			| S(MAP_SCCP_EV_MGCP_LINK_LOST)
 			,
 		.out_state_mask = 0
 			| S(MAP_SCCP_ST_CONNECTED)
@@ -534,6 +542,7 @@ static const struct osmo_fsm_state map_sccp_fsm_states[] = {
 			| S(MAP_SCCP_EV_RX_CONNECTION_CONFIRM)
 			| S(MAP_SCCP_EV_USER_ABORT)
 			| S(MAP_SCCP_EV_CN_LINK_LOST)
+			| S(MAP_SCCP_EV_MGCP_LINK_LOST)
 			,
 		.out_state_mask = 0
 			| S(MAP_SCCP_ST_WAIT_RLSD)
@@ -553,6 +562,7 @@ static const struct osmo_fsm_state map_sccp_fsm_states[] = {
 			| S(MAP_SCCP_EV_RX_CONNECTION_CONFIRM)
 			| S(MAP_SCCP_EV_USER_ABORT)
 			| S(MAP_SCCP_EV_CN_LINK_LOST)
+			| S(MAP_SCCP_EV_MGCP_LINK_LOST)
 			,
 		.out_state_mask = 0
 			| S(MAP_SCCP_ST_DISCONNECTED)
@@ -568,6 +578,7 @@ static const struct osmo_fsm_state map_sccp_fsm_states[] = {
 			| S(MAP_SCCP_EV_RAN_LINK_LOST)
 			| S(MAP_SCCP_EV_USER_ABORT)
 			| S(MAP_SCCP_EV_CN_LINK_LOST)
+			| S(MAP_SCCP_EV_MGCP_LINK_LOST)
 			,
 		.onenter = map_sccp_disconnected_onenter,
 		.action = map_sccp_disconnected_action,

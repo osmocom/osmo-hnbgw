@@ -91,6 +91,9 @@ enum map_sccp_fsm_event {
 	 * context map.
 	 * Parameter: no parameter, NULL. */
 	MAP_SCCP_EV_CN_LINK_LOST,
+	/* The MGCP link can no longer work, for example it received an unexpected answer from the MGW.
+	 * Parameter: no parameter, NULL. */
+	MAP_SCCP_EV_MGCP_LINK_LOST,
 };
 
 /* For context_map_get_state(), to combine the RUA and SCCP states, for VTY reporting only. */
@@ -243,6 +246,7 @@ int _map_sccp_dispatch(struct hnbgw_context_map *map, uint32_t event, struct msg
 bool map_rua_is_active(struct hnbgw_context_map *map);
 bool map_sccp_is_active(struct hnbgw_context_map *map);
 void context_map_cnlink_lost(struct hnbgw_context_map *map);
+void context_map_mgcp_link_lost(struct hnbgw_context_map *map);
 void context_map_free(struct hnbgw_context_map *map);
 
 unsigned int msg_has_l2_data(const struct msgb *msg);
