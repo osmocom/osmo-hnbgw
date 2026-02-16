@@ -77,6 +77,19 @@ static void pfcp_rx_msg(struct osmo_pfcp_endpoint *ep, struct osmo_pfcp_msg *m, 
 	}
 }
 
+static void tear_down_all_ps_context_map(void)
+{
+	struct hnbgw_cnlink *cnlink;
+
+	LOGP(DLPFCP, LOGL_INFO, "Tearing down all PS context maps\n");
+
+	llist_for_each_entry(cnlink, &g_hnbgw->sccp.cnpool_iups->cnlinks, entry) {
+		struct hnbgw_context_map *map, *map2;
+		llist_for_each_entry_safe(map, map2, &cnlink->map_list, hnbgw_cnlink_entry)
+			context_map_pfcp_link_lost(map);
+	}
+}
+
 static void pfcp_cp_peer_assoc_cb(struct osmo_pfcp_cp_peer *cp_peer, bool associated)
 {
 	struct hnbgw_upf *upf = osmo_pfcp_cp_peer_get_priv(cp_peer);
@@ -84,6 +97,11 @@ static void pfcp_cp_peer_assoc_cb(struct osmo_pfcp_cp_peer *cp_peer, bool associ
 
 	LOGUPF(upf, DLPFCP, LOGL_NOTICE, "PFCP Peer associated: %s\n", associated ? "true" : "false");
 	HNBGW_UPF_STAT_SET(HNBGW_UPF_STAT_ASSOCIATED, associated ? 1 : 0);
+	if (associated)
+		return;
+
+	/* Tear down all related context_maps: */
+	tear_down_all_ps_context_map();
 }
 
 struct hnbgw_upf *hnbgw_upf_alloc(struct osmo_pfcp_endpoint *ep, const struct osmo_sockaddr *upf_addr)

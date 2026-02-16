@@ -195,6 +195,11 @@ void context_map_mgcp_link_lost(struct hnbgw_context_map *map)
 	map_sccp_dispatch(map, MAP_SCCP_EV_MGCP_LINK_LOST, NULL);
 }
 
+void context_map_pfcp_link_lost(struct hnbgw_context_map *map)
+{
+	map_sccp_dispatch(map, MAP_SCCP_EV_PFCP_LINK_LOST, NULL);
+}
+
 void context_map_free(struct hnbgw_context_map *map)
 {
 	/* guard against FSM termination infinitely looping back here */
