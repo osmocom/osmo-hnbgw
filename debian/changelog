@@ -1,3 +1,15 @@
+osmo-hnbgw (1.9.0) unstable; urgency=medium
+
+  [ Vadim Yanitskiy ]
+  * nft_kpi: add udp/2152 filtering rules separately
+
+  [ Pau Espin Pedrol ]
+  * Integrate mgw/mgcp failures more tightly into context_map fsm
+  * Tear down context_maps when UPF assoc goes down
+  * debian: Remove libosmo-abis dependency
+
+ -- Pau Espin Pedrol <pespin@sysmocom.de>  Thu, 20 Aug 2026 14:13:48 +0200
+
 osmo-hnbgw (1.8.0) unstable; urgency=medium
 
   [ Pau Espin Pedrol ]
