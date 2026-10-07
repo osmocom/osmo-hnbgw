@@ -32,7 +32,6 @@
 #include <osmocom/sigtran/sccp_sap.h>
 #include <osmocom/sigtran/sccp_helpers.h>
 #include <osmocom/sigtran/protocol/sua.h>
-#include <osmocom/sccp/sccp_types.h>
 
 #include <osmocom/hnbgw/hnbgw_cn.h>
 #include <osmocom/hnbgw/context_map.h>
@@ -122,18 +121,18 @@ static void handle_notice_ind(struct hnbgw_sccp_user *hsu,
 	if (!cnlink) {
 		LOGP(DCN, LOGL_DEBUG, "(calling_addr=%s) N-NOTICE.ind cause=%u='%s' importance=%u didn't match any cnlink, ignoring\n",
 		     osmo_sccp_addr_dump(&param->calling_addr),
-		     param->cause, osmo_sccp_return_cause_name(param->cause),
+		     param->cause, osmo_sccp_return_reason_name(param->cause),
 		     param->importance);
 		return;
 	}
 
 	LOG_CNLINK(cnlink, DCN, LOGL_NOTICE, "N-NOTICE.ind cause=%u='%s' importance=%u\n",
-		   param->cause, osmo_sccp_return_cause_name(param->cause),
+		   param->cause, osmo_sccp_return_reason_name(param->cause),
 		   param->importance);
 	CNLINK_CTR_INC(cnlink, CNLINK_CTR_SCCP_N_NOTICE_IND);
 	switch (param->cause) {
-	case SCCP_RETURN_CAUSE_SUBSYSTEM_CONGESTION:
-	case SCCP_RETURN_CAUSE_NETWORK_CONGESTION:
+	case OSMO_SCCP_RETURN_REASON_SUBSYSTEM_CONGESTION:
+	case OSMO_SCCP_RETURN_REASON_NETWORK_CONGESTION:
 		/* Transient failures (hopefully), keep going. */
 		return;
 	default:
