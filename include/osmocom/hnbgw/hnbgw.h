@@ -105,6 +105,7 @@ struct hnbgw {
 			uint16_t local_port;
 			char *remote_addr;
 			uint16_t remote_port;
+			char *node_id;
 			struct {
 				char *access;
 				char *core;

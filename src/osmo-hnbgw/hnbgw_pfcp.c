@@ -174,7 +174,9 @@ int hnbgw_pfcp_init(void)
 	};
 
 	/* Set up PFCP endpoint's local node id from local IP address. Parse address string into local_addr_str... */
-	if (osmo_sockaddr_str_from_str(&local_addr_str, g_hnbgw->config.pfcp.local_addr, g_hnbgw->config.pfcp.local_port)) {
+	if (osmo_sockaddr_str_from_str(&local_addr_str,
+				       g_hnbgw->config.pfcp.local_addr,
+				       g_hnbgw->config.pfcp.local_port)) {
 		LOGP(DLPFCP, LOGL_ERROR, "Error in PFCP local IP: %s\n",
 		     osmo_quote_str_c(OTC_SELECT, g_hnbgw->config.pfcp.local_addr, -1));
 		return -1;
@@ -185,15 +187,27 @@ int hnbgw_pfcp_init(void)
 		     osmo_quote_str_c(OTC_SELECT, g_hnbgw->config.pfcp.local_addr, -1));
 		return -1;
 	}
-	/* also store the local addr as local Node ID */
-	if (osmo_pfcp_ie_node_id_from_osmo_sockaddr(&cfg.local_node_id, &cfg.local_addr)) {
-		LOGP(DLPFCP, LOGL_ERROR, "Error in PFCP local IP: %s\n",
-		     osmo_quote_str_c(OTC_SELECT, g_hnbgw->config.pfcp.local_addr, -1));
-		return -1;
+
+	if (g_hnbgw->config.pfcp.node_id) {
+		/* Set up PFCP endpoint's Node ID from VTY config: */
+		if (osmo_pfcp_ie_node_id_from_str(&cfg.local_node_id, g_hnbgw->config.pfcp.node_id)) {
+			LOGP(DLPFCP, LOGL_ERROR, "Error in PFCP local Node ID %s\n",
+			     g_hnbgw->config.pfcp.node_id);
+			return -1;
+		}
+	} else {
+		/* Reuse local PFCP IP address as Node Id */
+		if (osmo_pfcp_ie_node_id_from_osmo_sockaddr(&cfg.local_node_id, &cfg.local_addr)) {
+			LOGP(DLPFCP, LOGL_ERROR, "Error in PFCP local IP: %s\n",
+			     osmo_quote_str_c(OTC_SELECT, g_hnbgw->config.pfcp.local_addr, -1));
+			return -1;
+		}
 	}
 
 	/* Set up remote PFCP address to reach UPF at. First parse the string into upf_addr_str. */
-	if (osmo_sockaddr_str_from_str(&upf_addr_str, g_hnbgw->config.pfcp.remote_addr, g_hnbgw->config.pfcp.remote_port)) {
+	if (osmo_sockaddr_str_from_str(&upf_addr_str,
+				       g_hnbgw->config.pfcp.remote_addr,
+				       g_hnbgw->config.pfcp.remote_port)) {
 		LOGP(DLPFCP, LOGL_ERROR, "Error in PFCP remote IP: %s\n",
 		     osmo_quote_str_c(OTC_SELECT, g_hnbgw->config.pfcp.remote_addr, -1));
 		return -1;

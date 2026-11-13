@@ -15,6 +15,7 @@ OsmoHNBGW(config-hnbgw-pfcp)# list
   local-addr IP_ADDR
   local-port <1-65535>
   remote-addr IP_ADDR
+  node-id (IP_ADDR|FQDN)
   netinst (access|core) NAME
 
 OsmoHNBGW(config-hnbgw-pfcp)# local-addr?
@@ -31,6 +32,9 @@ OsmoHNBGW(config-hnbgw-pfcp)# remote-addr?
   remote-addr  Remote UPF's listen IP address; where to send PFCP requests
 OsmoHNBGW(config-hnbgw-pfcp)# remote-addr ?
   IP_ADDR  IP address
+
+OsmoHNBGW(config-hnbgw-pfcp)# node-id?
+  node-id  Set the local Node ID to transmit over PFCP
 
 OsmoHNBGW(config-hnbgw-pfcp)# netinst?
   netinst  Add a Network Instance IE to all outgoing PFCP rule sets, so that the UPF may choose the correct interface to open GTP tunnels on.

@@ -1055,6 +1055,16 @@ DEFUN(cfg_pfcp_local_port, cfg_pfcp_local_port_cmd,
 	return CMD_SUCCESS;
 }
 
+DEFUN(cfg_pfcp_node_id, cfg_pfcp_node_id_cmd,
+      "node-id (IP_ADDR|FQDN)",
+      "Set the local Node ID to transmit over PFCP\n"
+      "IPv4 or IPv6 address\n"
+      "FQDN\n")
+{
+	osmo_talloc_replace_string(g_hnbgw, &g_hnbgw->config.pfcp.node_id, argv[0]);
+	return CMD_SUCCESS;
+}
+
 DEFUN(cfg_pfcp_netinst, cfg_pfcp_netinst_cmd,
       "netinst (access|core) NAME",
       "Add a Network Instance IE to all outgoing PFCP rule sets,"
@@ -1209,6 +1219,8 @@ static int config_write_hnbgw_pfcp(struct vty *vty)
 		vty_out(vty, "  local-port %u%s", g_hnbgw->config.pfcp.local_port, VTY_NEWLINE);
 	if (g_hnbgw->config.pfcp.remote_addr)
 		vty_out(vty, "  remote-addr %s%s", g_hnbgw->config.pfcp.remote_addr, VTY_NEWLINE);
+	if (g_hnbgw->config.pfcp.node_id)
+		vty_out(vty, "  node-id %s%s", g_hnbgw->config.pfcp.node_id, VTY_NEWLINE);
 	if (g_hnbgw->config.pfcp.netinst.access
 	    && *g_hnbgw->config.pfcp.netinst.access)
 		vty_out(vty, "  netinst access %s%s", g_hnbgw->config.pfcp.netinst.access, VTY_NEWLINE);
@@ -1295,6 +1307,7 @@ void hnbgw_vty_init(void)
 	install_element(PFCP_NODE, &cfg_pfcp_local_addr_cmd);
 	install_element(PFCP_NODE, &cfg_pfcp_local_port_cmd);
 	install_element(PFCP_NODE, &cfg_pfcp_remote_addr_cmd);
+	install_element(PFCP_NODE, &cfg_pfcp_node_id_cmd);
 	install_element(PFCP_NODE, &cfg_pfcp_netinst_cmd);
 #endif
 
